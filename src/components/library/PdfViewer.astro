@@ -1,0 +1,7 @@
+---
+import { ExternalLink, Maximize2 } from '@lucide/astro';
+interface Props { src: string; title: string }
+const { src, title } = Astro.props;
+---
+<details class="pdf-viewer"><summary><Maximize2 size={18}/> Abrir visor PDF</summary><div class="pdf-viewer__content"><iframe src={`${src}#view=FitH`} title={`Visor de ${title}`} loading="lazy"></iframe><a href={src} target="_blank" rel="noopener"><ExternalLink size={16}/> Abrir en pestaña nueva</a></div></details>
+<style>.pdf-viewer{margin-top:2rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);overflow:hidden}.pdf-viewer summary{display:flex;align-items:center;gap:.55rem;padding:1rem 1.25rem;color:var(--color-primary);font-weight:700;cursor:pointer}.pdf-viewer__content{padding:0 1rem 1rem}.pdf-viewer iframe{width:100%;height:min(70vh,780px);border:1px solid var(--color-border);border-radius:10px}.pdf-viewer a{display:inline-flex;align-items:center;gap:.4rem;margin-top:.75rem;color:var(--color-primary);font-size:.85rem;font-weight:700}</style>

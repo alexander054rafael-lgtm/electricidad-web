@@ -1,0 +1,19 @@
+---
+import { SlidersHorizontal } from '@lucide/astro';
+import { categories } from '../../data/books';
+---
+<div class="library-filters">
+  <div class="library-filters__chips" aria-label="Filtrar por categoría">
+    {categories.map((category, index) => <button class:list={['library-filters__chip', { 'is-active': index === 0 }]} type="button" data-category={category}>{category}</button>)}
+  </div>
+  <div class="library-filters__selects">
+    <SlidersHorizontal size={18} aria-hidden="true" />
+    <label>Nivel <select data-filter="level"><option value="">Todos</option><option>Básico</option><option>Intermedio</option><option>Avanzado</option></select></label>
+    <label>Tipo <select data-filter="type"><option value="">Todos</option><option>Libro</option><option>Manual</option><option>Guía</option><option>Catálogo</option><option>Norma</option></select></label>
+    <label>Idioma <select data-filter="language"><option value="">Todos</option><option>Español</option></select></label>
+    <label>Ordenar <select data-filter="sort"><option value="recent">Más recientes</option><option value="downloads">Más descargados</option></select></label>
+  </div>
+</div>
+<style>
+  .library-filters { display:grid; gap:1rem; margin:1.25rem 0 2.5rem; }.library-filters__chips { display:flex; gap:.6rem; overflow-x:auto; padding: .15rem 0 .55rem; scrollbar-width:thin; }.library-filters__chip { flex:0 0 auto; padding:.52rem .82rem; color:var(--color-text-secondary); font:inherit; font-size:.84rem; border:1px solid var(--color-border); border-radius:999px; background:var(--color-surface); transition:all var(--transition-fast); }.library-filters__chip:hover,.library-filters__chip.is-active { background:var(--color-primary); border-color:var(--color-primary); color:white; }.library-filters__selects { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem; color:var(--color-text-secondary); }.library-filters label { display:inline-flex; align-items:center; gap:.35rem; font-size:.8rem; font-weight:600; }.library-filters select { padding:.45rem .55rem; border:1px solid var(--color-border); border-radius:8px; background:var(--color-surface); color:var(--color-text); font:inherit; font-size:.8rem; }
+</style>

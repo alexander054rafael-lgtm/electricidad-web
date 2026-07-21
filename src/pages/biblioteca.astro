@@ -1,0 +1,12 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/landing/Header.astro';
+import Footer from '../components/landing/Footer.astro';
+import LibraryHero from '../components/library/LibraryHero.astro';
+import LibrarySearch from '../components/library/LibrarySearch.astro';
+import LibraryFilters from '../components/library/LibraryFilters.astro';
+import BookGrid from '../components/library/BookGrid.astro';
+import { books } from '../data/books';
+---
+<Layout title="Biblioteca Técnica | InduTech Academy" description="Libros, manuales y guías técnicas de electricidad industrial y automatización."><Header /><main><LibraryHero /><section class="library-page"><div class="container"><LibrarySearch /><LibraryFilters /><BookGrid books={books} /></div></section></main><Footer /></Layout>
+<style>.library-page{padding:clamp(3rem,7vw,5rem) 0 6rem;background:var(--color-gray-50)}</style>

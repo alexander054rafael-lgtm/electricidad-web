@@ -1,0 +1,8 @@
+---
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/landing/Header.astro';
+import Footer from '../../components/landing/Footer.astro';
+import BookUploadForm from '../../components/admin/BookUploadForm.astro';
+---
+<Layout title="Administrar libros | InduTech Academy" description="Panel de carga de documentos técnicos."><Header /><main class="admin-page"><div class="container"><span class="admin-page__eyebrow">Administración</span><h1>Agregar libro a la biblioteca</h1><p>Este panel es una interfaz de preparación. Antes de usarlo en producción, protege la ruta con Supabase Authentication y configura los buckets privados <code>book-covers</code> y <code>book-pdfs</code>.</p><BookUploadForm /></div></main><Footer /></Layout>
+<style>.admin-page{padding:calc(var(--header-height) + 4rem) 0 6rem;background:var(--color-gray-50)}.admin-page .container{max-width:850px}.admin-page__eyebrow{color:var(--color-primary);font-size:.8rem;font-weight:800;letter-spacing:.08em;text-transform:uppercase}.admin-page h1{margin:.6rem 0 1rem;font-size:clamp(2rem,5vw,3.4rem)}.admin-page>div>p{max-width:720px;margin-bottom:2rem;color:var(--color-text-secondary)}code{padding:.1rem .3rem;border-radius:4px;background:var(--color-gray-200)}</style>

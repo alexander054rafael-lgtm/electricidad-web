@@ -1,0 +1,21 @@
+---
+import type { Book } from '../../data/books';
+import BookCard from './BookCard.astro';
+interface Props { books: Book[] }
+const { books } = Astro.props;
+---
+<p class="library-results" aria-live="polite"><span data-results-count>{books.length}</span> documentos disponibles</p>
+<div class="book-grid" data-book-grid>{books.map(book => <BookCard book={book} />)}</div>
+<p class="library-empty" hidden data-library-empty>No encontramos documentos con esos filtros. Prueba con otra búsqueda.</p>
+<script>
+  const cards = [...document.querySelectorAll<HTMLElement>('[data-book]')];
+  const search = document.querySelector<HTMLInputElement>('[data-library-search]');
+  const count = document.querySelector<HTMLElement>('[data-results-count]');
+  const empty = document.querySelector<HTMLElement>('[data-library-empty]');
+  let category = 'Todos';
+  const apply = () => { const level = document.querySelector<HTMLSelectElement>('[data-filter="level"]')?.value ?? ''; const type = document.querySelector<HTMLSelectElement>('[data-filter="type"]')?.value ?? ''; const language = document.querySelector<HTMLSelectElement>('[data-filter="language"]')?.value ?? ''; const query = search?.value.trim().toLowerCase() ?? ''; const sort = document.querySelector<HTMLSelectElement>('[data-filter="sort"]')?.value; let visible = cards.filter(card => (category === 'Todos' || card.dataset.category === category || (category === 'Manuales Técnicos' && card.dataset.type === 'Manual')) && (!level || card.dataset.level === level) && (!type || card.dataset.type === type) && (!language || card.dataset.language === language) && (!query || card.dataset.search?.includes(query))); visible.sort((a,b) => sort === 'downloads' ? Number(b.dataset.downloads)-Number(a.dataset.downloads) : Number(b.dataset.year)-Number(a.dataset.year)).forEach(card => card.parentElement?.append(card)); cards.forEach(card => card.hidden = !visible.includes(card)); if (count) count.textContent = String(visible.length); if (empty) empty.hidden = visible.length > 0; };
+  search?.addEventListener('input', apply); document.querySelectorAll<HTMLButtonElement>('[data-category]').forEach(button => button.addEventListener('click', () => { category = button.dataset.category ?? 'Todos'; document.querySelectorAll('[data-category]').forEach(chip => chip.classList.toggle('is-active', chip === button)); apply(); })); document.querySelectorAll<HTMLSelectElement>('[data-filter]').forEach(select => select.addEventListener('change', apply));
+</script>
+<style>
+  .library-results { margin-bottom:1rem; color:var(--color-text-secondary); font-size:.9rem; }.library-results span { color:var(--color-text); font-weight:800; }.book-grid { display:grid; grid-template-columns:1fr; gap:1.25rem; }@media (min-width:680px){.book-grid{grid-template-columns:repeat(2,1fr)}}@media(min-width:1100px){.book-grid{grid-template-columns:repeat(4,1fr)}}.library-empty { padding:3rem 1rem; text-align:center; color:var(--color-text-secondary); }
+</style>
