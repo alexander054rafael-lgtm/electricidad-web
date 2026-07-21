@@ -1,0 +1,250 @@
+---
+import Container from '../ui/Container.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import Button from '../ui/Button.astro';
+import { Clock, Users, ArrowRight } from '@lucide/astro';
+
+const courses = [
+  {
+    title: 'Programación PLC Siemens S7-1200',
+    level: 'Intermedio',
+    duration: '24 horas',
+    instructor: 'Ing. Carlos Mendoza',
+    students: 1240,
+    gradient: 'linear-gradient(135deg, #14532d 0%, #16a34a 100%)',
+    tag: 'PLC',
+  },
+  {
+    title: 'Variadores de Frecuencia ABB ACS580',
+    level: 'Avanzado',
+    duration: '18 horas',
+    instructor: 'Ing. Ana Rodríguez',
+    students: 890,
+    gradient: 'linear-gradient(135deg, #1e3a2f 0%, #22c55e 100%)',
+    tag: 'VFD',
+    image: '/images/courses/variadores-de-frecuencia.svg',
+  },
+  {
+    title: 'Electricidad Industrial desde Cero',
+    level: 'Principiante',
+    duration: '32 horas',
+    instructor: 'Ing. Luis Herrera',
+    students: 2100,
+    gradient: 'linear-gradient(135deg, #0f172a 0%, #334155 100%)',
+    tag: 'Eléctrica',
+  },
+];
+---
+
+<section class="courses" id="cursos">
+  <Container>
+    <div class="reveal">
+      <SectionHeading
+        eyebrow="Formación"
+        title="Cursos destacados"
+        subtitle="Programas diseñados por expertos con metodología práctica y certificación incluida."
+      />
+    </div>
+
+    <div class="courses__grid">
+      {courses.map((course, i) => (
+        <article class:list={['courses__card', 'reveal', `reveal-delay-${i + 1}`]}>
+          <div class="courses__image" style={`background: ${course.gradient}`}>
+            <span class="courses__tag">{course.tag}</span>
+            {course.image && (
+              <img
+                class="courses__cover"
+                src={course.image}
+                alt={`Portada del curso ${course.title}`}
+                loading="lazy"
+                decoding="async"
+              />
+            )}
+            <div class="courses__image-pattern" aria-hidden="true">
+              <svg viewBox="0 0 200 120" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="160" cy="60" r="40" stroke="rgba(255,255,255,0.1)" stroke-width="1"/>
+                <rect x="20" y="30" width="80" height="60" rx="6" stroke="rgba(255,255,255,0.08)" stroke-width="1"/>
+                <path d="M60 90 L100 60 L140 80" stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+              </svg>
+            </div>
+          </div>
+
+          <div class="courses__body">
+            <div class="courses__meta">
+              <span class="courses__level">{course.level}</span>
+              <span class="courses__duration">
+                <Clock size={14} stroke-width={2} />
+                {course.duration}
+              </span>
+            </div>
+
+            <h3 class="courses__title">{course.title}</h3>
+
+            <p class="courses__instructor">{course.instructor}</p>
+
+            <div class="courses__footer">
+              <span class="courses__students">
+                <Users size={14} stroke-width={2} />
+                {course.students.toLocaleString('es')} estudiantes
+              </span>
+              <Button href="#" variant="outline" size="sm">
+                Ver Curso
+                <ArrowRight size={14} stroke-width={2.5} />
+              </Button>
+            </div>
+          </div>
+        </article>
+      ))}
+    </div>
+  </Container>
+</section>
+
+<style>
+  .courses {
+    padding-block: clamp(5rem, 10vw, 8rem);
+  }
+
+  .courses__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 2rem;
+  }
+
+  @media (min-width: 768px) {
+    .courses__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .courses__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .courses__card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    overflow: hidden;
+    transition:
+      transform var(--transition-base),
+      box-shadow var(--transition-base);
+  }
+
+  .courses__card:hover {
+    transform: translateY(-6px);
+    box-shadow: var(--shadow-xl);
+  }
+
+  .courses__image {
+    position: relative;
+    height: 180px;
+    overflow: hidden;
+  }
+
+  .courses__tag {
+    position: absolute;
+    top: 1rem;
+    left: 1rem;
+    z-index: 1;
+    padding: 0.25rem 0.75rem;
+    background: rgba(255, 255, 255, 0.2);
+    backdrop-filter: blur(8px);
+    border-radius: var(--radius-full);
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: white;
+    letter-spacing: 0.02em;
+  }
+
+  .courses__cover {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    object-position: center 38%;
+    transition: transform var(--transition-slow);
+  }
+
+  .courses__card:hover .courses__cover {
+    transform: scale(1.05);
+  }
+
+  .courses__image-pattern {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0.6;
+    transition: transform var(--transition-slow);
+  }
+
+  .courses__cover + .courses__image-pattern {
+    opacity: 0.18;
+  }
+
+  .courses__card:hover .courses__image-pattern {
+    transform: scale(1.1);
+  }
+
+  .courses__body {
+    padding: 1.5rem;
+  }
+
+  .courses__meta {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .courses__level {
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .courses__duration {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+  }
+
+  .courses__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin-bottom: 0.5rem;
+    line-height: 1.35;
+  }
+
+  .courses__instructor {
+    font-size: 0.875rem;
+    color: var(--color-text-secondary);
+    margin-bottom: 1.25rem;
+  }
+
+  .courses__footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .courses__students {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+  }
+</style>

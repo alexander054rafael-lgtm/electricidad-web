@@ -1,0 +1,166 @@
+---
+import Container from '../ui/Container.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import { Star } from '@lucide/astro';
+
+const testimonials = [
+  {
+    name: 'María González',
+    role: 'Ingeniera de Automatización',
+    company: 'Siemens Energy',
+    quote: 'Los cursos de PLC me permitieron ascender a un puesto de liderazgo en mi planta. El contenido es extremadamente práctico y actualizado.',
+    initials: 'MG',
+    color: '#16a34a',
+  },
+  {
+    name: 'Roberto Sánchez',
+    role: 'Técnico Eléctrico Senior',
+    company: 'Schneider Electric',
+    quote: 'La mejor inversión en mi formación profesional. Los proyectos hands-on son idénticos a los que enfrento en el campo todos los días.',
+    initials: 'RS',
+    color: '#0d9488',
+  },
+  {
+    name: 'Laura Fernández',
+    role: 'Supervisora de Mantenimiento',
+    company: 'ABB',
+    quote: 'InduTech Academy transformó mi carrera. Pasé de operadora a supervisora gracias a la certificación en variadores de frecuencia.',
+    initials: 'LF',
+    color: '#14532d',
+  },
+];
+---
+
+<section class="testimonials" id="nosotros">
+  <Container>
+    <div class="reveal">
+      <SectionHeading
+        eyebrow="Testimonios"
+        title="Lo que dicen nuestros estudiantes"
+        subtitle="Profesionales de las principales empresas industriales confían en nuestra formación."
+      />
+    </div>
+
+    <div class="testimonials__grid">
+      {testimonials.map((t, i) => (
+        <blockquote class:list={['testimonials__card', 'reveal', `reveal-delay-${i + 1}`]}>
+          <div class="testimonials__stars" aria-label="5 de 5 estrellas">
+            {Array.from({ length: 5 }).map(() => (
+              <Star size={16} fill="currentColor" stroke-width={0} />
+            ))}
+          </div>
+
+          <p class="testimonials__quote">"{t.quote}"</p>
+
+          <footer class="testimonials__author">
+            <div class="testimonials__avatar" style={`background: ${t.color}`}>
+              {t.initials}
+            </div>
+            <div>
+              <cite class="testimonials__name">{t.name}</cite>
+              <span class="testimonials__role">{t.role}</span>
+              <span class="testimonials__company">{t.company}</span>
+            </div>
+          </footer>
+        </blockquote>
+      ))}
+    </div>
+  </Container>
+</section>
+
+<style>
+  .testimonials {
+    padding-block: clamp(5rem, 10vw, 8rem);
+    background: var(--color-gray-50);
+  }
+
+  .testimonials__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.75rem;
+  }
+
+  @media (min-width: 768px) {
+    .testimonials__grid {
+      grid-template-columns: repeat(3, 1fr);
+    }
+  }
+
+  .testimonials__card {
+    display: flex;
+    flex-direction: column;
+    padding: 2rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    transition:
+      transform var(--transition-base),
+      box-shadow var(--transition-base);
+  }
+
+  .testimonials__card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .testimonials__stars {
+    display: flex;
+    gap: 2px;
+    color: var(--color-star);
+    margin-bottom: 1.25rem;
+  }
+
+  .testimonials__quote {
+    flex: 1;
+    font-size: 0.9375rem;
+    line-height: 1.7;
+    color: var(--color-text);
+    margin-bottom: 1.75rem;
+    font-style: normal;
+  }
+
+  .testimonials__author {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    padding-top: 1.25rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  .testimonials__avatar {
+    flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.875rem;
+    font-weight: 700;
+    color: white;
+    letter-spacing: 0.02em;
+  }
+
+  .testimonials__name {
+    display: block;
+    font-style: normal;
+    font-size: 0.9375rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin-bottom: 0.125rem;
+  }
+
+  .testimonials__role {
+    display: block;
+    font-size: 0.8125rem;
+    color: var(--color-text-secondary);
+  }
+
+  .testimonials__company {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-top: 0.125rem;
+  }
+</style>

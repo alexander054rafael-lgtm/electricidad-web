@@ -1,0 +1,146 @@
+---
+import Container from '../ui/Container.astro';
+import SectionHeading from '../ui/SectionHeading.astro';
+import {
+  GraduationCap,
+  Wrench,
+  Award,
+  RefreshCw,
+  Users,
+  Headphones,
+} from '@lucide/astro';
+
+const benefits = [
+  {
+    icon: GraduationCap,
+    title: 'Cursos profesionales',
+    description: 'Contenido diseñado por ingenieros con experiencia real en plantas industriales y automatización.',
+  },
+  {
+    icon: Wrench,
+    title: 'Aprendizaje práctico',
+    description: 'Proyectos hands-on con simuladores, diagramas eléctricos y casos de estudio del mundo real.',
+  },
+  {
+    icon: Award,
+    title: 'Certificados',
+    description: 'Obtén certificaciones reconocidas que validan tus competencias ante empleadores del sector.',
+  },
+  {
+    icon: RefreshCw,
+    title: 'Actualizaciones constantes',
+    description: 'Nuevo contenido cada mes sobre las últimas tecnologías PLC, VFD e IoT industrial.',
+  },
+  {
+    icon: Users,
+    title: 'Comunidad',
+    description: 'Únete a una red de profesionales, foros técnicos y sesiones en vivo con expertos.',
+  },
+  {
+    icon: Headphones,
+    title: 'Soporte',
+    description: 'Asistencia personalizada de instructores para resolver dudas técnicas en tu aprendizaje.',
+  },
+];
+---
+
+<section class="benefits" id="recursos">
+  <Container>
+    <div class="reveal">
+      <SectionHeading
+        eyebrow="Ventajas"
+        title="Todo lo que necesitas para dominar la industria"
+        subtitle="Una plataforma completa diseñada para ingenieros, técnicos y estudiantes que buscan excelencia profesional."
+      />
+    </div>
+
+    <div class="benefits__grid">
+      {benefits.map((benefit, i) => {
+        const Icon = benefit.icon;
+        return (
+          <article class:list={['benefits__card', 'reveal', `reveal-delay-${(i % 3) + 1}`]}>
+            <div class="benefits__icon">
+              <Icon size={24} stroke-width={1.75} />
+            </div>
+            <h3 class="benefits__title">{benefit.title}</h3>
+            <p class="benefits__desc">{benefit.description}</p>
+          </article>
+        );
+      })}
+    </div>
+  </Container>
+</section>
+
+<style>
+  .benefits {
+    padding-block: clamp(5rem, 10vw, 8rem);
+    background: var(--color-gray-50);
+  }
+
+  .benefits__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 640px) {
+    .benefits__grid {
+      grid-template-columns: repeat(2, 1fr);
+    }
+  }
+
+  @media (min-width: 1024px) {
+    .benefits__grid {
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1.75rem;
+    }
+  }
+
+  .benefits__card {
+    padding: 2rem;
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    transition:
+      transform var(--transition-base),
+      box-shadow var(--transition-base),
+      border-color var(--transition-base);
+  }
+
+  .benefits__card:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: rgba(22, 163, 74, 0.2);
+  }
+
+  .benefits__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+    border-radius: var(--radius-md);
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--color-primary);
+    margin-bottom: 1.25rem;
+    transition: background var(--transition-base), transform var(--transition-base);
+  }
+
+  .benefits__card:hover .benefits__icon {
+    background: rgba(22, 163, 74, 0.14);
+    transform: scale(1.05);
+  }
+
+  .benefits__title {
+    font-size: 1.125rem;
+    font-weight: 700;
+    margin-bottom: 0.625rem;
+    letter-spacing: -0.02em;
+  }
+
+  .benefits__desc {
+    font-size: 0.9375rem;
+    color: var(--color-text-secondary);
+    line-height: 1.65;
+  }
+</style>

@@ -1,0 +1,165 @@
+---
+interface Props {
+  class?: string;
+}
+
+const { class: className = '' } = Astro.props;
+
+const floatCards = [
+  { icon: '⚡', label: 'Electricidad', style: 'top: 8%; left: -5%; animation-delay: 0s;' },
+  { icon: '⚙', label: 'PLC', style: 'top: 20%; right: -8%; animation-delay: 0.8s;' },
+  { icon: '📊', label: 'Automatización', style: 'bottom: 30%; left: -10%; animation-delay: 1.6s;' },
+  { icon: '🔌', label: 'Energía', style: 'bottom: 15%; right: -5%; animation-delay: 2.4s;' },
+  { icon: '💡', label: 'Electrónica', style: 'top: 45%; right: -12%; animation-delay: 3.2s;' },
+];
+---
+
+<div class:list={['hero-illustration', className]}>
+  <div class="hero-illustration__glow" aria-hidden="true"></div>
+
+  <svg class="hero-illustration__svg" viewBox="0 0 520 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+    <!-- Main panel -->
+    <rect x="60" y="40" width="400" height="400" rx="24" fill="url(#panelGrad)" stroke="rgba(22,163,74,0.15)" stroke-width="1.5"/>
+    <rect x="60" y="40" width="400" height="400" rx="24" fill="url(#panelShine)" opacity="0.5"/>
+
+    <!-- PLC unit -->
+    <rect x="90" y="70" width="160" height="120" rx="12" fill="#14532d" opacity="0.9"/>
+    <rect x="100" y="82" width="140" height="60" rx="6" fill="#0f172a" opacity="0.6"/>
+    <!-- PLC LEDs -->
+    <circle cx="115" cy="155" r="5" fill="#22c55e"/>
+    <circle cx="135" cy="155" r="5" fill="#22c55e" opacity="0.6"/>
+    <circle cx="155" cy="155" r="5" fill="#fbbf24"/>
+    <circle cx="175" cy="155" r="5" fill="#64748b"/>
+    <!-- PLC terminals -->
+    <rect x="210" y="90" width="8" height="80" rx="2" fill="#e2e8f0" opacity="0.3"/>
+    {Array.from({ length: 8 }).map((_, i) => (
+      <rect x="222" y={95 + i * 10} width="20" height="4" rx="1" fill="#22c55e" opacity="0.4"/>
+    ))}
+
+    <!-- VFD display -->
+    <rect x="280" y="70" width="150" height="120" rx="12" fill="#1e293b"/>
+    <rect x="295" y="85" width="120" height="70" rx="6" fill="#0f172a"/>
+    <text x="355" y="115" text-anchor="middle" fill="#22c55e" font-size="14" font-family="monospace">60.0 Hz</text>
+    <text x="355" y="135" text-anchor="middle" fill="#64748b" font-size="10" font-family="monospace">VFD-001</text>
+    <!-- VFD knobs -->
+    <circle cx="320" cy="170" r="10" fill="#334155" stroke="#22c55e" stroke-width="1.5"/>
+    <circle cx="390" cy="170" r="10" fill="#334155" stroke="#64748b" stroke-width="1.5"/>
+
+    <!-- Motor -->
+    <circle cx="170" cy="310" r="55" fill="url(#motorGrad)" stroke="rgba(22,163,74,0.3)" stroke-width="2"/>
+    <circle cx="170" cy="310" r="35" fill="none" stroke="rgba(255,255,255,0.15)" stroke-width="1.5" stroke-dasharray="4 4"/>
+    <circle cx="170" cy="310" r="12" fill="#14532d"/>
+    <text x="170" y="385" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600">MOTOR AC</text>
+
+    <!-- Electrical panel -->
+    <rect x="280" y="240" width="150" height="130" rx="10" fill="#f8fafc" stroke="#e2e8f0" stroke-width="1"/>
+    <!-- Breakers -->
+    {Array.from({ length: 4 }).map((_, i) => (
+      <g>
+        <rect x={295 + i * 32} y="260" width="24" height="40" rx="4" fill="#e2e8f0"/>
+        <rect x={299 + i * 32} y="268" width="16" height="8" rx="2" fill={i < 3 ? '#22c55e' : '#64748b'}/>
+      </g>
+    ))}
+    <!-- Bus bar -->
+    <rect x="290" y="320" width="130" height="6" rx="2" fill="#fbbf24" opacity="0.7"/>
+    <rect x="290" y="340" width="130" height="4" rx="1" fill="#64748b" opacity="0.4"/>
+
+    <!-- Connection lines -->
+    <path d="M250 130 L280 130" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 4" opacity="0.5"/>
+    <path d="M170 250 L170 255 L250 255 L250 190" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 4" opacity="0.4"/>
+    <path d="M355 190 L355 240" stroke="#22c55e" stroke-width="2" opacity="0.4"/>
+    <path d="M225 310 L280 310" stroke="#22c55e" stroke-width="2" stroke-dasharray="6 4" opacity="0.4"/>
+
+    <!-- Sensors -->
+    <rect x="90" y="240" width="50" height="30" rx="6" fill="#1e293b"/>
+    <circle cx="115" cy="255" r="8" fill="#22c55e" opacity="0.6"/>
+    <text x="115" y="285" text-anchor="middle" fill="#64748b" font-size="9">SENSOR</text>
+
+    <defs>
+      <linearGradient id="panelGrad" x1="60" y1="40" x2="460" y2="440">
+        <stop stop-color="#ffffff"/>
+        <stop offset="1" stop-color="#f8fafc"/>
+      </linearGradient>
+      <linearGradient id="panelShine" x1="60" y1="40" x2="260" y2="240">
+        <stop stop-color="rgba(22,163,74,0.06)"/>
+        <stop offset="1" stop-color="transparent"/>
+      </linearGradient>
+      <linearGradient id="motorGrad" x1="115" y1="255" x2="225" y2="365">
+        <stop stop-color="#334155"/>
+        <stop offset="1" stop-color="#1e293b"/>
+      </linearGradient>
+    </defs>
+  </svg>
+
+  {floatCards.map((card) => (
+    <div class="hero-illustration__float" style={card.style}>
+      <span class="hero-illustration__float-icon">{card.icon}</span>
+      <span class="hero-illustration__float-label">{card.label}</span>
+    </div>
+  ))}
+</div>
+
+<style>
+  .hero-illustration {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    margin-inline: auto;
+  }
+
+  .hero-illustration__glow {
+    position: absolute;
+    inset: 10%;
+    background: radial-gradient(circle, var(--color-hero-glow) 0%, transparent 70%);
+    filter: blur(40px);
+    z-index: 0;
+  }
+
+  .hero-illustration__svg {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    height: auto;
+    filter: drop-shadow(var(--shadow-xl));
+    animation: illustration-float 6s ease-in-out infinite;
+  }
+
+  .hero-illustration__float {
+    position: absolute;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    background: var(--color-glass);
+    backdrop-filter: blur(12px) saturate(150%);
+    -webkit-backdrop-filter: blur(12px) saturate(150%);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-full);
+    box-shadow: var(--shadow-md);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-text);
+    white-space: nowrap;
+    animation: card-float 5s ease-in-out infinite;
+  }
+
+  .hero-illustration__float-icon {
+    font-size: 1rem;
+    line-height: 1;
+  }
+
+  .hero-illustration__float-label {
+    letter-spacing: -0.01em;
+  }
+
+  @keyframes illustration-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-10px); }
+  }
+
+  @keyframes card-float {
+    0%, 100% { transform: translateY(0); }
+    50%      { transform: translateY(-6px); }
+  }
+</style>

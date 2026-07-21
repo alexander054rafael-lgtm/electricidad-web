@@ -1,0 +1,182 @@
+---
+import Container from '../ui/Container.astro';
+import Button from '../ui/Button.astro';
+import BackgroundPattern from './BackgroundPattern.astro';
+import HeroIllustration from '../illustrations/HeroIllustration.astro';
+import { ArrowRight, Download } from '@lucide/astro';
+
+const stats = [
+  { value: '+20', label: 'Cursos' },
+  { value: '+5000', label: 'Estudiantes' },
+  { value: '+100', label: 'Recursos' },
+  { value: '+50', label: 'Proyectos' },
+];
+---
+
+<section class="hero" id="inicio">
+  <BackgroundPattern />
+
+  <Container class="hero__container">
+    <div class="hero__content reveal">
+      <div class="hero__badge">
+        <span class="hero__badge-dot"></span>
+        Plataforma #1 en formación industrial
+      </div>
+
+      <h1 class="hero__title">
+        Domina la <span class="hero__title-accent">Electricidad Industrial</span> y la Automatización desde Cero
+      </h1>
+
+      <p class="hero__subtitle">
+        Aprende PLC, variadores de frecuencia, instrumentación y electrónica industrial con cursos prácticos, proyectos reales y certificación profesional.
+      </p>
+
+      <div class="hero__actions">
+        <Button href="#cursos" variant="primary" size="lg">
+          Explorar Cursos
+          <ArrowRight size={18} stroke-width={2.5} />
+        </Button>
+        <Button href="#ebook" variant="secondary" size="lg">
+          <Download size={18} stroke-width={2.5} />
+          Descargar Ebook Gratis
+        </Button>
+      </div>
+
+      <dl class="hero__stats">
+        {stats.map((stat, i) => (
+          <div class:list={['hero__stat', `reveal`, `reveal-delay-${i + 1}`]}>
+            <dt class="hero__stat-value">{stat.value}</dt>
+            <dd class="hero__stat-label">{stat.label}</dd>
+          </div>
+        ))}
+      </dl>
+    </div>
+
+    <div class="hero__visual reveal reveal-delay-2">
+      <HeroIllustration />
+    </div>
+  </Container>
+</section>
+
+<style>
+  .hero {
+    position: relative;
+    min-height: 100vh;
+    min-height: 100dvh;
+    display: flex;
+    align-items: center;
+    padding-top: var(--header-height);
+    padding-bottom: 4rem;
+    overflow: hidden;
+  }
+
+  .hero__container {
+    position: relative;
+    z-index: 1;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 3rem;
+    align-items: center;
+    padding-block: clamp(2rem, 6vw, 4rem);
+  }
+
+  @media (min-width: 1024px) {
+    .hero__container {
+      grid-template-columns: 1fr 1fr;
+      gap: 4rem;
+    }
+  }
+
+  .hero__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.375rem 1rem 0.375rem 0.75rem;
+    background: rgba(22, 163, 74, 0.08);
+    border: 1px solid rgba(22, 163, 74, 0.15);
+    border-radius: var(--radius-full);
+    font-size: 0.8125rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-bottom: 1.5rem;
+  }
+
+  .hero__badge-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--color-primary-light);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50%      { opacity: 0.6; transform: scale(0.85); }
+  }
+
+  .hero__title {
+    font-size: clamp(2.25rem, 5.5vw, 3.75rem);
+    font-weight: 800;
+    letter-spacing: -0.035em;
+    line-height: 1.08;
+    margin-bottom: 1.5rem;
+  }
+
+  .hero__title-accent {
+    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-primary-light) 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .hero__subtitle {
+    font-size: clamp(1rem, 2vw, 1.1875rem);
+    color: var(--color-text-secondary);
+    line-height: 1.75;
+    max-width: 520px;
+    margin-bottom: 2.5rem;
+  }
+
+  .hero__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 3rem;
+  }
+
+  .hero__stats {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.5rem;
+  }
+
+  @media (min-width: 480px) {
+    .hero__stats {
+      grid-template-columns: repeat(4, 1fr);
+    }
+  }
+
+  .hero__stat {
+    text-align: left;
+  }
+
+  .hero__stat-value {
+    font-family: var(--font-display);
+    font-size: clamp(1.5rem, 3vw, 2rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: var(--color-text);
+    line-height: 1;
+    margin-bottom: 0.375rem;
+  }
+
+  .hero__stat-label {
+    font-size: 0.8125rem;
+    font-weight: 500;
+    color: var(--color-text-secondary);
+  }
+
+  .hero__visual {
+    position: relative;
+  }
+</style>

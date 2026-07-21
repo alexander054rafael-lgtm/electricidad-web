@@ -1,0 +1,100 @@
+---
+import Container from '../ui/Container.astro';
+import Button from '../ui/Button.astro';
+import { ArrowRight } from '@lucide/astro';
+---
+
+<section class="cta" id="contacto">
+  <Container>
+    <div class="cta__inner reveal">
+      <div class="cta__glow cta__glow--1" aria-hidden="true"></div>
+      <div class="cta__glow cta__glow--2" aria-hidden="true"></div>
+
+      <h2 class="cta__title">
+        Comienza tu carrera en la industria del futuro
+      </h2>
+      <p class="cta__subtitle">
+        Únete a más de 5,000 profesionales que ya transformaron su futuro con InduTech Academy. Acceso inmediato a cursos, recursos y comunidad.
+      </p>
+      <Button href="#cursos" variant="primary" size="lg" class="cta__btn">
+        Comenzar Ahora — Es Gratis
+        <ArrowRight size={20} stroke-width={2.5} />
+      </Button>
+    </div>
+  </Container>
+</section>
+
+<style>
+  .cta {
+    padding-block: clamp(5rem, 10vw, 8rem);
+  }
+
+  .cta__inner {
+    position: relative;
+    text-align: center;
+    padding: clamp(3rem, 8vw, 5rem) clamp(2rem, 5vw, 4rem);
+    background: linear-gradient(135deg, var(--color-primary-dark) 0%, var(--color-primary) 50%, var(--color-primary-light) 100%);
+    border-radius: var(--radius-2xl);
+    overflow: hidden;
+    color: white;
+  }
+
+  .cta__glow {
+    position: absolute;
+    border-radius: 50%;
+    filter: blur(60px);
+    pointer-events: none;
+  }
+
+  .cta__glow--1 {
+    width: 300px;
+    height: 300px;
+    top: -100px;
+    right: -50px;
+    background: rgba(255, 255, 255, 0.12);
+  }
+
+  .cta__glow--2 {
+    width: 250px;
+    height: 250px;
+    bottom: -80px;
+    left: -40px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  .cta__title {
+    position: relative;
+    font-size: clamp(1.75rem, 4vw, 2.75rem);
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    line-height: 1.15;
+    margin-bottom: 1.25rem;
+    color: white;
+    max-width: 640px;
+    margin-inline: auto;
+  }
+
+  .cta__subtitle {
+    position: relative;
+    font-size: clamp(1rem, 2vw, 1.125rem);
+    opacity: 0.9;
+    line-height: 1.7;
+    max-width: 520px;
+    margin-inline: auto;
+    margin-bottom: 2.5rem;
+  }
+
+  .cta__btn {
+    position: relative;
+    background: white !important;
+    color: var(--color-primary-dark) !important;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.15) !important;
+    font-size: 1.0625rem !important;
+    padding: 1.125rem 2.25rem !important;
+  }
+
+  .cta__btn:hover {
+    transform: translateY(-2px) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2) !important;
+  }
+</style>
