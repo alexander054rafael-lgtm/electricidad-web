@@ -25,6 +25,51 @@ if (Astro.request.method === 'POST') {
 <AuthShell title="Iniciar sesión" eyebrow="Acceso de estudiantes" description="Continúa tus cursos, evaluaciones y actividades desde cualquier dispositivo.">
   {!isSupabaseConfigured && <p class="auth-message auth-message--error">Configuración pendiente: copia <code>.env.example</code> a <code>.env</code> y añade las credenciales públicas de Supabase.</p>}
   {error && <p class="auth-message auth-message--error" role="alert">{error}</p>}
-  <form class="auth-form" method="post"><input type="hidden" name="redirect" value={redirectTo} /><label>Correo electrónico<input type="email" name="email" autocomplete="email" required /></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" minlength="8" required /></label><button type="submit">Ingresar</button></form>
+  <form class="auth-form" method="post">
+    <input type="hidden" name="redirect" value={redirectTo} />
+    <label>Correo electrónico<input type="email" name="email" autocomplete="email" required /></label>
+    <div class="auth-form__field">
+      <label for="login-password">Contraseña</label>
+      <div class="password-field">
+        <input id="login-password" type="password" name="password" autocomplete="current-password" minlength="8" required />
+        <button class="password-toggle" type="button" aria-label="Mostrar contraseña" title="Mostrar contraseña" aria-pressed="false" data-password-toggle>
+          <svg class="password-toggle__icon password-toggle__icon--show" aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M2.1 12s3.6-7 9.9-7 9.9 7 9.9 7-3.6 7-9.9 7-9.9-7-9.9-7Z" />
+            <circle cx="12" cy="12" r="3" />
+          </svg>
+          <svg class="password-toggle__icon password-toggle__icon--hide" aria-hidden="true" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="m3 3 18 18" />
+            <path d="M10.6 5.1A9.8 9.8 0 0 1 12 5c6.3 0 9.9 7 9.9 7a15.8 15.8 0 0 1-2.2 3.1" />
+            <path d="M6.6 6.6A16.4 16.4 0 0 0 2.1 12s3.6 7 9.9 7a9.7 9.7 0 0 0 5.4-1.6" />
+            <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+          </svg>
+        </button>
+      </div>
+    </div>
+    <button type="submit">Ingresar</button>
+  </form>
   <div class="auth-form__links"><a href="/recuperar-contrasena">Olvidé mi contraseña</a><span>¿Aún no tienes cuenta? <a href="/registro">Regístrate</a></span></div>
 </AuthShell>
+
+<script>
+  const initializePasswordToggle = () => {
+    const input = document.querySelector<HTMLInputElement>('#login-password');
+    const button = document.querySelector<HTMLButtonElement>('[data-password-toggle]');
+
+    if (!input || !button || button.dataset.passwordToggleInitialized === 'true') return;
+
+    button.dataset.passwordToggleInitialized = 'true';
+    button.addEventListener('click', () => {
+      const willShowPassword = input.type === 'password';
+      const label = willShowPassword ? 'Ocultar contraseña' : 'Mostrar contraseña';
+
+      input.type = willShowPassword ? 'text' : 'password';
+      button.setAttribute('aria-label', label);
+      button.setAttribute('title', label);
+      button.setAttribute('aria-pressed', String(willShowPassword));
+    });
+  };
+
+  initializePasswordToggle();
+  document.addEventListener('astro:page-load', initializePasswordToggle);
+</script>
