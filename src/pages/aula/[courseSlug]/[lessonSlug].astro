@@ -5,22 +5,17 @@ import LessonSidebar from '../../../components/classroom/LessonSidebar.astro';
 import LessonContent from '../../../components/classroom/LessonContent.astro';
 import LessonNavigation from '../../../components/classroom/LessonNavigation.astro';
 import RelatedBooks from '../../../components/library/RelatedBooks.astro';
-import type { Course, CourseLessonReference } from '../../../data/courses';
 import { courses, getCourseLessons } from '../../../data/courses';
 import { getLessonTheory } from '../../../data/lessons';
 import { books } from '../../../data/books';
 
-export function getStaticPaths() {
-  return courses.flatMap((course) =>
-    getCourseLessons(course).map((lesson) => ({
-      params: { courseSlug: course.slug, lessonSlug: lesson.slug },
-      props: { course, lesson },
-    }))
-  );
-}
+export const prerender = false;
 
-interface Props { course: Course; lesson: CourseLessonReference }
-const { course, lesson } = Astro.props;
+const course = courses.find((candidate) => candidate.slug === Astro.params.courseSlug);
+const lesson = course
+  ? getCourseLessons(course).find((candidate) => candidate.slug === Astro.params.lessonSlug)
+  : undefined;
+if (!course || !lesson) return new Response(null, { status: 404 });
 const lessons = getCourseLessons(course);
 const theory = getLessonTheory(course, lesson);
 const previous = lessons[lesson.globalIndex - 1];

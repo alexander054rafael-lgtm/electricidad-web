@@ -5,8 +5,8 @@ import Footer from '../../components/landing/Footer.astro';
 import BookDetails from '../../components/library/BookDetails.astro';
 import RelatedBooks from '../../components/library/RelatedBooks.astro';
 import { books } from '../../data/books';
-export function getStaticPaths() { return books.map(book => ({ params: { slug: book.slug }, props: { book } })); }
-const { book } = Astro.props;
+const book = books.find((candidate) => candidate.slug === Astro.params.slug);
+if (!book) return new Response(null, { status: 404 });
 const related = books.filter(candidate => candidate.slug !== book.slug && (candidate.category === book.category || candidate.level === book.level)).slice(0, 4);
 ---
 <Layout title={`${book.title} | Biblioteca Técnica`} description={book.description}><Header /><main class="book-page"><div class="container"><BookDetails book={book} /><RelatedBooks books={related} /></div></main><Footer /></Layout>

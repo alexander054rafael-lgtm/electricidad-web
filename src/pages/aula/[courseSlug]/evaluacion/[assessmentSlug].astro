@@ -2,20 +2,16 @@
 import Layout from '../../../../layouts/Layout.astro';
 import ClassroomHeader from '../../../../components/classroom/ClassroomHeader.astro';
 import Quiz from '../../../../components/assessments/Quiz';
-import type { Assessment } from '../../../../data/assessments';
 import { assessments } from '../../../../data/assessments';
-import type { Course } from '../../../../data/courses';
 import { courses } from '../../../../data/courses';
 
-export function getStaticPaths() {
-  return assessments.flatMap((assessment) => {
-    const course = courses.find((candidate) => candidate.slug === assessment.courseSlug);
-    return course ? [{ params: { courseSlug: course.slug, assessmentSlug: assessment.slug }, props: { course, assessment } }] : [];
-  });
-}
+export const prerender = false;
 
-interface Props { course: Course; assessment: Assessment }
-const { course, assessment } = Astro.props;
+const course = courses.find((candidate) => candidate.slug === Astro.params.courseSlug);
+const assessment = assessments.find((candidate) =>
+  candidate.courseSlug === Astro.params.courseSlug && candidate.slug === Astro.params.assessmentSlug
+);
+if (!course || !assessment) return new Response(null, { status: 404 });
 ---
 
 <Layout title={`${assessment.title} | ${course.title}`} description={assessment.description}>
@@ -32,4 +28,3 @@ const { course, assessment } = Astro.props;
   .assessment-main{width:100%;min-height:100vh;padding:calc(72px + clamp(2rem,5vw,4rem)) clamp(1rem,5vw,4rem) clamp(4rem,8vw,7rem)}
   @media(max-width:900px){.assessment-main{padding-top:calc(64px + 2rem)}}
 </style>
-
