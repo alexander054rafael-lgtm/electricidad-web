@@ -1,9 +1,10 @@
 ---
 export const prerender = false;
 import AuthShell from '../components/auth/AuthShell.astro';
-import { isSupabaseConfigured } from '../lib/supabase/config';
+import { getSupabaseConfig } from '../lib/supabase/config';
 import { safeRedirectPath } from '../lib/supabase/server';
 
+const { isSupabaseConfigured } = getSupabaseConfig();
 let error = Astro.url.searchParams.get('error') === 'confirmation' ? 'No se pudo confirmar la sesión. Solicita un nuevo enlace.' : '';
 const redirectTo = safeRedirectPath(Astro.url.searchParams.get('redirect'));
 if (Astro.locals.user && Astro.request.method === 'GET') return Astro.redirect(redirectTo, 303);

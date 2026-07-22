@@ -1,10 +1,11 @@
 import { createServerClient } from '@supabase/ssr';
 import type { APIContext } from 'astro';
-import { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } from './config';
+import { getSupabaseConfig } from './config';
 
 type ServerContext = Pick<APIContext, 'cookies' | 'request'>;
 
 export const createSupabaseServerClient = ({ cookies, request }: ServerContext) => {
+  const { isSupabaseConfigured, supabaseAnonKey, supabaseUrl } = getSupabaseConfig();
   if (!isSupabaseConfigured) return null;
   const cookieJar = new Map<string, string>();
   for (const item of (request.headers.get('cookie') ?? '').split(';')) {

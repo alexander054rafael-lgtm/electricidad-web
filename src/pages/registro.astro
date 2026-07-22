@@ -1,7 +1,9 @@
 ---
 export const prerender = false;
 import AuthShell from '../components/auth/AuthShell.astro';
-import { isSupabaseConfigured, siteUrl } from '../lib/supabase/config';
+import { getSiteUrl, getSupabaseConfig } from '../lib/supabase/config';
+const { isSupabaseConfigured } = getSupabaseConfig();
+const siteUrl = getSiteUrl();
 let error = '';
 let success = '';
 if (Astro.locals.user && Astro.request.method === 'GET') return Astro.redirect('/mi-aprendizaje', 303);
