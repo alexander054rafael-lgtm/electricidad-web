@@ -20,6 +20,12 @@ pnpm-debug.log*
 .env.*
 !.env.example
 
+# Google service account credentials
+gen-lang-client-0514903712-ad651aef0960.json
+*.iam.gserviceaccount.com.json
+.google-drive-oauth-token*
+google-drive-oauth-token*
+
 # macOS-specific files
 .DS_Store
 
