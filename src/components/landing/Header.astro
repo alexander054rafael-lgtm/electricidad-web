@@ -2,7 +2,7 @@
 import Button from '../ui/Button.astro';
 
 const navLinks = [
-  { label: 'Inicio', href: '#inicio' },
+  { label: 'Inicio', href: '/' },
   { label: 'Cursos', href: '/cursos' },
   { label: 'Biblioteca', href: '/biblioteca' },
   { label: 'Juegos', href: '/juegos' },
@@ -12,11 +12,14 @@ const navLinks = [
   { label: 'Nosotros', href: '#nosotros' },
   { label: 'Contacto', href: '#contacto' },
 ];
+
+const currentPath = Astro.url.pathname;
+const isHomeLink = (href: string) => href === '/' && currentPath === '/';
 ---
 
 <header class="header" id="header">
   <div class="header__inner container">
-    <a href="#inicio" class="header__logo" aria-label="InduTech Academy — Inicio">
+    <a href="/" class="header__logo" aria-label="Ir a la página de inicio">
       <svg class="header__logo-icon" width="36" height="36" viewBox="0 0 36 36" fill="none" aria-hidden="true">
         <rect width="36" height="36" rx="10" fill="url(#logoGrad)"/>
         <path d="M18 8L23 18H13L18 8Z" fill="white" opacity="0.95"/>
@@ -37,11 +40,14 @@ const navLinks = [
 
     <nav class="header__nav" aria-label="Navegación principal">
       <ul class="header__nav-list">
-        {navLinks.map((link) => (
-          <li>
-            <a href={link.href} class="header__nav-link">{link.label}</a>
-          </li>
-        ))}
+        {navLinks.map((link) => {
+          const active = isHomeLink(link.href);
+          return (
+            <li>
+              <a href={link.href} class:list={{ 'header__nav-link': true, 'is-active': active }} aria-current={active ? 'page' : undefined}>{link.label}</a>
+            </li>
+          );
+        })}
       </ul>
     </nav>
 
@@ -59,9 +65,10 @@ const navLinks = [
 
   <div class="header__mobile-nav" id="mobile-nav" aria-hidden="true">
     <ul>
-      {navLinks.map((link) => (
-        <li><a href={link.href} class="header__mobile-link">{link.label}</a></li>
-      ))}
+      {navLinks.map((link) => {
+        const active = isHomeLink(link.href);
+        return <li><a href={link.href} class:list={{ 'header__mobile-link': true, 'is-active': active }} aria-current={active ? 'page' : undefined}>{link.label}</a></li>;
+      })}
       <li><Button href="/mi-aprendizaje" variant="primary" size="md" class="header__mobile-cta">Mi aprendizaje</Button></li>
     </ul>
   </div>
@@ -204,7 +211,17 @@ const navLinks = [
     background: rgba(22, 163, 74, 0.06);
   }
 
+  .header__nav-link.is-active {
+    color: var(--color-text);
+    background: rgba(22, 163, 74, 0.06);
+  }
+
   .header__nav-link:hover::after {
+    width: 60%;
+    left: 20%;
+  }
+
+  .header__nav-link.is-active::after {
     width: 60%;
     left: 20%;
   }
@@ -309,6 +326,11 @@ const navLinks = [
 
   .header__mobile-link:hover {
     background: rgba(22, 163, 74, 0.08);
+  }
+
+  .header__mobile-link.is-active {
+    background: rgba(22, 163, 74, 0.08);
+    color: var(--color-text);
   }
 
   .header__mobile-cta {
