@@ -1,0 +1,29 @@
+---
+export const prerender = false;
+import AuthShell from '../components/auth/AuthShell.astro';
+import { isSupabaseConfigured } from '../lib/supabase/config';
+import { safeRedirectPath } from '../lib/supabase/server';
+
+let error = Astro.url.searchParams.get('error') === 'confirmation' ? 'No se pudo confirmar la sesión. Solicita un nuevo enlace.' : '';
+const redirectTo = safeRedirectPath(Astro.url.searchParams.get('redirect'));
+if (Astro.locals.user && Astro.request.method === 'GET') return Astro.redirect(redirectTo, 303);
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const email = String(form.get('email') ?? '').trim().toLowerCase();
+  const password = String(form.get('password') ?? '');
+  if (!Astro.locals.supabase) error = 'Supabase todavía no está configurado. Revisa las variables del servidor.';
+  else if (!/^\S+@\S+\.\S+$/.test(email) || password.length < 8) error = 'Ingresa un correo válido y una contraseña de al menos 8 caracteres.';
+  else {
+    const { error: signInError } = await Astro.locals.supabase.auth.signInWithPassword({ email, password });
+    if (signInError) error = 'No fue posible iniciar sesión. Revisa tus credenciales o confirma tu correo.';
+    else return Astro.redirect(safeRedirectPath(String(form.get('redirect') ?? '')), 303);
+  }
+}
+---
+<AuthShell title="Iniciar sesión" eyebrow="Acceso de estudiantes" description="Continúa tus cursos, evaluaciones y actividades desde cualquier dispositivo.">
+  {!isSupabaseConfigured && <p class="auth-message auth-message--error">Configuración pendiente: copia <code>.env.example</code> a <code>.env</code> y añade las credenciales públicas de Supabase.</p>}
+  {error && <p class="auth-message auth-message--error" role="alert">{error}</p>}
+  <form class="auth-form" method="post"><input type="hidden" name="redirect" value={redirectTo} /><label>Correo electrónico<input type="email" name="email" autocomplete="email" required /></label><label>Contraseña<input type="password" name="password" autocomplete="current-password" minlength="8" required /></label><button type="submit">Ingresar</button></form>
+  <div class="auth-form__links"><a href="/recuperar-contrasena">Olvidé mi contraseña</a><span>¿Aún no tienes cuenta? <a href="/registro">Regístrate</a></span></div>
+</AuthShell>

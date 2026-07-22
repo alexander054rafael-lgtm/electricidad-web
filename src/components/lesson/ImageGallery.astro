@@ -1,0 +1,13 @@
+---
+import type { ImageGalleryBlockData } from '../../data/lessons';
+import ImageLightbox from './ImageLightbox';
+interface Props { block: ImageGalleryBlockData }
+const { block } = Astro.props;
+---
+
+<section class="image-gallery">
+  {block.title && <h3>{block.title}</h3>}
+  <ImageLightbox images={block.images} columns={Math.min(block.images.length, 2)} client:visible={{ rootMargin: '180px' }} />
+</section>
+
+<style>.image-gallery{margin:2rem 0}.image-gallery h3{margin-bottom:1rem;font-size:1.15rem}</style>

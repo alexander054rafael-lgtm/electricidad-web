@@ -1,0 +1,89 @@
+---
+import { ArrowRight } from '@lucide/astro';
+
+interface Props {
+  href: string;
+  title: string;
+  description: string;
+  status?: 'upcoming';
+}
+
+const { href, title, description, status } = Astro.props;
+---
+
+<a class="action" href={href}>
+  <span class="action-icon"><slot name="icon" /></span>
+  <span class="action-copy">
+    <span class="action-title">
+      <strong>{title}</strong>
+      {status === 'upcoming' && <small class="status">Próximamente</small>}
+    </span>
+    <small>{description}</small>
+  </span>
+  <ArrowRight class="action-arrow" size={17} aria-hidden="true" />
+</a>
+
+<style>
+  .action {
+    display: grid;
+    grid-template-columns: 42px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 14px;
+    background: var(--admin-surface-raised);
+    color: var(--admin-text);
+    transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  }
+
+  .action:hover {
+    transform: translateY(-2px);
+    border-color: rgba(66, 201, 119, 0.45);
+    background: var(--admin-surface-soft);
+    box-shadow: 0 12px 24px rgba(0, 0, 0, 0.14);
+  }
+
+  .action:focus-visible {
+    outline: 2px solid var(--admin-green);
+    outline-offset: 3px;
+  }
+
+  .action-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 10px;
+    border: 1px solid rgba(85, 167, 245, 0.18);
+    background: var(--admin-blue-soft);
+    color: var(--admin-blue);
+  }
+
+  .action-copy { display: grid; min-width: 0; gap: 0.16rem; }
+  .action-title { display: flex; min-width: 0; align-items: center; gap: 0.5rem; }
+  .action-title strong { overflow: hidden; font-size: 0.8rem; text-overflow: ellipsis; white-space: nowrap; }
+  .action-copy > small { color: var(--admin-text-muted); font-size: 0.67rem; }
+  .status {
+    flex: none;
+    padding: 0.18rem 0.4rem;
+    border-radius: 999px;
+    background: var(--admin-warning-soft);
+    color: var(--admin-warning);
+    font-size: 0.55rem;
+    font-weight: 800;
+    letter-spacing: 0.03em;
+    text-transform: uppercase;
+  }
+
+  .action-arrow { color: var(--admin-green); transition: transform 180ms ease; }
+  .action:hover .action-arrow { transform: translateX(2px); }
+
+  @media (max-width: 420px) {
+    .action-title { align-items: start; flex-direction: column; gap: 0.25rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .action, .action-arrow { transition: none; }
+  }
+</style>

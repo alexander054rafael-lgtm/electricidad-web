@@ -1,0 +1,6 @@
+---
+export const prerender = false;
+
+// Conserva /login como implementación única y expone la ruta pública solicitada.
+return Astro.rewrite(new URL(`/login${Astro.url.search}`, Astro.url));
+---

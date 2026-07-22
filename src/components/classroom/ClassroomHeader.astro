@@ -1,0 +1,28 @@
+---
+import { LogOut, Menu } from '@lucide/astro';
+interface Props { courseTitle: string; courseHref: string; progress?: number }
+const { courseTitle, courseHref, progress } = Astro.props;
+---
+
+<header class:list={['classroom-header', { 'classroom-header--without-progress': progress === undefined }]}>
+  <div class="classroom-header__brand">
+    <button class="classroom-header__menu" type="button" id="classroom-menu" aria-label="Abrir temario" aria-controls="lesson-sidebar" aria-expanded="false"><Menu size={22} /></button>
+    <a href="/" class="classroom-header__logo" aria-label="InduTech Academy, inicio"><img src="/favicon.svg" alt="" width="36" height="36" /><span><strong>InduTech</strong><small>Academy</small></span></a>
+  </div>
+  <div class="classroom-header__course"><small>Aula virtual</small><strong>{courseTitle}</strong></div>
+  {progress !== undefined && <div class="classroom-header__progress" aria-label={`Progreso de prueba: ${progress}%`}>
+    <div><span>Progreso</span><strong>{progress}%</strong></div><progress value={progress} max="100">{progress}%</progress>
+  </div>}
+  <a class="classroom-header__exit" href={courseHref}><LogOut size={17} aria-hidden="true" /><span>Salir del aula</span></a>
+</header>
+
+<style>
+  .classroom-header{position:fixed;inset:0 0 auto;z-index:200;display:grid;grid-template-columns:300px minmax(200px,1fr) minmax(180px,280px) auto;align-items:center;gap:1.25rem;height:72px;padding:0 1.25rem;border-bottom:1px solid var(--color-border);background:rgba(255,255,255,.92);box-shadow:0 6px 24px rgba(15,23,42,.05);backdrop-filter:blur(18px)}
+  .classroom-header--without-progress{grid-template-columns:300px minmax(200px,1fr) auto}
+  .classroom-header__brand,.classroom-header__logo{display:flex;align-items:center}.classroom-header__logo{gap:.6rem}.classroom-header__logo img{border-radius:10px}.classroom-header__logo span{display:flex;flex-direction:column;line-height:1.05}.classroom-header__logo strong{font:800 1rem var(--font-display)}.classroom-header__logo small{color:var(--color-text-secondary);font-size:.62rem;text-transform:uppercase;letter-spacing:.07em}.classroom-header__menu{display:none;place-items:center;width:42px;height:42px;margin-right:.55rem;border:1px solid var(--color-border);border-radius:12px;color:var(--color-text);background:var(--color-surface)}
+  .classroom-header__course{display:grid;min-width:0}.classroom-header__course small{color:var(--color-primary);font-size:.62rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.classroom-header__course strong{overflow:hidden;font-size:.8rem;text-overflow:ellipsis;white-space:nowrap}
+  .classroom-header__progress{display:grid;gap:.25rem}.classroom-header__progress div{display:flex;justify-content:space-between;color:var(--color-text-secondary);font-size:.66rem}.classroom-header__progress strong{color:var(--color-primary-dark)}progress{width:100%;height:6px;overflow:hidden;border:0;border-radius:999px;background:var(--color-gray-200)}progress::-webkit-progress-bar{background:var(--color-gray-200)}progress::-webkit-progress-value{border-radius:999px;background:linear-gradient(90deg,var(--color-primary),var(--color-primary-light))}progress::-moz-progress-bar{background:var(--color-primary)}
+  .classroom-header__exit{display:inline-flex;align-items:center;gap:.45rem;padding:.58rem .85rem;border:1px solid var(--color-border);border-radius:999px;color:var(--color-text-secondary);font-size:.75rem;font-weight:700;white-space:nowrap;transition:all var(--transition-fast)}.classroom-header__exit:hover{border-color:var(--color-primary);color:var(--color-primary)}
+  @media(prefers-color-scheme:dark){.classroom-header{background:rgba(15,23,42,.94)}}
+  @media(max-width:900px){.classroom-header{grid-template-columns:auto minmax(0,1fr) auto;height:64px;padding:0 .8rem}.classroom-header__menu{display:grid}.classroom-header__logo span,.classroom-header__progress{display:none}.classroom-header__course small{display:none}.classroom-header__exit span{display:none}.classroom-header__exit{width:42px;height:42px;padding:0;justify-content:center}.classroom-header__logo img{width:34px;height:34px}}
+</style>

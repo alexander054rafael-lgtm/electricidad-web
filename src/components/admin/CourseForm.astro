@@ -1,0 +1,297 @@
+---
+import { ArrowLeft, Save } from '@lucide/astro';
+import CourseCover from './courses/CourseCover.astro';
+import type {
+  CourseFormErrors,
+  CourseFormField,
+  CourseFormValues,
+  CourseInstructorOption,
+} from '../../types/course';
+
+interface Props {
+  values: CourseFormValues;
+  errors?: CourseFormErrors;
+  instructors?: CourseInstructorOption[];
+  generalError?: string;
+  debugError?: string;
+  submitLabel?: string;
+}
+
+const {
+  values,
+  errors = {},
+  instructors = [],
+  generalError = '',
+  debugError = '',
+  submitLabel = 'Crear curso',
+} = Astro.props;
+
+const fieldError = (field: CourseFormField) => errors[field];
+const describedBy = (field: CourseFormField, helpId?: string) =>
+  [helpId, fieldError(field) ? `${field}-error` : ''].filter(Boolean).join(' ') || undefined;
+---
+
+{generalError && (
+  <div class="form-alert" role="alert">
+    <span>{generalError}</span>
+    {debugError && <small class="form-debug-error">{debugError}</small>}
+  </div>
+)}
+
+<form class="course-form" method="post" novalidate data-course-form>
+  <section class="form-section" aria-labelledby="course-information-title">
+    <div class="section-heading">
+      <span>01</span>
+      <div><h2 id="course-information-title">Información del curso</h2><p>Define la identidad y presentación principal.</p></div>
+    </div>
+
+    <div class="form-grid">
+      <label class="field wide">
+        <span>Título <strong aria-hidden="true">*</strong></span>
+        <input
+          name="title"
+          value={values.title}
+          required
+          minlength="3"
+          maxlength="120"
+          autocomplete="off"
+          aria-invalid={Boolean(fieldError('title'))}
+          aria-describedby={describedBy('title')}
+          data-course-title
+        />
+        {fieldError('title') && <small class="field-error" id="title-error">{fieldError('title')}</small>}
+      </label>
+
+      <label class="field wide">
+        <span>Slug <strong aria-hidden="true">*</strong></span>
+        <div class="slug-control"><span aria-hidden="true">/cursos/</span><input
+          name="slug"
+          value={values.slug}
+          required
+          maxlength="140"
+          pattern="[a-z0-9]+(?:-[a-z0-9]+)*"
+          spellcheck="false"
+          autocomplete="off"
+          aria-invalid={Boolean(fieldError('slug'))}
+          aria-describedby={describedBy('slug', 'slug-help')}
+          data-course-slug
+        /></div>
+        <small class="field-help" id="slug-help">Se genera desde el título, pero puedes editarlo.</small>
+        {fieldError('slug') && <small class="field-error" id="slug-error">{fieldError('slug')}</small>}
+      </label>
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="course-content-title">
+    <div class="section-heading">
+      <span>02</span>
+      <div><h2 id="course-content-title">Contenido y descripción</h2><p>Explica con claridad qué aprenderá el estudiante.</p></div>
+    </div>
+
+    <div class="form-grid">
+
+      <label class="field wide">
+        <span>Descripción corta</span>
+        <textarea
+          name="short_description"
+          rows="3"
+          maxlength="240"
+          aria-invalid={Boolean(fieldError('short_description'))}
+          aria-describedby={describedBy('short_description', 'short-description-help')}
+        >{values.short_description}</textarea>
+        <small class="field-help" id="short-description-help">Resumen visible en el catálogo. Máximo 240 caracteres.</small>
+        {fieldError('short_description') && <small class="field-error" id="short_description-error">{fieldError('short_description')}</small>}
+      </label>
+
+      <label class="field wide">
+        <span>Descripción completa</span>
+        <textarea
+          name="description"
+          rows="7"
+          maxlength="20000"
+          aria-invalid={Boolean(fieldError('description'))}
+          aria-describedby={describedBy('description')}
+        >{values.description}</textarea>
+        {fieldError('description') && <small class="field-error" id="description-error">{fieldError('description')}</small>}
+      </label>
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="course-cover-title">
+    <div class="section-heading">
+      <span>03</span>
+      <div><h2 id="course-cover-title">Imagen de portada</h2><p>Añade una imagen horizontal mediante una URL segura.</p></div>
+    </div>
+
+    <div class="form-grid">
+
+      <label class="field wide">
+        <span>URL de portada</span>
+        <input
+          type="url"
+          name="cover_url"
+          value={values.cover_url}
+          inputmode="url"
+          placeholder="https://ejemplo.com/portada.jpg"
+          aria-invalid={Boolean(fieldError('cover_url'))}
+          aria-describedby={describedBy('cover_url', 'cover-url-help')}
+          data-cover-url
+        />
+        <CourseCover url={values.cover_url} variant="preview" interactive />
+        <small class="field-help" id="cover-url-help">Usa una imagen horizontal. Recomendado: 1280 × 720 px. Solo se aceptan direcciones HTTPS.</small>
+        {fieldError('cover_url') && <small class="field-error" id="cover_url-error">{fieldError('cover_url')}</small>}
+      </label>
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="course-organization-title">
+    <div class="section-heading">
+      <span>04</span>
+      <div><h2 id="course-organization-title">Clasificación</h2><p>Configura el nivel, instructor, duración y orden editorial.</p></div>
+    </div>
+
+    <div class="form-grid compact">
+      <label class="field">
+        <span>Categoría</span>
+        <input name="category" value={values.category} maxlength="80" aria-invalid={Boolean(fieldError('category'))} aria-describedby={describedBy('category')} />
+        {fieldError('category') && <small class="field-error" id="category-error">{fieldError('category')}</small>}
+      </label>
+
+      <label class="field">
+        <span>Nivel</span>
+        <select name="level" aria-invalid={Boolean(fieldError('level'))} aria-describedby={describedBy('level')}>
+          <option value="beginner" selected={values.level === 'beginner'}>Básico</option>
+          <option value="intermediate" selected={values.level === 'intermediate'}>Intermedio</option>
+          <option value="advanced" selected={values.level === 'advanced'}>Avanzado</option>
+        </select>
+        {fieldError('level') && <small class="field-error" id="level-error">{fieldError('level')}</small>}
+      </label>
+
+      <label class="field">
+        <span>Duración aproximada</span>
+        <div class="suffix-control"><input type="number" name="duration_minutes" value={values.duration_minutes} min="0" max="100000" step="1" inputmode="numeric" aria-invalid={Boolean(fieldError('duration_minutes'))} aria-describedby={describedBy('duration_minutes')} /><span>min</span></div>
+        {fieldError('duration_minutes') && <small class="field-error" id="duration_minutes-error">{fieldError('duration_minutes')}</small>}
+      </label>
+
+      <label class="field">
+        <span>Posición</span>
+        <input type="number" name="position" value={values.position} min="0" max="1000000" step="1" inputmode="numeric" aria-invalid={Boolean(fieldError('position'))} aria-describedby={describedBy('position')} />
+        {fieldError('position') && <small class="field-error" id="position-error">{fieldError('position')}</small>}
+      </label>
+
+      <label class="field">
+        <span>Instructor</span>
+        <select name="instructor_id" aria-invalid={Boolean(fieldError('instructor_id'))} aria-describedby={describedBy('instructor_id')}>
+          <option value="">Sin asignar</option>
+          {instructors.map((instructor) => (
+            <option value={instructor.id} selected={values.instructor_id === instructor.id}>
+              {instructor.full_name || 'Perfil sin nombre'} · {instructor.role === 'admin' ? 'Administrador' : 'Instructor'}
+            </option>
+          ))}
+        </select>
+        {fieldError('instructor_id') && <small class="field-error" id="instructor_id-error">{fieldError('instructor_id')}</small>}
+      </label>
+    </div>
+  </section>
+
+  <section class="form-section" aria-labelledby="course-publication-title">
+    <div class="section-heading">
+      <span>05</span>
+      <div><h2 id="course-publication-title">Publicación</h2><p>Define la visibilidad y relevancia del curso.</p></div>
+    </div>
+
+    <div class="form-grid">
+      <label class="field wide">
+        <span>Estado</span>
+        <select name="status" aria-invalid={Boolean(fieldError('status'))} aria-describedby={describedBy('status')}>
+          <option value="draft" selected={values.status === 'draft'}>Borrador</option>
+          <option value="published" selected={values.status === 'published'}>Publicado</option>
+          <option value="archived" selected={values.status === 'archived'}>Archivado</option>
+        </select>
+        {fieldError('status') && <small class="field-error" id="status-error">{fieldError('status')}</small>}
+      </label>
+
+      <label class="featured-field wide">
+        <input type="checkbox" name="is_featured" checked={values.is_featured} />
+        <span><strong>Curso destacado</strong><small>Da mayor visibilidad al curso dentro del catálogo.</small></span>
+      </label>
+    </div>
+  </section>
+
+  <div class="form-actions">
+    <a href="/admin/cursos"><ArrowLeft size={16} aria-hidden="true" /> Cancelar</a>
+    <button type="submit"><Save size={16} aria-hidden="true" /> {submitLabel}</button>
+  </div>
+</form>
+
+<script>
+  import { createCourseSlug } from '../../lib/admin/course-utils';
+
+  const form = document.querySelector<HTMLFormElement>('[data-course-form]');
+  const titleInput = form?.querySelector<HTMLInputElement>('[data-course-title]');
+  const slugInput = form?.querySelector<HTMLInputElement>('[data-course-slug]');
+  const coverInput = form?.querySelector<HTMLInputElement>('[data-cover-url]');
+  const coverImage = form?.querySelector<HTMLImageElement>('[data-cover-preview-image]');
+  let slugWasEdited = Boolean(slugInput?.value);
+
+  titleInput?.addEventListener('input', () => {
+    if (slugInput && !slugWasEdited) slugInput.value = createCourseSlug(titleInput.value);
+  });
+  slugInput?.addEventListener('input', () => {
+    slugWasEdited = true;
+  });
+
+  const updateCoverPreview = () => {
+    if (!coverInput || !coverImage) return;
+    try {
+      const url = new URL(coverInput.value);
+      if (url.protocol !== 'https:') throw new Error('Invalid protocol');
+      coverImage.src = url.toString();
+      coverImage.hidden = false;
+    } catch {
+      coverImage.hidden = true;
+      coverImage.removeAttribute('src');
+    }
+  };
+  coverInput?.addEventListener('input', updateCoverPreview);
+  coverImage?.addEventListener('error', () => { coverImage.hidden = true; });
+</script>
+
+<style>
+  .form-alert { display: grid; gap: 0.4rem; margin-bottom: 1rem; padding: 0.85rem 1rem; border: 1px solid color-mix(in srgb, var(--admin-danger) 35%, var(--admin-border)); border-radius: 11px; background: color-mix(in srgb, var(--admin-danger) 10%, transparent); color: #ffb0b0; font-size: 0.78rem; }
+  .form-debug-error { overflow-wrap: anywhere; color: color-mix(in srgb, #ffb0b0 78%, white); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; line-height: 1.5; }
+  .course-form { display: grid; gap: 1rem; }
+  .form-section { padding: clamp(1rem, 3vw, 1.5rem); border: 1px solid var(--admin-border); border-radius: 17px; background: var(--admin-surface); box-shadow: var(--admin-shadow); }
+  .section-heading { display: flex; align-items: start; gap: 0.8rem; margin-bottom: 1.25rem; }
+  .section-heading > span { display: grid; width: 32px; height: 32px; flex: none; place-items: center; border: 1px solid rgba(66, 201, 119, 0.24); border-radius: 9px; background: var(--admin-green-soft); color: var(--admin-green); font-size: 0.66rem; font-weight: 850; }
+  .section-heading h2 { margin: 0; color: var(--admin-text); font-size: 1rem; }
+  .section-heading p { margin: 0.2rem 0 0; color: var(--admin-text-muted); font-size: 0.72rem; }
+  .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1rem; }
+  .form-grid.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .field { display: grid; min-width: 0; align-content: start; gap: 0.42rem; color: var(--admin-text-muted); font-size: 0.7rem; font-weight: 750; }
+  .field.wide, .featured-field.wide { grid-column: 1 / -1; }
+  .field strong { color: var(--admin-danger); }
+  input, textarea, select { width: 100%; min-width: 0; border: 1px solid var(--admin-border-strong); border-radius: 10px; outline: none; background: var(--admin-surface-raised); color: var(--admin-text); font: inherit; font-weight: 500; }
+  input, select { min-height: 44px; padding: 0.68rem 0.75rem; }
+  textarea { resize: vertical; padding: 0.75rem; line-height: 1.6; }
+  input:focus, textarea:focus, select:focus { border-color: var(--admin-green); box-shadow: 0 0 0 3px var(--admin-green-soft); }
+  [aria-invalid='true'] { border-color: var(--admin-danger); }
+  .field-help { color: var(--admin-text-subtle); font-size: 0.63rem; font-weight: 500; }
+  .field-error { color: #ff9c9c; font-size: 0.65rem; font-weight: 700; }
+  .slug-control, .suffix-control { display: flex; overflow: hidden; border: 1px solid var(--admin-border-strong); border-radius: 10px; background: var(--admin-surface-soft); }
+  .slug-control:focus-within, .suffix-control:focus-within { border-color: var(--admin-green); box-shadow: 0 0 0 3px var(--admin-green-soft); }
+  .slug-control > span, .suffix-control > span { display: flex; align-items: center; padding: 0 0.7rem; color: var(--admin-text-subtle); font-size: 0.68rem; font-weight: 600; white-space: nowrap; }
+  .slug-control input, .suffix-control input { border: 0; border-radius: 0; box-shadow: none; }
+  .featured-field { display: flex; align-items: center; gap: 0.7rem; padding: 0.85rem; border: 1px solid var(--admin-border); border-radius: 11px; background: var(--admin-surface-raised); cursor: pointer; }
+  .featured-field input { width: 18px; min-height: 18px; flex: none; accent-color: var(--admin-green); }
+  .featured-field span { display: grid; gap: 0.16rem; }
+  .featured-field strong { color: var(--admin-text); font-size: 0.74rem; }
+  .featured-field small { color: var(--admin-text-muted); font-size: 0.63rem; }
+  .form-actions { position: sticky; z-index: 5; bottom: 0; display: flex; align-items: center; justify-content: flex-end; gap: 0.7rem; padding: 0.85rem; border: 1px solid var(--admin-border); border-radius: 14px; background: color-mix(in srgb, var(--admin-surface) 94%, transparent); box-shadow: 0 -8px 30px rgba(0, 0, 0, 0.18); backdrop-filter: blur(12px); }
+  .form-actions a, .form-actions button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 0.4rem; padding: 0.68rem 0.9rem; border-radius: 10px; font: inherit; font-size: 0.73rem; font-weight: 800; }
+  .form-actions a { border: 1px solid var(--admin-border-strong); color: var(--admin-text-muted); }
+  .form-actions button { border: 1px solid rgba(66, 201, 119, 0.3); background: var(--admin-green-strong); color: #fff; cursor: pointer; }
+  .form-actions a:focus-visible, .form-actions button:focus-visible { outline: 2px solid var(--admin-green); outline-offset: 2px; }
+  @media (max-width: 800px) { .form-grid.compact { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  @media (max-width: 580px) { .form-grid, .form-grid.compact { grid-template-columns: 1fr; } .field.wide, .featured-field.wide { grid-column: auto; } .form-actions { align-items: stretch; flex-direction: column-reverse; } }
+</style>

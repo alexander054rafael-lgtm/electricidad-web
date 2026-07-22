@@ -1,0 +1,21 @@
+---
+import { Star } from '@lucide/astro';
+import type { Course } from '../../../types/course';
+import { formatCourseDate, formatCourseDuration } from '../../../lib/admin/course-utils';
+import CourseActions from './CourseActions.astro';
+import CourseCover from './CourseCover.astro';
+import CourseLevelBadge from './CourseLevelBadge.astro';
+import CourseStatusBadge from './CourseStatusBadge.astro';
+
+interface Props { course: Course }
+const { course } = Astro.props;
+---
+<article class="course-card">
+  <div class="card-heading"><CourseCover url={course.cover_url} title={course.title} variant="card" /><div class="course-copy"><span class="title-line"><strong>{course.title}</strong>{course.is_featured && <Star class="featured" size={15} aria-label="Curso destacado" />}</span><small>/{course.slug}</small></div></div>
+  <div class="card-badges"><CourseStatusBadge status={course.status} /><CourseLevelBadge level={course.level} /></div>
+  <dl><div><dt>Categoría</dt><dd>{course.category || '—'}</dd></div><div><dt>Duración</dt><dd>{formatCourseDuration(course.duration_minutes)}</dd></div><div><dt>Posición</dt><dd>{course.position}</dd></div><div><dt>Actualizado</dt><dd>{formatCourseDate(course.updated_at)}</dd></div></dl>
+  <CourseActions course={course} />
+</article>
+<style>
+  .course-card{display:grid;gap:1rem;min-width:0;padding:1rem;border:1px solid var(--admin-border);border-radius:15px;background:var(--admin-surface);box-shadow:var(--admin-shadow)}.card-heading{display:flex;min-width:0;align-items:center;gap:.8rem}.course-copy{display:grid;min-width:0;gap:.15rem}.course-copy>small{color:var(--admin-text-subtle);font-size:.65rem}.title-line{display:flex;min-width:0;align-items:center;gap:.4rem}.title-line strong{overflow:hidden;color:var(--admin-text);text-overflow:ellipsis;white-space:nowrap}.featured{flex:none;color:var(--admin-warning);fill:currentColor}.card-badges{display:flex;flex-wrap:wrap;gap:.5rem}dl{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem;margin:0}dl div{min-width:0}dt{margin-bottom:.2rem;color:var(--admin-text-subtle);font-size:.62rem;font-weight:750;text-transform:uppercase}dd{overflow-wrap:anywhere;margin:0;color:var(--admin-text);font-size:.75rem}
+</style>

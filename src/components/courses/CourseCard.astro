@@ -1,0 +1,70 @@
+---
+import { ArrowRight, BookOpen, Clock3, Layers } from '@lucide/astro';
+import Button from '../ui/Button.astro';
+import type { Course } from '../../data/courses';
+import { getLessonCount } from '../../data/courses';
+
+interface Props { course: Course }
+const { course } = Astro.props;
+const lessonCount = getLessonCount(course);
+---
+
+<article
+  class="course-card"
+  style={`--course-accent:${course.accent}`}
+  data-course
+  data-search={`${course.title} ${course.shortDescription} ${course.category} ${course.instructor}`.toLowerCase()}
+  data-category={course.category}
+  data-level={course.level}
+  data-duration={course.durationHours}
+  data-popularity={course.popularity}
+  data-published={course.publishedAt}
+>
+  <a class="course-card__media" href={`/cursos/${course.slug}`} aria-label={`Ver curso ${course.title}`}>
+    <img src={course.image} alt={`Portada de ${course.title}`} loading="lazy" decoding="async" />
+    <span class="course-card__category">{course.category}</span>
+    <span class:list={['course-card__badge', `course-card__badge--${course.badge.toLowerCase()}`]}>{course.badge}</span>
+    <span class="course-card__media-title" aria-hidden="true">{course.title}</span>
+  </a>
+
+  <div class="course-card__body">
+    <div class="course-card__topline">
+      <span>{course.level}</span>
+      <span><Clock3 size={15} aria-hidden="true" /> {course.duration}</span>
+    </div>
+    <h3><a href={`/cursos/${course.slug}`}>{course.title}</a></h3>
+    <p>{course.shortDescription}</p>
+    <div class="course-card__facts" aria-label="Contenido del curso">
+      <span><Layers size={16} aria-hidden="true" /> {course.modules.length} módulos</span>
+      <span><BookOpen size={16} aria-hidden="true" /> {lessonCount} lecciones</span>
+    </div>
+    <Button href={`/cursos/${course.slug}`} variant="outline" size="sm" class="course-card__button">
+      Ver curso <ArrowRight size={15} stroke-width={2.5} aria-hidden="true" />
+    </Button>
+  </div>
+</article>
+
+<style>
+  .course-card { display:flex; min-width:0; flex-direction:column; overflow:hidden; border:1px solid var(--color-border); border-radius:var(--radius-xl); background:var(--color-surface); box-shadow:var(--shadow-sm); transition:transform var(--transition-base),box-shadow var(--transition-base),border-color var(--transition-base); }
+  .course-card:hover { transform:translateY(-6px); border-color:color-mix(in srgb,var(--course-accent),transparent 68%); box-shadow:var(--shadow-xl); }
+  .course-card[hidden] { display:none; }
+  .course-card__media { position:relative; min-height:210px; overflow:hidden; isolation:isolate; background:linear-gradient(145deg,color-mix(in srgb,var(--course-accent),#0f172a 12%),#0f172a); }
+  .course-card__media::after { content:''; position:absolute; inset:0; z-index:0; background:linear-gradient(180deg,rgba(15,23,42,.06),rgba(15,23,42,.82)); }
+  .course-card__media img { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; object-position:center 40%; opacity:.62; transition:transform var(--transition-slow),opacity var(--transition-slow); }
+  .course-card:hover .course-card__media img { transform:scale(1.055); opacity:.75; }
+  .course-card__category,.course-card__badge,.course-card__media-title { position:absolute; z-index:1; color:#fff; }
+  .course-card__category { top:1rem; left:1rem; max-width:62%; padding:.34rem .68rem; border:1px solid rgba(255,255,255,.22); border-radius:var(--radius-full); background:rgba(15,23,42,.34); backdrop-filter:blur(9px); font-size:.7rem; font-weight:700; }
+  .course-card__badge { top:1rem; right:1rem; padding:.34rem .64rem; border-radius:var(--radius-full); background:#fff; color:#14532d; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.035em; }
+  .course-card__badge--avanzado { color:#7f1d1d; }
+  .course-card__media-title { left:1.2rem; right:1.2rem; bottom:1.15rem; font:800 clamp(1.15rem,2vw,1.42rem)/1.15 var(--font-display); text-wrap:balance; }
+  .course-card__body { display:flex; flex:1; flex-direction:column; padding:1.35rem; }
+  .course-card__topline,.course-card__facts { display:flex; align-items:center; flex-wrap:wrap; gap:.75rem 1rem; color:var(--color-text-secondary); font-size:.78rem; }
+  .course-card__topline { justify-content:space-between; color:var(--course-accent); font-weight:750; }
+  .course-card__topline span:last-child,.course-card__facts span { display:inline-flex; align-items:center; gap:.35rem; color:var(--color-text-secondary); }
+  h3 { margin:.8rem 0 .55rem; font-size:1.18rem; line-height:1.28; }
+  h3 a:hover { color:var(--color-primary); }
+  p { margin-bottom:1.1rem; color:var(--color-text-secondary); font-size:.875rem; line-height:1.6; }
+  .course-card__facts { margin-top:auto; padding-top:.95rem; border-top:1px solid var(--color-border); }
+  .course-card__button { align-self:flex-start; margin-top:1.15rem; }
+  @media (max-width:380px) { .course-card__media { min-height:190px; }.course-card__body { padding:1.1rem; } }
+</style>

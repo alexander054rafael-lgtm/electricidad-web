@@ -1,0 +1,41 @@
+---
+import { Calculator, ListOrdered, MousePointerClick } from '@lucide/astro';
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/landing/Header.astro';
+import Footer from '../../components/landing/Footer.astro';
+import GameCard from '../../components/games/GameCard.astro';
+import MatchingGame from '../../components/games/MatchingGame';
+import SortingGame from '../../components/games/SortingGame';
+import SynchronousSpeedGame from '../../components/games/SynchronousSpeedGame';
+
+const gameLinks = [
+  { href: '#relacionar-conceptos', title: 'Relacionar conceptos', description: 'Conecta magnitudes eléctricas con su definición.', icon: MousePointerClick },
+  { href: '#ordenar-procedimiento', title: 'Ordenar procedimiento', description: 'Construye una secuencia segura de instalación.', icon: ListOrdered },
+  { href: '#velocidad-sincronica', title: 'Velocidad sincrónica', description: 'Calcula RPM y revisa el procedimiento.', icon: Calculator },
+];
+---
+
+<Layout title="Juegos educativos | InduTech Academy" description="Juegos técnicos interactivos sobre motores eléctricos y variadores de frecuencia.">
+  <Header />
+  <main>
+    <section class="games-hero">
+      <div class="container games-hero__inner">
+        <div class="games-hero__copy"><span>Aprender haciendo</span><h1>Juegos educativos</h1><p>Practica conceptos de electricidad industrial con actividades breves, retroalimentación inmediata y procedimientos aplicables al aula.</p></div>
+        <nav class="games-hero__links" aria-label="Seleccionar un juego">{gameLinks.map((game) => { const Icon = game.icon; return <a href={game.href}><Icon size={22} aria-hidden="true" /><span><strong>{game.title}</strong><small>{game.description}</small></span></a>; })}</nav>
+      </div>
+    </section>
+
+    <section class="games-list"><div class="container games-list__inner">
+      <GameCard id="relacionar-conceptos" eyebrow="Juego 01" title="Relacionar conceptos" description="Asocia las magnitudes esenciales de motores eléctricos con su significado técnico." instructions={['Selecciona un concepto o una definición.', 'Busca su pareja en la columna opuesta.', 'Completa los cinco pares con el menor número de errores.']}><MatchingGame client:visible /></GameCard>
+      <GameCard id="ordenar-procedimiento" eyebrow="Juego 02" title="Ordenar un procedimiento" description="Organiza una instalación de variador desde la revisión de seguridad hasta las pruebas controladas." instructions={['Usa las flechas para mover cada paso.', 'Comprueba el orden cuando esté listo.', 'Corrige las posiciones señaladas y vuelve a validar.']}><SortingGame client:visible /></GameCard>
+      <GameCard id="velocidad-sincronica" eyebrow="Juego 03" title="Calculadora de velocidad sincrónica" description="Calcula la velocidad del campo magnético con Ns = 120 × f / p y analiza cada operación." instructions={['Ingresa frecuencia y número de polos.', 'Pulsa calcular velocidad.', 'Comprueba el resultado y el desarrollo de la fórmula.']}><SynchronousSpeedGame client:visible /></GameCard>
+    </div></section>
+  </main>
+  <Footer />
+</Layout>
+
+<style>
+  .games-hero{padding:calc(var(--header-height) + clamp(3.5rem,8vw,7rem)) 0 clamp(3.5rem,7vw,6rem);background:radial-gradient(circle at 85% 20%,rgba(34,197,94,.16),transparent 35%),linear-gradient(180deg,var(--color-surface),var(--color-gray-50))}.games-hero__inner{display:grid;grid-template-columns:minmax(0,1fr) minmax(320px,.8fr);align-items:center;gap:clamp(2rem,6vw,6rem)}.games-hero__copy>span{color:var(--color-primary);font-size:.75rem;font-weight:800;text-transform:uppercase;letter-spacing:.1em}.games-hero h1{margin:.5rem 0 1rem;font-size:clamp(2.8rem,7vw,5.8rem);font-weight:800;letter-spacing:-.06em}.games-hero__copy p{max-width:720px;color:var(--color-text-secondary);font-size:clamp(1rem,2vw,1.18rem);line-height:1.75}.games-hero__links{display:grid;gap:.65rem}.games-hero__links a{display:flex;align-items:center;gap:.8rem;padding:1rem;border:1px solid var(--color-border);border-radius:16px;background:var(--color-surface);box-shadow:var(--shadow-sm);transition:transform var(--transition-fast),box-shadow var(--transition-fast),border-color var(--transition-fast)}.games-hero__links a:hover{transform:translateY(-2px);border-color:rgba(22,163,74,.35);box-shadow:var(--shadow-md)}.games-hero__links svg{flex:0 0 auto;color:var(--color-primary)}.games-hero__links span{display:grid}.games-hero__links strong{font-size:.82rem}.games-hero__links small{color:var(--color-text-secondary);font-size:.7rem}.games-list{padding:clamp(4rem,8vw,7rem) 0;background:var(--color-gray-50)}.games-list__inner{display:grid;gap:clamp(3rem,7vw,6rem)}
+  @media(max-width:850px){.games-hero__inner{grid-template-columns:1fr}.games-hero__links{grid-template-columns:repeat(auto-fit,minmax(220px,1fr))}}
+</style>
+

@@ -1,0 +1,52 @@
+---
+import { Zap } from '@lucide/astro';
+
+interface Props {
+  url?: string | null;
+  title?: string;
+  variant?: 'thumbnail' | 'card' | 'preview';
+  interactive?: boolean;
+}
+
+const { url = '', title = '', variant = 'thumbnail', interactive = false } = Astro.props;
+const safeUrl = url ?? '';
+const validUrl = /^https:\/\//i.test(safeUrl);
+---
+<span class:list={['course-cover', variant]} data-cover-container>
+  <span class="fallback">
+    <Zap size={variant === 'preview' ? 28 : 18} aria-hidden="true" />
+    {variant === 'preview' && <><strong>Portada del curso</strong><small>Electricidad industrial</small></>}
+  </span>
+  <img
+    src={validUrl ? safeUrl : undefined}
+    alt={variant === 'preview' ? 'Vista previa de la portada' : ''}
+    width={variant === 'thumbnail' ? 56 : variant === 'card' ? 72 : 1280}
+    height={variant === 'thumbnail' ? 42 : variant === 'card' ? 54 : 720}
+    loading="lazy"
+    hidden={!validUrl}
+    data-course-cover-image
+    data-cover-preview-image={interactive ? '' : undefined}
+    title={title || undefined}
+  />
+</span>
+<script>
+  document.querySelectorAll<HTMLImageElement>('[data-course-cover-image]').forEach((image) => {
+    if (image.dataset.fallbackReady === 'true') return;
+    image.dataset.fallbackReady = 'true';
+    const showFallback = () => { image.hidden = true; };
+    image.addEventListener('error', showFallback);
+    if (image.complete && image.naturalWidth === 0) showFallback();
+  });
+</script>
+<style>
+  .course-cover { position:relative; display:grid; flex:none; overflow:hidden; place-items:center; border:1px solid var(--admin-border); background:linear-gradient(145deg,var(--admin-surface-soft),var(--admin-surface-raised)); color:var(--admin-green); }
+  .thumbnail { width:56px; height:42px; border-radius:8px; }
+  .card { width:72px; height:54px; border-radius:10px; }
+  .preview { width:min(100%,480px); aspect-ratio:16/9; border-radius:13px; }
+  .fallback { display:grid; place-items:center; text-align:center; }
+  .preview .fallback > :global(svg) { display:grid; width:54px; height:54px; margin-bottom:.55rem; padding:13px; border:1px solid rgba(66,201,119,.25); border-radius:15px; background:var(--admin-green-soft); }
+  .fallback strong { color:var(--admin-text); font-size:.76rem; }
+  .fallback small { margin-top:.18rem; color:var(--admin-text-subtle); font-size:.6rem; }
+  img { position:absolute; z-index:2; inset:0; width:100%; height:100%; object-fit:cover; }
+  img[hidden] { display:none; }
+</style>

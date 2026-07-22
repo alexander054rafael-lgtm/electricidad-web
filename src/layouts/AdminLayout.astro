@@ -1,0 +1,160 @@
+---
+import Layout from './Layout.astro';
+import AdminSidebar from '../components/admin/AdminSidebar.astro';
+import AdminHeader from '../components/admin/AdminHeader.astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  activeSection?: string;
+  /** Compatibilidad con las páginas administrativas existentes. */
+  active?: string;
+  /** Compatibilidad con el nombre anterior de la descripción del header. */
+  subtitle?: string;
+}
+
+const {
+  title,
+  description,
+  activeSection,
+  active = '',
+  subtitle,
+} = Astro.props;
+
+const currentSection = activeSection ?? active;
+const headerDescription = description ?? subtitle ?? 'Gestiona tu academia desde un solo lugar';
+const metaDescription = description ?? 'Administración de InduTech Academy.';
+---
+
+<Layout title={`${title} | InduTech Admin`} description={metaDescription}>
+  <div class="admin-shell">
+    <AdminSidebar activeSection={currentSection} role={Astro.locals.role} />
+
+    <button
+      class="admin-overlay"
+      type="button"
+      data-admin-overlay
+      aria-label="Cerrar navegación administrativa"
+      tabindex="-1"
+    ></button>
+
+    <div class="admin-main">
+      <AdminHeader title={title} description={headerDescription} />
+      <main class="admin-content" id="admin-main-content">
+        <slot />
+      </main>
+    </div>
+  </div>
+
+  <script>
+    const sidebar = document.querySelector<HTMLElement>('[data-admin-sidebar]');
+    const overlay = document.querySelector<HTMLButtonElement>('[data-admin-overlay]');
+    const menuButton = document.querySelector<HTMLButtonElement>('[data-admin-menu]');
+    const closeButton = document.querySelector<HTMLButtonElement>('[data-admin-close]');
+
+    const setMenuState = (isOpen: boolean) => {
+      sidebar?.classList.toggle('is-open', isOpen);
+      overlay?.classList.toggle('is-visible', isOpen);
+      document.body.classList.toggle('admin-menu-open', isOpen);
+      menuButton?.setAttribute('aria-expanded', String(isOpen));
+      sidebar?.setAttribute('aria-hidden', String(!isOpen && matchMedia('(max-width: 900px)').matches));
+      overlay?.setAttribute('tabindex', isOpen ? '0' : '-1');
+    };
+
+    const openMenu = () => setMenuState(true);
+    const closeMenu = () => setMenuState(false);
+
+    menuButton?.addEventListener('click', openMenu);
+    closeButton?.addEventListener('click', closeMenu);
+    overlay?.addEventListener('click', closeMenu);
+    sidebar?.querySelectorAll<HTMLAnchorElement>('a[href]').forEach((link) => {
+      link.addEventListener('click', closeMenu);
+    });
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape' && sidebar?.classList.contains('is-open')) {
+        closeMenu();
+        menuButton?.focus();
+      }
+    });
+    matchMedia('(max-width: 900px)').addEventListener('change', (event) => {
+      if (!event.matches) closeMenu();
+      sidebar?.setAttribute('aria-hidden', String(event.matches));
+    });
+    setMenuState(false);
+  </script>
+</Layout>
+
+<style is:global>
+  body.admin-menu-open { overflow: hidden; }
+</style>
+
+<style>
+  .admin-shell {
+    --admin-bg: #101512;
+    --admin-surface: #171e1a;
+    --admin-surface-raised: #1c2520;
+    --admin-surface-soft: #202a24;
+    --admin-border: #2b3730;
+    --admin-border-strong: #3a4940;
+    --admin-text: #f2f6f3;
+    --admin-text-muted: #9eaaa3;
+    --admin-text-subtle: #75827b;
+    --admin-green: #42c977;
+    --admin-green-strong: #25a95b;
+    --admin-green-soft: rgba(66, 201, 119, 0.12);
+    --admin-blue: #55a7f5;
+    --admin-blue-soft: rgba(85, 167, 245, 0.12);
+    --admin-warning: #e7b84b;
+    --admin-warning-soft: rgba(231, 184, 75, 0.12);
+    --admin-danger: #f07878;
+    --admin-radius: 16px;
+    --admin-shadow: 0 16px 38px rgba(0, 0, 0, 0.16);
+    min-height: 100vh;
+    overflow-x: clip;
+    background: var(--admin-bg);
+    color: var(--admin-text);
+    color-scheme: dark;
+  }
+
+  .admin-main {
+    min-width: 0;
+    min-height: 100vh;
+    margin-left: 272px;
+  }
+
+  .admin-content {
+    width: min(100%, 1440px);
+    min-width: 0;
+    max-width: 100%;
+    margin-inline: auto;
+    padding: clamp(1rem, 3vw, 2.5rem);
+  }
+
+  .admin-content > :global(*) { min-width: 0; max-width: 100%; }
+
+  .admin-overlay {
+    position: fixed;
+    z-index: 55;
+    inset: 0;
+    visibility: hidden;
+    width: 100%;
+    border: 0;
+    background: rgba(4, 15, 9, 0.48);
+    opacity: 0;
+    cursor: pointer;
+    transition: opacity 180ms ease, visibility 180ms ease;
+  }
+
+  @media (max-width: 900px) {
+    .admin-main { margin-left: 0; }
+    .admin-overlay.is-visible { visibility: visible; opacity: 1; }
+  }
+
+  @media (max-width: 480px) {
+    .admin-content { padding: 1rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-overlay { transition: none; }
+  }
+</style>

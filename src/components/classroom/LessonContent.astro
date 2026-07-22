@@ -1,0 +1,23 @@
+---
+import { Clock3, ListChecks } from '@lucide/astro';
+import type { CourseLessonReference } from '../../data/courses';
+import type { LessonTheory } from '../../data/lessons';
+import ContentBlock from '../lesson/ContentBlock.astro';
+interface Props { lesson: CourseLessonReference; theory: LessonTheory }
+const { lesson, theory } = Astro.props;
+---
+
+<article class="lesson-content">
+  <header class="lesson-content__header">
+    <div class="lesson-content__meta"><span>Módulo {lesson.moduleIndex + 1} · Lección {lesson.lessonIndex + 1}</span><span><Clock3 size={15} aria-hidden="true" /> {theory.estimatedMinutes} min</span></div>
+    <h1>{lesson.title}</h1>
+    <p>{theory.description}</p>
+    <section class="lesson-content__objectives"><ListChecks size={21} aria-hidden="true" /><div><strong>Al finalizar podrás</strong><ul>{theory.objectives.map((objective) => <li>{objective}</li>)}</ul></div></section>
+  </header>
+  <div class="lesson-content__blocks">{theory.blocks.map((block) => <ContentBlock block={block} />)}</div>
+</article>
+
+<style>
+  .lesson-content{min-width:0}.lesson-content__header{padding-bottom:2rem;border-bottom:1px solid var(--color-border)}.lesson-content__meta{display:flex;align-items:center;justify-content:space-between;gap:1rem;color:var(--color-primary);font-size:.72rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.lesson-content__meta span:last-child{display:inline-flex;align-items:center;gap:.35rem;color:var(--color-text-secondary);font-weight:600;text-transform:none;letter-spacing:0}.lesson-content h1{max-width:850px;margin:.8rem 0 1rem;font-size:clamp(2.25rem,5vw,4.25rem);font-weight:800;letter-spacing:-.055em;text-wrap:balance}.lesson-content__header>p{max-width:780px;color:var(--color-text-secondary);font-size:clamp(1rem,1.8vw,1.16rem);line-height:1.75}.lesson-content__objectives{display:flex;align-items:flex-start;gap:.7rem;max-width:820px;margin-top:1.5rem;padding:1rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-gray-50)}.lesson-content__objectives>svg{flex:0 0 auto;color:var(--color-primary)}.lesson-content__objectives strong{font-size:.8rem}.lesson-content__objectives ul{display:flex;flex-wrap:wrap;gap:.35rem 1.2rem;margin-top:.35rem}.lesson-content__objectives li{position:relative;padding-left:.7rem;color:var(--color-text-secondary);font-size:.75rem}.lesson-content__objectives li::before{content:'';position:absolute;left:0;top:.55em;width:4px;height:4px;border-radius:50%;background:var(--color-primary)}.lesson-content__blocks{padding-top:.35rem}
+  @media(max-width:560px){.lesson-content__meta{align-items:flex-start;flex-direction:column;gap:.35rem}.lesson-content__objectives ul{display:grid}.lesson-content h1{font-size:2.25rem}}
+</style>

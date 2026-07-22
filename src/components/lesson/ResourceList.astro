@@ -1,0 +1,26 @@
+---
+import { Download, FileArchive, FileChartColumn, FileSpreadsheet, FileText, Presentation, SquareArrowOutUpRight } from '@lucide/astro';
+import type { ResourceFile } from '../../data/lessons';
+interface Props { items: ResourceFile[] }
+const { items } = Astro.props;
+const icons = { PDF: FileText, Word: FileText, Excel: FileSpreadsheet, Presentación: Presentation, ZIP: FileArchive, Enlace: FileChartColumn };
+---
+
+<div class="resource-list">
+  <div class="resource-list__table" role="table" aria-label="Archivos y recursos de la lección">
+    <div class="resource-list__row resource-list__row--head" role="row"><span>Recurso</span><span>Tipo</span><span>Tamaño</span><span>Acción</span></div>
+    {items.map((item) => {
+      const Icon = icons[item.format];
+      return <div class="resource-list__row" role="row">
+        <div class="resource-list__name" role="cell"><span class="resource-list__icon"><Icon size={20} aria-hidden="true" /></span><span><strong>{item.name}</strong><small>{item.description}</small>{item.placeholder && <b>Placeholder</b>}</span></div>
+        <div class="resource-list__type" role="cell"><span>{item.category}</span><small>{item.format}</small></div>
+        <span class="resource-list__size" role="cell">{item.size}</span>
+        <a class="resource-list__action" href={item.href} download={item.download ? '' : undefined} target={item.download ? undefined : '_blank'} rel={item.download ? undefined : 'noreferrer'}>{item.download ? <Download size={16} /> : <SquareArrowOutUpRight size={16} />}<span>{item.download ? 'Descargar' : 'Abrir'}</span></a>
+      </div>;
+    })}
+  </div>
+</div>
+
+<style>
+  .resource-list{overflow-x:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}.resource-list__table{min-width:680px}.resource-list__row{display:grid;grid-template-columns:minmax(300px,1fr) 120px 80px 110px;align-items:center;gap:1rem;padding:.85rem 1rem;border-bottom:1px solid var(--color-border)}.resource-list__row:last-child{border-bottom:0}.resource-list__row--head{padding-block:.65rem;background:var(--color-gray-50);color:var(--color-text-secondary);font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.06em}.resource-list__name{display:flex;align-items:center;gap:.75rem}.resource-list__icon{display:grid;flex:0 0 auto;place-items:center;width:42px;height:42px;border-radius:12px;background:rgba(22,163,74,.1);color:var(--color-primary)}.resource-list__name>span:last-child{display:grid;min-width:0}.resource-list__name strong{font-size:.8rem}.resource-list__name small{color:var(--color-text-secondary);font-size:.68rem;line-height:1.4}.resource-list__name b{justify-self:start;margin-top:.25rem;padding:.12rem .35rem;border-radius:999px;background:#fef3c7;color:#92400e;font-size:.55rem;text-transform:uppercase}.resource-list__type{display:grid}.resource-list__type span{font-size:.72rem;font-weight:700}.resource-list__type small,.resource-list__size{color:var(--color-text-secondary);font-size:.68rem}.resource-list__action{display:inline-flex;align-items:center;justify-content:center;gap:.35rem;min-height:36px;padding:.45rem .65rem;border-radius:999px;background:var(--color-primary);color:#fff;font-size:.7rem;font-weight:750;transition:background var(--transition-fast),transform var(--transition-fast)}.resource-list__action:hover{transform:translateY(-1px);background:var(--color-primary-dark)}
+</style>

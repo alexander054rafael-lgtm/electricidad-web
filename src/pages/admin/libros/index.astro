@@ -1,0 +1,54 @@
+---
+export const prerender = false;
+import { TriangleAlert } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import BookUploadForm from '../../../components/admin/BookUploadForm.astro';
+
+interface AdminBookRow {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  status: 'draft' | 'published';
+  allow_download: boolean;
+  updated_at: string;
+}
+
+const result = Astro.locals.supabase
+  ? await Astro.locals.supabase.from('books').select('id,title,author,category,status,allow_download,updated_at').order('updated_at', { ascending: false })
+  : { data: null, error: new Error('Database client unavailable') };
+if (result.error && import.meta.env.DEV) console.error('[admin-libros] No se pudieron consultar los libros:', result.error);
+const books = (result.data ?? []) as AdminBookRow[];
+---
+
+<AdminLayout title="Biblioteca" active="books">
+  <div class="head"><span>Biblioteca PDF</span><h1>Publicar libros técnicos</h1><p>Los archivos se validan en el navegador, en el servidor y mediante las políticas de acceso.</p></div>
+  <BookUploadForm />
+  <section>
+    <h2>Libros registrados</h2>
+    {result.error ? (
+      <AdminEmptyState title="Datos temporalmente no disponibles" description="No pudimos consultar la biblioteca en este momento. Intenta nuevamente más tarde.">
+        <TriangleAlert slot="icon" size={25} aria-hidden="true" />
+      </AdminEmptyState>
+    ) : (
+      <div class="books">
+        {books.map((book) => <article><div><strong>{book.title}</strong><small>{book.author} · {book.category}</small></div><span>{book.status === 'published' ? 'Publicado' : 'Borrador'}</span><small>{book.allow_download ? 'Descarga permitida' : 'Solo lectura'}</small></article>)}
+        {!books.length && <p>No hay libros almacenados todavía.</p>}
+      </div>
+    )}
+  </section>
+</AdminLayout>
+
+<style>
+  .head { margin-bottom:1.5rem; }
+  .head span { color:var(--admin-green); font-weight:800; }
+  .head h1 { margin:.3rem 0; font-size:clamp(2rem,5vw,3rem); }
+  .head p, small { color:var(--admin-text-muted); }
+  section { margin-top:2rem; }
+  .books { display:grid; gap:.7rem; }
+  .books article { display:grid; grid-template-columns:1fr auto auto; gap:1rem; align-items:center; padding:1rem; border:1px solid var(--admin-border); border-radius:12px; background:var(--admin-surface-raised); }
+  .books article div { display:grid; }
+  .books article > span { padding:.3rem .6rem; border-radius:99px; background:var(--admin-green-soft); color:var(--admin-green); font-size:.78rem; font-weight:800; }
+  @media(max-width:650px) { .books article { grid-template-columns:1fr; } }
+</style>

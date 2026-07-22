@@ -1,0 +1,270 @@
+---
+import { ArrowUpRight, Menu, UserRound } from '@lucide/astro';
+
+interface Props {
+  title: string;
+  description?: string;
+  showPlatformLink?: boolean;
+  platformHref?: string;
+}
+
+const {
+  title,
+  description = 'Gestiona tu academia desde un solo lugar',
+  showPlatformLink = true,
+  platformHref = '/',
+} = Astro.props;
+
+const profile = Astro.locals.profile;
+const user = Astro.locals.user;
+const administratorName = profile?.full_name?.trim() || 'Administrador';
+const administratorEmail = user?.email?.trim() || 'Correo no disponible';
+const administratorAvatar = profile?.avatar_url?.trim() || '';
+---
+
+<header class="admin-header">
+  <div class="header-heading">
+    <button
+      class="menu-button"
+      type="button"
+      data-admin-menu
+      aria-label="Abrir navegación"
+      aria-controls="admin-sidebar"
+      aria-expanded="false"
+    >
+      <Menu size={21} aria-hidden="true" />
+    </button>
+
+    <div class="heading-copy">
+      <strong>{title}</strong>
+      <small>{description}</small>
+    </div>
+  </div>
+
+  <div class="header-actions">
+    {showPlatformLink && (
+      <a class="platform-link" href={platformHref} aria-label="Ver plataforma pública">
+        <span>Ver plataforma</span>
+        <ArrowUpRight size={16} aria-hidden="true" />
+      </a>
+    )}
+
+    <a class="administrator" href="/perfil" aria-label={`Abrir perfil de ${administratorName}`}>
+      <span class="administrator-avatar" data-admin-avatar>
+        <span class="avatar-fallback" data-avatar-fallback aria-hidden={administratorAvatar ? 'true' : 'false'}>
+          <UserRound size={18} aria-hidden="true" />
+        </span>
+        {administratorAvatar && (
+          <img
+            src={administratorAvatar}
+            alt={`Avatar de ${administratorName}`}
+            data-avatar-image
+          />
+        )}
+      </span>
+      <span class="administrator-copy">
+        <strong>{administratorName}</strong>
+        <span class="administrator-email">{administratorEmail}</span>
+        <small>Administrador</small>
+      </span>
+    </a>
+  </div>
+</header>
+
+<style>
+  .admin-header {
+    position: sticky;
+    z-index: 40;
+    top: 0;
+    display: flex;
+    min-height: 74px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.75rem clamp(1rem, 3vw, 2.25rem);
+    border-bottom: 1px solid var(--admin-border);
+    background: rgba(16, 21, 18, 0.9);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.12);
+    backdrop-filter: blur(14px);
+  }
+
+  .header-heading {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .menu-button {
+    display: none;
+    width: 42px;
+    height: 42px;
+    flex: none;
+    padding: 0;
+    place-items: center;
+    border-radius: 9px;
+    border: 1px solid rgba(66, 201, 119, 0.2);
+    background: var(--admin-green-soft);
+    color: var(--admin-green);
+  }
+
+  .heading-copy,
+  .administrator-copy {
+    display: grid;
+    min-width: 0;
+  }
+
+  .heading-copy strong {
+    overflow: hidden;
+    color: var(--admin-text);
+    font-size: 0.94rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .heading-copy small,
+  .administrator-copy small {
+    overflow: hidden;
+    color: var(--admin-text-muted);
+    font-size: 0.68rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-actions {
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .platform-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.58rem 0.78rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 9px;
+    background: var(--admin-surface-raised);
+    color: var(--admin-text-muted);
+    font-size: 0.72rem;
+    font-weight: 750;
+    transition: border-color 160ms ease, background-color 160ms ease, color 160ms ease;
+  }
+
+  .platform-link:hover {
+    border-color: rgba(85, 167, 245, 0.4);
+    background: var(--admin-blue-soft);
+    color: var(--admin-blue);
+  }
+
+  .administrator {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    padding-left: 0.8rem;
+    border-left: 1px solid var(--admin-border);
+    color: var(--admin-text);
+  }
+
+  .administrator-avatar,
+  .avatar-fallback {
+    display: grid;
+    width: 38px;
+    height: 38px;
+    flex: none;
+    place-items: center;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: 50%;
+    background: var(--admin-green-soft);
+    color: var(--admin-green);
+  }
+
+  .administrator-avatar {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .administrator-avatar > img {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: inherit;
+    object-fit: cover;
+  }
+
+  .administrator-avatar > img[hidden] {
+    display: none;
+  }
+
+  .administrator-copy strong {
+    max-width: 160px;
+    overflow: hidden;
+    font-size: 0.76rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .administrator-email {
+    max-width: 190px;
+    overflow: hidden;
+    color: var(--admin-text-muted);
+    font-size: 0.68rem;
+    line-height: 1.25;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu-button:focus-visible,
+  .platform-link:focus-visible,
+  .administrator:focus-visible {
+    outline: 2px solid var(--admin-green);
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 900px) {
+    .menu-button { display: grid; }
+  }
+
+  @media (max-width: 650px) {
+    .admin-header { min-height: 66px; gap: 0.6rem; }
+    .heading-copy small,
+    .administrator-copy { display: none; }
+    .platform-link { width: 42px; height: 42px; justify-content: center; padding: 0; }
+    .platform-link span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+    .administrator { padding-left: 0.65rem; }
+    .administrator { min-width:44px; min-height:44px; justify-content:center; }
+    .administrator-avatar,
+    .avatar-fallback { width: 40px; height: 40px; }
+  }
+
+  @media (max-width: 480px) {
+    .platform-link { display:none; }
+  }
+
+  @media (max-width: 380px) {
+    .heading-copy strong { max-width: 118px; }
+    .header-actions { gap: 0.5rem; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .platform-link { transition: none; }
+  }
+</style>
+
+<script>
+  document.querySelectorAll<HTMLElement>('[data-admin-avatar]').forEach((avatar) => {
+    const image = avatar.querySelector<HTMLImageElement>('[data-avatar-image]');
+    const fallback = avatar.querySelector<HTMLElement>('[data-avatar-fallback]');
+
+    const showFallback = () => {
+      if (!image) return;
+      image.hidden = true;
+      fallback?.setAttribute('aria-hidden', 'false');
+    };
+
+    image?.addEventListener('error', showFallback);
+    if (image?.complete && image.naturalWidth === 0) showFallback();
+  });
+</script>

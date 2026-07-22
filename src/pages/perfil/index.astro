@@ -1,0 +1,167 @@
+---
+export const prerender = false;
+import { Check, LogOut, ShieldCheck, UserRound } from '@lucide/astro';
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/landing/Header.astro';
+import Footer from '../../components/landing/Footer.astro';
+
+const defaultAvatars = [
+  { path: '/avatars/avatar-01.svg', label: 'Técnico electricista con casco amarillo' },
+  { path: '/avatars/avatar-02.svg', label: 'Ingeniera electricista con casco blanco' },
+  { path: '/avatars/avatar-03.svg', label: 'Técnico con lentes de seguridad' },
+  { path: '/avatars/avatar-04.svg', label: 'Especialista en automatización' },
+  { path: '/avatars/avatar-05.svg', label: 'Operador industrial' },
+  { path: '/avatars/avatar-06.svg', label: 'Robot industrial' },
+  { path: '/avatars/avatar-07.svg', label: 'Motor eléctrico' },
+  { path: '/avatars/avatar-08.svg', label: 'Tablero eléctrico' },
+];
+
+let error = '';
+let success = '';
+const user = Astro.locals.user!;
+let fullName = Astro.locals.profile?.full_name ?? String(user.user_metadata?.full_name ?? '');
+let avatarUrl = Astro.locals.profile?.avatar_url ?? '';
+
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  fullName = String(form.get('fullName') ?? '').trim();
+  avatarUrl = String(form.get('avatarUrl') ?? '').trim();
+  const isValidAvatar =
+    !avatarUrl ||
+    /^https:\/\//i.test(avatarUrl) ||
+    /^\/avatars\/[a-zA-Z0-9._-]+$/i.test(avatarUrl);
+
+  if (fullName.length < 2 || fullName.length > 120) error = 'El nombre debe tener entre 2 y 120 caracteres.';
+  else if (!isValidAvatar) error = 'El avatar debe ser una URL HTTPS o una ruta válida de /avatars/.';
+  else if (!Astro.locals.supabase) error = 'Supabase no está configurado.';
+  else {
+    const { data: updatedProfile, error: profileError } = await Astro.locals.supabase
+      .from('profiles')
+      .update({ full_name: fullName, avatar_url: avatarUrl || null, updated_at: new Date().toISOString() })
+      .eq('id', user.id)
+      .select()
+      .maybeSingle();
+
+    if (profileError) {
+      console.error('Error al actualizar profile:', profileError);
+      error = `No fue posible actualizar el perfil: ${profileError.message}`;
+    } else if (!updatedProfile) {
+      console.error('La actualización no devolvió ninguna fila.');
+      error = 'No se encontró un perfil que pudiera actualizarse. Revisa las políticas RLS.';
+    } else {
+      const { error: authError } = await Astro.locals.supabase.auth.updateUser({ data: { full_name: fullName } });
+      if (authError) {
+        console.error('Error al actualizar Auth:', authError);
+        error = `El perfil se guardó, pero no se actualizó el usuario: ${authError.message}`;
+      } else success = 'Perfil actualizado correctamente.';
+    }
+  }
+}
+const roleLabels = { visitor: 'Visitante', student: 'Estudiante', instructor: 'Instructor', admin: 'Administrador' };
+---
+<Layout title="Mi perfil | InduTech Academy" description="Gestiona tu perfil de estudiante.">
+  <Header />
+  <main class="profile-page"><div class="container profile-layout">
+    <aside>
+      <div class="profile-avatar" data-avatar-preview>
+        <span data-avatar-fallback hidden={Boolean(avatarUrl)}><UserRound size={34} /></span>
+        {avatarUrl && <img src={avatarUrl} alt={`Avatar de ${fullName || 'estudiante'}`} data-avatar-image />}
+      </div>
+      <p class="avatar-picker__title" id="avatar-picker-title">Elige tu avatar</p>
+      <div class="avatar-picker" role="group" aria-labelledby="avatar-picker-title"><div class="avatar-grid">
+        {defaultAvatars.map((avatar) => <button type="button" class:list={{ 'avatar-option': true, 'is-selected': avatar.path === avatarUrl }} data-avatar-option={avatar.path} aria-label={`Seleccionar avatar: ${avatar.label}`} aria-pressed={avatar.path === avatarUrl ? 'true' : 'false'}>
+          <img src={avatar.path} alt="" loading="lazy" /><span class="avatar-check" aria-hidden="true"><Check size={11} /></span>
+        </button>)}
+      </div></div>
+      <h1>{fullName || 'Estudiante'}</h1><p class="profile-email">{user.email}</p><span class="role-badge"><ShieldCheck size={15} /> {roleLabels[Astro.locals.role]}</span>
+      <a class="learning-link" href="/mi-aprendizaje">Volver a mi aprendizaje</a>
+      <form class="logout-form" action="/auth/logout" method="post"><button type="submit"><LogOut size={16} /> Cerrar sesión</button></form>
+    </aside>
+    <section><span class="eyebrow">Datos personales</span><h2>Perfil del estudiante</h2><p>Mantén actualizada la información visible en tu experiencia de aprendizaje y futuros certificados.</p>
+      {error && <div class="message error" role="alert">{error}</div>}{success && <div class="message success" role="status">{success}</div>}
+      <form class="profile-form" method="post">
+        <label>Nombre completo<input name="fullName" value={fullName} maxlength="120" autocomplete="name" required /></label>
+        <label>Correo electrónico<input value={user.email} disabled /><small>El correo pertenece a tu identidad de acceso.</small></label>
+        <label>URL de avatar <span>Opcional</span><input type="text" inputmode="url" name="avatarUrl" value={avatarUrl} placeholder="https://… o /avatars/avatar-01.svg" data-avatar-input aria-describedby="avatar-help" /></label>
+        <small id="avatar-help">Acepta una URL que empiece con https:// o uno de los avatares predeterminados.</small>
+        <div class="form-actions"><button type="button" class="remove-avatar" data-remove-avatar>Quitar avatar</button><button type="submit">Guardar cambios</button></div>
+      </form>
+    </section>
+  </div></main>
+  <Footer />
+</Layout>
+<script>
+  const input = document.querySelector<HTMLInputElement>('[data-avatar-input]');
+  const preview = document.querySelector<HTMLElement>('[data-avatar-preview]');
+  const fallback = preview?.querySelector<HTMLElement>('[data-avatar-fallback]');
+  const options = Array.from(document.querySelectorAll<HTMLButtonElement>('[data-avatar-option]'));
+  const removeButton = document.querySelector<HTMLButtonElement>('[data-remove-avatar]');
+  const validAvatar = (value: string) => !value || /^https:\/\//i.test(value) || /^\/avatars\/[a-zA-Z0-9._-]+$/i.test(value);
+
+  const showFallback = () => {
+    const image = preview?.querySelector<HTMLImageElement>('[data-avatar-image]');
+    if (image) image.hidden = true;
+    if (fallback) fallback.hidden = false;
+  };
+  const updateActiveOption = (value: string) => options.forEach((button) => {
+    const active = button.dataset.avatarOption === value;
+    button.classList.toggle('is-selected', active);
+    button.setAttribute('aria-pressed', String(active));
+  });
+  const updatePreview = (value: string) => {
+    updateActiveOption(value);
+    if (!value || !validAvatar(value)) return showFallback();
+    let image = preview?.querySelector<HTMLImageElement>('[data-avatar-image]');
+    if (!image && preview) {
+      image = document.createElement('img');
+      image.dataset.avatarImage = '';
+      image.alt = 'Vista previa del avatar';
+      preview.append(image);
+    }
+    if (!image) return;
+    image.onerror = showFallback;
+    image.hidden = false;
+    image.classList.remove('is-changing');
+    void image.offsetWidth;
+    image.classList.add('is-changing');
+    image.src = value;
+    if (fallback) fallback.hidden = true;
+  };
+
+  options.forEach((button) => button.addEventListener('click', () => {
+    const value = button.dataset.avatarOption ?? '';
+    if (input) input.value = value;
+    updatePreview(value);
+  }));
+  input?.addEventListener('input', () => updatePreview(input.value.trim()));
+  removeButton?.addEventListener('click', () => { if (input) input.value = ''; updatePreview(''); input?.focus(); });
+  const initialImage = preview?.querySelector<HTMLImageElement>('[data-avatar-image]');
+  if (initialImage) initialImage.onerror = showFallback;
+</script>
+<style>
+  .profile-page{position:relative;isolation:isolate;min-height:100vh;padding:calc(var(--header-height) + clamp(3rem,7vw,6rem)) 0 clamp(5rem,8vw,7rem);overflow:hidden;background:radial-gradient(circle at 10% 12%,rgba(22,163,74,.1),transparent 28rem),radial-gradient(circle at 92% 22%,rgba(37,99,235,.09),transparent 27rem),var(--color-gray-50)}
+  .profile-page::before{position:absolute;z-index:-1;inset:0;content:"";background-image:linear-gradient(rgba(100,116,139,.045) 1px,transparent 1px),linear-gradient(90deg,rgba(100,116,139,.045) 1px,transparent 1px);background-size:34px 34px;mask-image:linear-gradient(to bottom,black,transparent 72%)}
+  .profile-layout{display:grid;grid-template-columns:minmax(280px,340px) minmax(0,760px);justify-content:center;align-items:start;gap:clamp(1.25rem,3vw,2.5rem)}
+  .profile-layout>aside,.profile-layout>section{border:1px solid color-mix(in srgb,var(--color-border) 82%,transparent);background:color-mix(in srgb,var(--color-surface) 94%,transparent);box-shadow:0 24px 65px rgba(15,23,42,.09),0 2px 8px rgba(15,23,42,.04);backdrop-filter:blur(12px)}
+  .profile-layout>aside{position:relative;padding:clamp(1.5rem,4vw,2.35rem);overflow:hidden;border-radius:30px;text-align:center}
+  .profile-layout>aside::before{position:absolute;inset:0 0 auto;height:125px;content:"";background:linear-gradient(135deg,rgba(22,163,74,.13),rgba(37,99,235,.12));pointer-events:none}
+  .profile-layout>section{padding:clamp(1.5rem,4vw,2.6rem);border-radius:30px}
+  .profile-avatar{position:relative;display:grid;box-sizing:border-box;width:90px;height:90px;margin:0 auto .8rem;padding:3px;place-items:center;overflow:hidden;border-radius:50%;background:linear-gradient(135deg,#19a85a,#277fd0);color:var(--color-primary);box-shadow:0 14px 32px rgba(17,91,67,.2),0 0 0 6px rgba(255,255,255,.5);transition:transform .25s ease,box-shadow .25s ease}
+  .profile-avatar:hover{transform:translateY(-2px);box-shadow:0 18px 38px rgba(17,91,67,.24),0 0 0 6px rgba(255,255,255,.58)}
+  .profile-avatar>*{grid-area:1/1}.profile-avatar span{display:grid;width:100%;height:100%;place-items:center;border-radius:inherit;background:color-mix(in srgb,var(--color-surface) 91%,transparent);backdrop-filter:blur(8px)}
+  .profile-avatar img{width:100%;height:100%;object-fit:cover;border-radius:inherit;background:var(--color-surface)}.profile-avatar img[hidden],.profile-avatar span[hidden]{display:none}.profile-avatar img.is-changing{animation:avatarReveal .25s ease both}
+  .avatar-picker__title{position:relative;margin:0 0 .7rem;color:var(--color-text-secondary);font-size:.7rem;font-weight:800;letter-spacing:.055em;text-transform:uppercase}.avatar-picker{position:relative;width:100%;margin:0 auto 1.65rem}.avatar-grid{display:grid;grid-template-columns:repeat(4,48px);justify-content:center;gap:10px}
+  .avatar-option{position:relative;display:grid;width:48px;height:48px;padding:0;place-items:center;overflow:visible;border:2px solid transparent;border-radius:50%;background:linear-gradient(145deg,rgba(226,232,240,.75),rgba(203,213,225,.38));box-shadow:0 4px 10px rgba(15,23,42,.08);transition:border-color .2s ease,box-shadow .2s ease,transform .2s ease}.avatar-option:hover{z-index:2;transform:translateY(-3px) scale(1.06);border-color:rgba(22,163,74,.52);box-shadow:0 10px 20px rgba(15,71,42,.17)}.avatar-option:active{transform:translateY(-1px) scale(1.01)}.avatar-option:focus-visible{outline:3px solid rgba(37,99,235,.35);outline-offset:3px}.avatar-option.is-selected{border-color:#16a34a;box-shadow:0 0 0 3px var(--color-surface),0 0 0 6px rgba(22,163,74,.2),0 9px 20px rgba(15,71,42,.16)}.avatar-option img{width:100%;height:100%;object-fit:cover;border-radius:inherit}.avatar-check{position:absolute;right:-4px;bottom:-4px;display:none;width:18px;height:18px;place-items:center;border:2px solid var(--color-surface);border-radius:50%;background:#16a34a;color:#fff;box-shadow:0 3px 8px rgba(15,71,42,.25)}.avatar-option.is-selected .avatar-check{display:grid;animation:checkIn .2s ease both}
+  aside h1{position:relative;margin:.2rem 0 .3rem;font-size:clamp(1.35rem,3vw,1.6rem);letter-spacing:-.025em}.profile-email{position:relative;margin:0;color:var(--color-text-secondary);font-size:.78rem;overflow-wrap:anywhere}.role-badge{position:relative;display:inline-flex;align-items:center;gap:.4rem;margin:1rem 0 1.25rem;padding:.4rem .75rem;border:1px solid rgba(22,163,74,.14);border-radius:999px;background:linear-gradient(135deg,rgba(22,163,74,.11),rgba(37,99,235,.08));color:var(--color-primary-dark);font-size:.7rem;font-weight:800}
+  .learning-link{position:relative;display:block;padding:.72rem .9rem;border:1px solid var(--color-border);border-radius:12px;background:color-mix(in srgb,var(--color-surface) 88%,transparent);color:var(--color-primary);font-size:.76rem;font-weight:800;transition:transform .18s ease,border-color .18s ease,box-shadow .18s ease}.learning-link:hover{transform:translateY(-2px);border-color:rgba(22,163,74,.35);box-shadow:0 7px 16px rgba(15,71,42,.09)}.learning-link:focus-visible,.logout-form button:focus-visible,.form-actions button:focus-visible{outline:3px solid rgba(37,99,235,.3);outline-offset:3px}
+  .logout-form{position:relative;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--color-border)}.logout-form button{display:inline-flex;align-items:center;justify-content:center;gap:.45rem;padding:.65rem .85rem;border-radius:10px;color:var(--color-text-secondary);font-size:.74rem;font-weight:700;transition:color .18s ease,background .18s ease,transform .18s ease}.logout-form button:hover{transform:translateY(-1px);background:rgba(220,38,38,.07);color:#b91c1c}.logout-form button:active{transform:translateY(0)}
+  .eyebrow{display:inline-flex;padding:.32rem .58rem;border-radius:999px;background:rgba(22,163,74,.09);color:var(--color-primary);font-size:.68rem;font-weight:850;text-transform:uppercase;letter-spacing:.09em}.profile-layout>section h2{margin:.65rem 0 .55rem;font-size:clamp(1.8rem,4vw,2.5rem);letter-spacing:-.035em}.profile-layout>section>p{max-width:620px;color:var(--color-text-secondary);font-size:.88rem;line-height:1.65}
+  .profile-form{display:grid;gap:1.25rem;margin-top:2rem}.profile-form label{display:grid;gap:.52rem;color:var(--color-text);font-size:.78rem;font-weight:800}.profile-form label>span,.profile-form small,#avatar-help{color:var(--color-text-secondary);font-size:.7rem;font-weight:500}.profile-form input{width:100%;padding:.9rem 1rem;border:1px solid color-mix(in srgb,var(--color-border) 90%,#94a3b8);border-radius:13px;background:color-mix(in srgb,var(--color-white) 96%,transparent);color:var(--color-text);font:inherit;box-shadow:0 1px 2px rgba(15,23,42,.03);transition:border-color .18s ease,box-shadow .18s ease,background .18s ease}.profile-form input::placeholder{color:#94a3b8}.profile-form input:hover:not(:disabled){border-color:rgba(22,163,74,.38)}.profile-form input:focus{outline:0;border-color:#16a34a;background:var(--color-white);box-shadow:0 0 0 4px rgba(22,163,74,.11),0 6px 16px rgba(15,71,42,.06)}.profile-form input:disabled{background:var(--color-gray-50);opacity:.68;cursor:not-allowed}
+  .form-actions{display:flex;flex-wrap:wrap;gap:.8rem;margin-top:.3rem}.profile-form .form-actions button{min-height:44px;padding:.78rem 1.2rem;border-radius:12px;font-weight:800;transition:transform .18s ease,box-shadow .18s ease,background .18s ease}.profile-form .form-actions button:hover{transform:translateY(-2px)}.profile-form .form-actions button:active{transform:translateY(0) scale(.98)}.profile-form .form-actions button[type="submit"]{background:linear-gradient(135deg,#18a653,#138044);color:#fff;box-shadow:0 8px 18px rgba(22,163,74,.2)}.profile-form .form-actions button[type="submit"]:hover{box-shadow:0 12px 24px rgba(22,163,74,.28)}.profile-form .remove-avatar{border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text-secondary);box-shadow:0 3px 10px rgba(15,23,42,.05)}.profile-form .remove-avatar:hover{border-color:rgba(220,38,38,.25);background:rgba(220,38,38,.055);color:#b91c1c}
+  .message{margin-top:1.2rem;padding:.9rem 1rem;border:1px solid transparent;border-radius:12px;font-size:.78rem;line-height:1.5;animation:messageIn .24s ease both}.error{border-color:rgba(220,38,38,.15);background:rgba(220,38,38,.075);color:#b91c1c}.success{border-color:rgba(22,163,74,.16);background:rgba(22,163,74,.09);color:var(--color-primary-dark)}
+  @keyframes avatarReveal{from{opacity:.25;transform:scale(.9)}to{opacity:1;transform:scale(1)}}@keyframes checkIn{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:scale(1)}}@keyframes messageIn{from{opacity:0;transform:translateY(-5px)}to{opacity:1;transform:translateY(0)}}
+  @media(max-width:900px){.profile-layout{grid-template-columns:minmax(260px,310px) minmax(0,1fr);gap:1.25rem}.profile-layout>aside,.profile-layout>section{border-radius:24px}}
+  @media(max-width:760px){.profile-layout{grid-template-columns:1fr;max-width:650px}.profile-layout>aside{width:100%}.avatar-grid{grid-template-columns:repeat(4,48px)}.form-actions button{flex:1}}
+  @media(max-width:360px){.avatar-grid{grid-template-columns:repeat(3,48px)}.form-actions{flex-direction:column}.form-actions button{width:100%}}
+  @media(prefers-reduced-motion:reduce){.profile-avatar,.avatar-option,.learning-link,.logout-form button,.profile-form input,.profile-form .form-actions button{transition:none}.profile-avatar img.is-changing,.avatar-option.is-selected .avatar-check,.message{animation:none}}
+</style>

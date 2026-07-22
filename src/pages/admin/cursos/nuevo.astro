@@ -1,0 +1,170 @@
+---
+export const prerender = false;
+
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+import CourseForm from '../../../components/admin/courses/CourseForm.astro';
+import { readCourseForm, validateCourseForm } from '../../../lib/admin/course-validation';
+import type {
+  CourseFormErrors,
+  CourseFormValues,
+  CourseInstructorOption,
+} from '../../../types/course';
+
+const supabase = Astro.locals.supabase;
+const user = Astro.locals.user;
+let values: CourseFormValues = {
+  title: '',
+  slug: '',
+  short_description: '',
+  description: '',
+  cover_url: '',
+  category: '',
+  level: 'beginner',
+  status: 'draft',
+  duration_minutes: '0',
+  position: '0',
+  is_featured: false,
+  instructor_id: '',
+};
+let errors: CourseFormErrors = {};
+let generalError = '';
+let debugError = '';
+
+const instructorResult = supabase
+  ? await supabase
+      .from('profiles')
+      .select('id,full_name,role')
+      .in('role', ['instructor', 'admin'])
+      .order('full_name', { ascending: true })
+  : { data: [], error: new Error('Database client unavailable') };
+
+const instructors = instructorResult.error
+  ? []
+  : (instructorResult.data ?? []) as CourseInstructorOption[];
+const instructorIds = new Set(instructors.map((instructor) => instructor.id));
+
+if (instructorResult.error && import.meta.env.DEV) {
+  console.error('[admin-course-instructors] No se pudieron cargar los instructores:', instructorResult.error);
+}
+
+if (Astro.request.method === 'POST') {
+  const requestOrigin = Astro.request.headers.get('origin');
+  if (requestOrigin && requestOrigin !== Astro.url.origin) {
+    generalError = 'La solicitud no pudo ser validada. Actualiza la página e intenta nuevamente.';
+  } else if (!supabase || !user || Astro.locals.role !== 'admin' || Astro.locals.profile?.role !== 'admin') {
+    return Astro.redirect('/mi-aprendizaje?error=forbidden', 303);
+  } else {
+    try {
+      values = readCourseForm(await Astro.request.formData());
+      errors = validateCourseForm(values, instructorIds);
+      if (Object.keys(errors).length) generalError = 'Revisa los campos indicados.';
+
+      if (!Object.keys(errors).length) {
+        const { data: slugOwner, error: slugError } = await supabase
+          .from('courses')
+          .select('id')
+          .eq('slug', values.slug)
+          .maybeSingle();
+
+        if (slugError) {
+          if (import.meta.env.DEV) console.error('[admin-course-slug] No se pudo validar el slug:', slugError);
+          generalError = 'No pudimos validar el curso en este momento. Intenta nuevamente.';
+        } else if (slugOwner) {
+          errors.slug = 'Este slug ya está siendo utilizado.';
+          generalError = 'Revisa los campos indicados.';
+        } else {
+          const isPublished = values.status === 'published';
+          const coursePayload = {
+              title: values.title,
+              slug: values.slug,
+              short_description: values.short_description,
+              description: values.description,
+              cover_url: values.cover_url || null,
+              category: values.category,
+              level: values.level,
+              status: values.status,
+              duration_minutes: Number(values.duration_minutes),
+              position: Number(values.position),
+              is_featured: values.is_featured,
+              instructor_id: values.instructor_id || null,
+              created_by: user.id,
+              published_at: isPublished ? new Date().toISOString() : null,
+          };
+
+          if (import.meta.env.DEV) {
+            console.log('[courses:create] Contexto:', {
+              hasUser: Boolean(Astro.locals.user),
+              userId: Astro.locals.user?.id,
+              profileRole: Astro.locals.profile?.role,
+              requestMethod: Astro.request.method,
+            });
+            console.log('[courses:create] Datos enviados:', coursePayload);
+          }
+
+          const { data, error } = await supabase
+            .from('courses')
+            .insert(coursePayload)
+            .select('id')
+            .single();
+
+          if (import.meta.env.DEV) {
+            console.error('[courses:create] Resultado de Supabase:', {
+              data,
+              error: error
+                ? {
+                    message: error.message,
+                    details: error.details,
+                    hint: error.hint,
+                    code: error.code,
+                  }
+                : null,
+            });
+          }
+
+          if (error) {
+            if (import.meta.env.DEV) {
+              debugError = [error.message, error.details, error.hint, error.code]
+                .filter(Boolean)
+                .join(' | ');
+            }
+
+            if (error.code === '23505') {
+              errors.slug = 'Este slug ya está siendo utilizado.';
+              generalError = 'Revisa los campos indicados.';
+            } else {
+              generalError = 'No fue posible guardar el curso.';
+            }
+          } else if (data) {
+            return Astro.redirect('/admin/cursos?created=1', 303);
+          }
+        }
+      }
+    } catch (exception) {
+      console.error('[courses:create] Excepción inesperada:', exception);
+      generalError = 'No fue posible guardar el curso.';
+    }
+  }
+}
+---
+
+<AdminLayout
+  title="Nuevo curso"
+  description="Crea un nuevo curso para el catálogo de InduTech Academy."
+  activeSection="courses"
+>
+  <AdminPageHeader
+    title="Crear curso"
+    description="Completa la información principal. Después podrás organizar sus módulos y lecciones."
+    eyebrow="Cursos"
+  />
+
+  <CourseForm
+    values={values}
+    errors={errors}
+    instructors={instructors}
+    generalError={generalError}
+    debugError={debugError}
+    submitLabel="Guardar curso"
+  />
+</AdminLayout>

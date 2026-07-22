@@ -1,0 +1,32 @@
+---
+export const prerender = false;
+import AuthShell from '../components/auth/AuthShell.astro';
+import { isSupabaseConfigured, siteUrl } from '../lib/supabase/config';
+let error = '';
+let success = '';
+if (Astro.locals.user && Astro.request.method === 'GET') return Astro.redirect('/mi-aprendizaje', 303);
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData();
+  const fullName = String(form.get('fullName') ?? '').trim();
+  const email = String(form.get('email') ?? '').trim().toLowerCase();
+  const password = String(form.get('password') ?? '');
+  const confirmation = String(form.get('confirmation') ?? '');
+  if (!Astro.locals.supabase) error = 'Supabase todavía no está configurado.';
+  else if (fullName.length < 2 || fullName.length > 120) error = 'Ingresa un nombre válido.';
+  else if (!/^\S+@\S+\.\S+$/.test(email)) error = 'Ingresa un correo electrónico válido.';
+  else if (password.length < 8) error = 'La contraseña debe tener al menos 8 caracteres.';
+  else if (password !== confirmation) error = 'Las contraseñas no coinciden.';
+  else {
+    const { data, error: signUpError } = await Astro.locals.supabase.auth.signUp({ email, password, options: { data: { full_name: fullName }, emailRedirectTo: `${siteUrl}/auth/callback?next=/mi-aprendizaje` } });
+    if (signUpError) error = 'No fue posible crear la cuenta. Revisa los datos o intenta más tarde.';
+    else if (data.session) return Astro.redirect('/mi-aprendizaje', 303);
+    else success = 'Cuenta creada. Revisa tu correo para confirmar el registro.';
+  }
+}
+---
+<AuthShell title="Crear cuenta" eyebrow="Registro de estudiante" description="Crea tu perfil para inscribirte, guardar progreso y conservar tus resultados.">
+  {!isSupabaseConfigured && <p class="auth-message auth-message--error">Configura las variables públicas de Supabase antes de habilitar registros.</p>}
+  {error && <p class="auth-message auth-message--error" role="alert">{error}</p>}{success && <p class="auth-message auth-message--success" role="status">{success}</p>}
+  <form class="auth-form" method="post"><label>Nombre completo<input name="fullName" autocomplete="name" maxlength="120" required /></label><label>Correo electrónico<input type="email" name="email" autocomplete="email" required /></label><div class="auth-form__row"><label>Contraseña<input type="password" name="password" autocomplete="new-password" minlength="8" required /></label><label>Confirmar contraseña<input type="password" name="confirmation" autocomplete="new-password" minlength="8" required /></label></div><button type="submit">Crear cuenta</button></form>
+  <div class="auth-form__links"><span>¿Ya tienes cuenta? <a href="/login">Inicia sesión</a></span></div>
+</AuthShell>

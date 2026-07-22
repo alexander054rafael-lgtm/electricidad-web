@@ -1,0 +1,65 @@
+---
+import Layout from '../../../layouts/Layout.astro';
+import ClassroomHeader from '../../../components/classroom/ClassroomHeader.astro';
+import LessonSidebar from '../../../components/classroom/LessonSidebar.astro';
+import LessonContent from '../../../components/classroom/LessonContent.astro';
+import LessonNavigation from '../../../components/classroom/LessonNavigation.astro';
+import RelatedBooks from '../../../components/library/RelatedBooks.astro';
+import type { Course, CourseLessonReference } from '../../../data/courses';
+import { courses, getCourseLessons } from '../../../data/courses';
+import { getLessonTheory } from '../../../data/lessons';
+import { books } from '../../../data/books';
+
+export function getStaticPaths() {
+  return courses.flatMap((course) =>
+    getCourseLessons(course).map((lesson) => ({
+      params: { courseSlug: course.slug, lessonSlug: lesson.slug },
+      props: { course, lesson },
+    }))
+  );
+}
+
+interface Props { course: Course; lesson: CourseLessonReference }
+const { course, lesson } = Astro.props;
+const lessons = getCourseLessons(course);
+const theory = getLessonTheory(course, lesson);
+const previous = lessons[lesson.globalIndex - 1];
+const next = lessons[lesson.globalIndex + 1];
+const progress = Math.round(((lesson.globalIndex + 1) / lessons.length) * 100);
+const currentModule = course.modules[lesson.moduleIndex];
+const recommendedBookIds = [...new Set([
+  ...course.courseBookIds,
+  ...(currentModule?.moduleBookIds ?? []),
+  ...(theory.lessonBookIds ?? []),
+])];
+const recommendedBooks = recommendedBookIds
+  .map((id) => books.find((book) => book.slug === id))
+  .filter((book): book is (typeof books)[number] => Boolean(book));
+---
+
+<Layout title={`${lesson.title} | ${course.title}`} description={theory.description}>
+  <div class="classroom-shell">
+    <ClassroomHeader courseTitle={course.title} courseHref={`/cursos/${course.slug}`} progress={progress} />
+    <LessonSidebar course={course} currentLesson={lesson} />
+    <main class="classroom-main">
+      <div class="classroom-main__inner">
+        <LessonContent lesson={lesson} theory={theory} />
+        <div class="classroom-reading"><RelatedBooks books={recommendedBooks} title="Lecturas recomendadas para esta lección" subtitle="Referencias vinculadas al curso, al módulo y al contenido actual." embedded /></div>
+        <LessonNavigation previous={previous} next={next} courseSlug={course.slug} lessonSlug={lesson.slug} />
+      </div>
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .classroom-shell{min-height:100vh;background:var(--color-gray-50)}
+  .classroom-main{min-height:100vh;margin-left:320px;padding:calc(72px + clamp(2rem,5vw,4rem)) clamp(1.25rem,5vw,5rem) clamp(4rem,8vw,7rem)}
+  .classroom-main__inner{width:100%;max-width:1080px;margin-inline:auto;padding:clamp(1.25rem,4vw,3.5rem);border:1px solid var(--color-border);border-radius:clamp(20px,3vw,32px);background:var(--color-surface);box-shadow:var(--shadow-md)}
+  .classroom-reading{margin-top:clamp(3rem,7vw,5rem);padding-top:clamp(2.5rem,5vw,4rem);border-top:1px solid var(--color-border)}
+  @media(max-width:900px){.classroom-main{margin-left:0;padding:calc(64px + 1.5rem) clamp(.75rem,3vw,1.5rem) 3rem}.classroom-main__inner{padding:clamp(1rem,4vw,2rem);border-radius:20px}}
+  @media(max-width:420px){.classroom-main{padding-inline:0;padding-bottom:0}.classroom-main__inner{border-right:0;border-bottom:0;border-left:0;border-radius:18px 18px 0 0;box-shadow:none}}
+</style>
+
+<script is:inline define:vars={{ courseSlug: course.slug, lessonSlug: lesson.slug }}>
+  fetch('/api/progress/lesson', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({ courseSlug, lessonSlug, completed:false }) }).catch(() => undefined);
+</script>

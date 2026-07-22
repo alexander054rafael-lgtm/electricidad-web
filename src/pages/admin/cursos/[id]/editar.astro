@@ -1,0 +1,251 @@
+---
+export const prerender = false;
+
+import { BookX, CalendarDays, DatabaseZap } from '@lucide/astro';
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../../components/admin/AdminPageHeader.astro';
+import CourseForm from '../../../../components/admin/courses/CourseForm.astro';
+import CourseStatusActions from '../../../../components/admin/CourseStatusActions.astro';
+import CourseDeleteDialog from '../../../../components/admin/CourseDeleteDialog.astro';
+import { COURSE_STATUSES, readCourseForm, validateCourseForm } from '../../../../lib/admin/course-validation';
+import { formatCourseDateTime } from '../../../../lib/admin/course-utils';
+import type {
+  Course,
+  CourseFormErrors,
+  CourseFormValues,
+  CourseInstructorOption,
+  CourseStatus,
+} from '../../../../types/course';
+
+const courseId = Astro.params.id ?? '';
+const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(courseId);
+const supabase = Astro.locals.supabase;
+const user = Astro.locals.user;
+
+const emptyCourseResult = { data: null, error: null };
+const emptyInstructorResult = { data: [], error: null };
+const [courseResult, instructorResult] = supabase && isUuid
+  ? await Promise.all([
+      supabase
+        .from('courses')
+        .select('id,title,slug,short_description,description,cover_url,category,level,status,duration_minutes,position,is_featured,instructor_id,created_by,created_at,updated_at,published_at')
+        .eq('id', courseId)
+        .maybeSingle(),
+      supabase
+        .from('profiles')
+        .select('id,full_name,role')
+        .in('role', ['instructor', 'admin'])
+        .order('full_name', { ascending: true }),
+    ])
+  : [emptyCourseResult, emptyInstructorResult];
+
+if (courseResult.error && import.meta.env.DEV) {
+  console.error('[admin-course-edit-load] No se pudo cargar el curso:', courseResult.error);
+}
+if (instructorResult.error && import.meta.env.DEV) {
+  console.error('[admin-course-edit-instructors] No se pudieron cargar los instructores:', instructorResult.error);
+}
+
+const course = courseResult.data as Course | null;
+const instructors = instructorResult.error
+  ? []
+  : (instructorResult.data ?? []) as CourseInstructorOption[];
+const instructorIds = new Set(instructors.map((instructor) => instructor.id));
+const notFound = Boolean(supabase && !courseResult.error && (!isUuid || !course));
+const unavailable = Boolean(courseResult.error || !supabase);
+
+if (notFound) Astro.response.status = 404;
+
+let values: CourseFormValues = {
+  title: course?.title ?? '',
+  slug: course?.slug ?? '',
+  short_description: course?.short_description ?? '',
+  description: course?.description ?? '',
+  cover_url: course?.cover_url ?? '',
+  category: course?.category ?? '',
+  level: course?.level ?? 'beginner',
+  status: course?.status ?? 'draft',
+  duration_minutes: String(course?.duration_minutes ?? 0),
+  position: String(course?.position ?? 0),
+  is_featured: course?.is_featured ?? false,
+  instructor_id: course?.instructor_id ?? '',
+};
+let errors: CourseFormErrors = {};
+let generalError = '';
+
+const isSameOriginRequest = () => {
+  const origin = Astro.request.headers.get('origin');
+  return !origin || origin === Astro.url.origin;
+};
+
+if (Astro.request.method === 'POST' && course) {
+  if (!isSameOriginRequest()) {
+    generalError = 'La solicitud no pudo ser validada. Actualiza la página e intenta nuevamente.';
+  } else if (!supabase || !user || Astro.locals.role !== 'admin' || Astro.locals.profile?.role !== 'admin') {
+    return Astro.redirect('/mi-aprendizaje?error=forbidden', 303);
+  } else {
+    try {
+      const form = await Astro.request.formData();
+      const intent = String(form.get('intent') ?? 'save-course');
+
+      if (intent === 'quick-status') {
+        const nextStatus = String(form.get('status') ?? '') as CourseStatus;
+        if (!COURSE_STATUSES.includes(nextStatus)) {
+          generalError = 'El estado solicitado no es válido.';
+        } else {
+          // Se conserva published_at como historial al volver a borrador o archivar.
+          // Cada transición hacia published registra una nueva fecha de publicación.
+          const publishedAt = nextStatus === 'published' && course.status !== 'published'
+            ? new Date().toISOString()
+            : course.published_at;
+          const { error: statusError } = await supabase
+            .from('courses')
+            .update({
+              status: nextStatus,
+              published_at: publishedAt,
+            })
+            .eq('id', course.id);
+
+          if (statusError) {
+            if (import.meta.env.DEV) console.error('[admin-course-status] No se pudo cambiar el estado:', statusError);
+            generalError = 'No se pudo cambiar el estado del curso. Intenta nuevamente.';
+          } else {
+            return Astro.redirect(`/admin/cursos/${course.id}/editar?status_updated=${nextStatus}`, 303);
+          }
+        }
+      } else {
+        values = readCourseForm(form);
+        errors = validateCourseForm(values, instructorIds);
+        if (Object.keys(errors).length) generalError = 'Revisa los campos indicados.';
+
+        if (!Object.keys(errors).length) {
+          const { data: slugOwner, error: slugError } = await supabase
+            .from('courses')
+            .select('id')
+            .eq('slug', values.slug)
+            .neq('id', course.id)
+            .maybeSingle();
+
+          if (slugError) {
+            if (import.meta.env.DEV) console.error('[admin-course-edit-slug] No se pudo validar el slug:', slugError);
+            generalError = 'No pudimos validar el curso en este momento. Intenta nuevamente.';
+          } else if (slugOwner) {
+            errors.slug = 'Este slug ya está siendo utilizado.';
+            generalError = 'Revisa los campos indicados.';
+          } else {
+            const nextPublishedAt = values.status === 'published' && course.status !== 'published'
+              ? new Date().toISOString()
+              : course.published_at;
+            const { data: updatedCourse, error: updateError } = await supabase
+              .from('courses')
+              .update({
+                title: values.title,
+                slug: values.slug,
+                short_description: values.short_description,
+                description: values.description,
+                cover_url: values.cover_url || null,
+                category: values.category,
+                level: values.level,
+                status: values.status,
+                duration_minutes: Number(values.duration_minutes),
+                position: Number(values.position),
+                is_featured: values.is_featured,
+                instructor_id: values.instructor_id || null,
+                published_at: nextPublishedAt,
+              })
+              .eq('id', course.id)
+              .select('id')
+              .maybeSingle();
+
+            if (updateError) {
+              if (updateError.code === '23505') {
+                errors.slug = 'Este slug ya está siendo utilizado.';
+                generalError = 'Revisa los campos indicados.';
+              } else {
+                if (import.meta.env.DEV) console.error('[admin-course-edit] No se pudo actualizar el curso:', updateError);
+                generalError = 'No fue posible guardar el curso.';
+              }
+            } else if (!updatedCourse) {
+              generalError = 'El curso ya no está disponible o no tienes permisos para modificarlo.';
+            } else {
+              return Astro.redirect(`/admin/cursos/${course.id}/editar?updated=1`, 303);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) console.error('[admin-course-edit] Solicitud inválida:', error);
+      generalError = 'No fue posible guardar el curso.';
+    }
+  }
+}
+
+const updated = Astro.url.searchParams.get('updated') === '1';
+const statusUpdated = Astro.url.searchParams.get('status_updated');
+const statusMessages: Partial<Record<CourseStatus, string>> = {
+  published: 'Curso publicado correctamente.',
+  draft: 'Curso despublicado correctamente.',
+  archived: 'Curso archivado correctamente.',
+};
+---
+
+<AdminLayout
+  title={course ? `Editar: ${course.title}` : 'Curso no encontrado'}
+  description="Actualiza la información editorial del curso."
+  activeSection="courses"
+>
+  {notFound ? (
+    <AdminEmptyState
+      title="Curso no encontrado"
+      description="El curso solicitado no existe o fue eliminado. Regresa al listado para continuar."
+      href="/admin/cursos"
+      action="Volver a cursos"
+    >
+      <BookX slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  ) : unavailable || !course ? (
+    <AdminEmptyState
+      title="Datos temporalmente no disponibles"
+      description="No pudimos cargar el curso en este momento. Intenta nuevamente más tarde."
+      href="/admin/cursos"
+      action="Volver a cursos"
+    >
+      <DatabaseZap slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  ) : (
+    <>
+      <AdminPageHeader
+        title={`Editar ${course.title}`}
+        description="Modifica su información, clasificación y estado de publicación."
+        eyebrow="Cursos"
+      />
+
+      {(updated || (statusUpdated && statusMessages[statusUpdated as CourseStatus])) && (
+        <div class="success-notice" role="status">
+          {updated ? 'Curso actualizado correctamente.' : statusMessages[statusUpdated as CourseStatus]}
+        </div>
+      )}
+
+      <section class="course-dates" aria-label="Fechas del curso">
+        <div><CalendarDays size={17} aria-hidden="true" /><span><small>Creado</small><strong>{formatCourseDateTime(course.created_at)}</strong></span></div>
+        <div><CalendarDays size={17} aria-hidden="true" /><span><small>Última actualización</small><strong>{formatCourseDateTime(course.updated_at)}</strong></span></div>
+        <div><CalendarDays size={17} aria-hidden="true" /><span><small>Publicado</small><strong>{formatCourseDateTime(course.published_at, 'Todavía no publicado')}</strong></span></div>
+      </section>
+
+      <CourseStatusActions courseId={course.id} courseTitle={course.title} currentStatus={course.status} />
+      <CourseForm values={values} errors={errors} instructors={instructors} generalError={generalError} submitLabel="Guardar curso" />
+      <CourseDeleteDialog />
+    </>
+  )}
+</AdminLayout>
+
+<style>
+  .success-notice { margin-bottom: 1rem; padding: 0.8rem 1rem; border: 1px solid color-mix(in srgb, var(--admin-green) 30%, var(--admin-border)); border-radius: 11px; background: var(--admin-green-soft); color: var(--admin-green); font-size: 0.76rem; font-weight: 750; }
+  .course-dates { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.7rem; margin-bottom: 1rem; }
+  .course-dates > div { display: flex; min-width: 0; align-items: center; gap: 0.65rem; padding: 0.8rem; border: 1px solid var(--admin-border); border-radius: 12px; background: var(--admin-surface); color: var(--admin-blue); }
+  .course-dates span { display: grid; min-width: 0; gap: 0.1rem; }
+  .course-dates small { color: var(--admin-text-subtle); font-size: 0.59rem; font-weight: 750; text-transform: uppercase; }
+  .course-dates strong { overflow: hidden; color: var(--admin-text); font-size: 0.7rem; text-overflow: ellipsis; white-space: nowrap; }
+  @media (max-width: 760px) { .course-dates { grid-template-columns: 1fr; } }
+</style>

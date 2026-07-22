@@ -1,0 +1,67 @@
+---
+interface Props {
+  minWidth?: number;
+  label: string;
+}
+
+const { minWidth = 720, label } = Astro.props;
+---
+
+<div
+  class="admin-table"
+  style={`--admin-table-min-width: ${minWidth}px`}
+  role="region"
+  aria-label={label}
+  tabindex="0"
+>
+  <slot />
+</div>
+
+<style>
+  .admin-table {
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    background: var(--admin-surface);
+    box-shadow: var(--admin-shadow);
+  }
+
+  .admin-table:focus-visible {
+    outline: 2px solid var(--admin-green);
+    outline-offset: 3px;
+  }
+
+  .admin-table :global(table) {
+    width: 100%;
+    min-width: var(--admin-table-min-width);
+    border-collapse: collapse;
+  }
+
+  .admin-table :global(th),
+  .admin-table :global(td) {
+    padding: 1rem;
+    border-bottom: 1px solid var(--admin-border);
+    text-align: left;
+  }
+
+  .admin-table :global(th) {
+    background: var(--admin-surface-raised);
+    color: var(--admin-text-muted);
+    font-size: 0.68rem;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  .admin-table :global(td) {
+    color: var(--admin-text);
+    font-size: 0.78rem;
+  }
+
+  .admin-table :global(td small) {
+    display: block;
+    color: var(--admin-text-subtle);
+  }
+</style>

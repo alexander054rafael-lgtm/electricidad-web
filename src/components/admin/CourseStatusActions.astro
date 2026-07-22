@@ -1,0 +1,82 @@
+---
+import { Archive, Eye, FilePenLine, Trash2 } from '@lucide/astro';
+import type { CourseStatus } from '../../types/course';
+
+interface Props {
+  courseId: string;
+  courseTitle: string;
+  currentStatus: CourseStatus;
+}
+
+const { courseId, courseTitle, currentStatus } = Astro.props;
+const endpoint = `/api/admin/courses/${courseId}`;
+const returnTo = `/admin/cursos/${courseId}/editar`;
+---
+
+<section class="status-actions" aria-labelledby="status-actions-title">
+  <div>
+    <h2 id="status-actions-title">Acciones de estado</h2>
+    <p>Actualiza la visibilidad del curso sin modificar el resto del contenido.</p>
+  </div>
+
+  <div class="actions">
+    <form method="post" action={endpoint}>
+      <input type="hidden" name="intent" value="change-status" />
+      <input type="hidden" name="status" value="published" />
+      <input type="hidden" name="return_to" value={returnTo} />
+      <button class="publish" type="submit" disabled={currentStatus === 'published'}>
+        <Eye size={16} aria-hidden="true" /> Publicar
+      </button>
+    </form>
+
+    <form method="post" action={endpoint}>
+      <input type="hidden" name="intent" value="change-status" />
+      <input type="hidden" name="status" value="draft" />
+      <input type="hidden" name="return_to" value={returnTo} />
+      <button type="submit" disabled={currentStatus === 'draft'}>
+        <FilePenLine size={16} aria-hidden="true" /> Pasar a borrador
+      </button>
+    </form>
+
+    <form method="post" action={endpoint} data-archive-course>
+      <input type="hidden" name="intent" value="change-status" />
+      <input type="hidden" name="status" value="archived" />
+      <input type="hidden" name="return_to" value={returnTo} />
+      <button class="archive" type="submit" disabled={currentStatus === 'archived'}>
+        <Archive size={16} aria-hidden="true" /> Archivar
+      </button>
+    </form>
+
+    <button
+      class="delete"
+      type="button"
+      data-delete-course
+      data-course-id={courseId}
+      data-course-name={courseTitle}
+      data-return-to={returnTo}
+    ><Trash2 size={16} aria-hidden="true" /> Eliminar curso</button>
+  </div>
+</section>
+
+<script>
+  document.querySelector<HTMLFormElement>('[data-archive-course]')?.addEventListener('submit', (event) => {
+    const confirmed = window.confirm('¿Quieres archivar este curso? Dejará de estar disponible públicamente.');
+    if (!confirmed) event.preventDefault();
+  });
+</script>
+
+<style>
+  .status-actions { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; padding: 1rem; border: 1px solid var(--admin-border); border-radius: 15px; background: var(--admin-surface); box-shadow: var(--admin-shadow); }
+  h2 { margin: 0; color: var(--admin-text); font-size: 0.88rem; }
+  p { margin: 0.25rem 0 0; color: var(--admin-text-muted); font-size: 0.68rem; }
+  .actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 0.55rem; }
+  form { margin: 0; }
+  button { display: inline-flex; min-height: 40px; align-items: center; gap: 0.4rem; padding: 0.58rem 0.75rem; border: 1px solid var(--admin-border-strong); border-radius: 9px; background: var(--admin-surface-raised); color: var(--admin-text-muted); font: inherit; font-size: 0.67rem; font-weight: 800; cursor: pointer; }
+  button.publish { border-color: color-mix(in srgb, var(--admin-green) 30%, var(--admin-border)); color: var(--admin-green); }
+  button.archive { border-color: color-mix(in srgb, var(--admin-warning) 30%, var(--admin-border)); color: var(--admin-warning); }
+  button.delete { border-color: color-mix(in srgb, var(--admin-danger) 30%, var(--admin-border)); color: #ff9c9c; }
+  button:hover:not(:disabled) { border-color: var(--admin-green); color: var(--admin-text); }
+  button:focus-visible { outline: 2px solid var(--admin-green); outline-offset: 2px; }
+  button:disabled { opacity: 0.42; cursor: not-allowed; }
+  @media (max-width: 720px) { .status-actions { align-items: stretch; flex-direction: column; } .actions { justify-content: stretch; } .actions form { flex: 1 1 150px; } button { width: 100%; justify-content: center; } }
+</style>

@@ -1,0 +1,33 @@
+---
+import { Star } from '@lucide/astro';
+import type { Course } from '../../../types/course';
+import { formatCourseDate, formatCourseDuration } from '../../../lib/admin/course-utils';
+import AdminTable from '../AdminTable.astro';
+import CourseActions from './CourseActions.astro';
+import CourseCover from './CourseCover.astro';
+import CourseLevelBadge from './CourseLevelBadge.astro';
+import CourseStatusBadge from './CourseStatusBadge.astro';
+
+interface Props { courses: Course[] }
+const { courses } = Astro.props;
+---
+<AdminTable minWidth={940} label="Listado de cursos">
+  <table>
+    <thead><tr><th>Curso</th><th>Categoría</th><th>Nivel</th><th>Estado</th><th>Duración</th><th>Posición</th><th>Actualizado</th><th>Acciones</th></tr></thead>
+    <tbody>
+      {courses.map((course) => <tr>
+        <td><div class="course-cell"><CourseCover url={course.cover_url} title={course.title} /><span class="course-copy"><strong>{course.title}</strong><small>/{course.slug}</small></span>{course.is_featured && <Star class="featured" size={15} aria-label="Curso destacado" />}</div></td>
+        <td>{course.category || '—'}</td>
+        <td><CourseLevelBadge level={course.level} /></td>
+        <td><CourseStatusBadge status={course.status} /></td>
+        <td>{formatCourseDuration(course.duration_minutes)}</td>
+        <td>{course.position}</td>
+        <td>{formatCourseDate(course.updated_at)}</td>
+        <td class="row-action"><CourseActions course={course} /></td>
+      </tr>)}
+    </tbody>
+  </table>
+</AdminTable>
+<style>
+  .course-cell{display:flex;min-width:250px;align-items:center;gap:.7rem}.course-copy{display:grid;min-width:0;gap:.15rem}.course-copy strong{overflow:hidden;color:var(--admin-text);text-overflow:ellipsis;white-space:nowrap}.course-copy small{color:var(--admin-text-subtle)}.featured{flex:none;color:var(--admin-warning);fill:currentColor}.row-action{text-align:right;white-space:nowrap}
+</style>

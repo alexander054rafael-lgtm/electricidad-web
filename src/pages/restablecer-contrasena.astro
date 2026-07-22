@@ -1,0 +1,18 @@
+---
+export const prerender = false;
+import AuthShell from '../components/auth/AuthShell.astro';
+let error = ''; let success = '';
+const code = Astro.url.searchParams.get('code');
+if (code && Astro.locals.supabase && Astro.request.method === 'GET') {
+  const { error: exchangeError } = await Astro.locals.supabase.auth.exchangeCodeForSession(code);
+  if (exchangeError) error = 'El enlace no es válido o ya expiró.';
+}
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData(); const password = String(form.get('password') ?? ''); const confirmation = String(form.get('confirmation') ?? '');
+  if (!Astro.locals.supabase) error = 'Supabase todavía no está configurado.';
+  else if (password.length < 8) error = 'La contraseña debe tener al menos 8 caracteres.';
+  else if (password !== confirmation) error = 'Las contraseñas no coinciden.';
+  else { const { error: updateError } = await Astro.locals.supabase.auth.updateUser({ password }); if (updateError) error = 'La sesión de recuperación expiró. Solicita un nuevo enlace.'; else success = 'Contraseña actualizada. Ya puedes iniciar sesión.'; }
+}
+---
+<AuthShell title="Nueva contraseña" eyebrow="Recuperación de acceso" description="Establece una contraseña segura para continuar.">{error && <p class="auth-message auth-message--error" role="alert">{error}</p>}{success && <p class="auth-message auth-message--success" role="status">{success}</p>}<form class="auth-form" method="post"><div class="auth-form__row"><label>Nueva contraseña<input type="password" name="password" autocomplete="new-password" minlength="8" required /></label><label>Confirmar contraseña<input type="password" name="confirmation" autocomplete="new-password" minlength="8" required /></label></div><button type="submit">Guardar contraseña</button></form>{success && <div class="auth-form__links"><a href="/login">Iniciar sesión</a></div>}</AuthShell>

@@ -1,0 +1,20 @@
+---
+import { CircleAlert, CircleCheck, Flame, Info } from '@lucide/astro';
+import type { AlertBlockData } from '../../data/lessons';
+interface Props { block: AlertBlockData }
+const { block } = Astro.props;
+const icons = { note: Info, tip: CircleCheck, warning: CircleAlert, danger: Flame };
+const Icon = icons[block.type];
+const defaults = { note: 'Nota', tip: 'Consejo', warning: 'Advertencia', danger: 'Peligro' };
+---
+
+<aside class:list={['alert-block', `alert-block--${block.type}`]}>
+  <Icon size={21} aria-hidden="true" />
+  <div><strong>{block.title ?? defaults[block.type]}</strong><p>{block.content}</p></div>
+</aside>
+
+<style>
+  .alert-block{--alert:#2563eb;--alert-bg:#eff6ff;display:flex;align-items:flex-start;gap:.8rem;margin:1.5rem 0;padding:1.05rem 1.15rem;border:1px solid color-mix(in srgb,var(--alert),transparent 75%);border-left:4px solid var(--alert);border-radius:var(--radius-lg);background:var(--alert-bg)}
+  .alert-block--tip{--alert:#15803d;--alert-bg:#f0fdf4}.alert-block--warning{--alert:#b45309;--alert-bg:#fffbeb}.alert-block--danger{--alert:#b91c1c;--alert-bg:#fef2f2}.alert-block>svg{flex:0 0 auto;margin-top:.1rem;color:var(--alert)}strong{font-size:.86rem;color:var(--color-text)}p{margin-top:.22rem;color:var(--color-text-secondary);font-size:.88rem;line-height:1.65}
+  @media(prefers-color-scheme:dark){.alert-block{--alert-bg:color-mix(in srgb,var(--alert),#0f172a 84%)}}
+</style>

@@ -1,0 +1,41 @@
+---
+import { ArrowRight, Clock3, Gauge, ImageOff, Layers, Star } from '@lucide/astro';
+import Button from '../ui/Button.astro';
+import type { Course } from '../../types/course';
+import { formatCourseDuration, translateCourseLevel } from '../../lib/admin/course-utils';
+
+interface Props { course: Course }
+const { course } = Astro.props;
+const validCover = Boolean(course.cover_url && /^https:\/\//i.test(course.cover_url));
+---
+<article class="course-card">
+  <a class="course-card__media" href={`/cursos/${course.slug}`} aria-label={`Ver curso ${course.title}`}>
+    <div class="course-card__fallback"><ImageOff size={25} aria-hidden="true" /><span>InduTech Academy</span></div>
+    {validCover && <img src={course.cover_url!} alt="" width="640" height="360" loading="lazy" decoding="async" data-public-course-cover />}
+    {course.category && <span class="course-card__category">{course.category}</span>}
+    {course.is_featured && <span class="course-card__featured"><Star size={13} aria-hidden="true" /> Destacado</span>}
+  </a>
+  <div class="course-card__body">
+    <div class="course-card__topline"><span><Gauge size={15} aria-hidden="true" /> {translateCourseLevel(course.level)}</span><span><Clock3 size={15} aria-hidden="true" /> {formatCourseDuration(course.duration_minutes)}</span></div>
+    <h2><a href={`/cursos/${course.slug}`}>{course.title}</a></h2>
+    <p>{course.short_description || 'Descubre los contenidos y objetivos de este curso técnico.'}</p>
+    <div class="course-card__category-line"><Layers size={15} aria-hidden="true" /> {course.category || 'Formación técnica'}</div>
+    <Button href={`/cursos/${course.slug}`} variant="outline" size="sm" class="course-card__button">Ver curso <ArrowRight size={15} aria-hidden="true" /></Button>
+  </div>
+</article>
+<script>
+  document.querySelectorAll<HTMLImageElement>('[data-public-course-cover]').forEach((image) => {
+    if (image.dataset.fallbackReady === 'true') return;
+    image.dataset.fallbackReady = 'true';
+    const hideImage = () => { image.hidden = true; };
+    image.addEventListener('error', hideImage);
+    if (image.complete && image.naturalWidth === 0) hideImage();
+  });
+</script>
+<style>
+  .course-card{display:flex;min-width:0;flex-direction:column;overflow:hidden;border:1px solid var(--color-border);border-radius:var(--radius-xl);background:var(--color-surface);box-shadow:var(--shadow-sm);transition:transform var(--transition-base),box-shadow var(--transition-base),border-color var(--transition-base)}.course-card:hover{transform:translateY(-5px);border-color:rgba(22,163,74,.28);box-shadow:var(--shadow-xl)}
+  .course-card__media{position:relative;display:grid;aspect-ratio:16/9;overflow:hidden;place-items:center;background:linear-gradient(145deg,#143720,#10291a)}.course-card__media img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;transition:transform var(--transition-slow)}.course-card:hover .course-card__media img{transform:scale(1.045)}.course-card__media img[hidden]{display:none}
+  .course-card__fallback{display:grid;place-items:center;gap:.45rem;color:#78d99b;font-size:.68rem;font-weight:750}.course-card__category,.course-card__featured{position:absolute;z-index:2;top:.9rem;padding:.33rem .62rem;border-radius:999px;font-size:.65rem;font-weight:800}.course-card__category{left:.9rem;max-width:60%;overflow:hidden;background:rgba(15,23,42,.68);color:#fff;text-overflow:ellipsis;white-space:nowrap;backdrop-filter:blur(8px)}.course-card__featured{right:.9rem;display:inline-flex;align-items:center;gap:.3rem;background:#fff7d6;color:#76540b}
+  .course-card__body{display:flex;flex:1;flex-direction:column;padding:1.25rem}.course-card__topline{display:flex;align-items:center;justify-content:space-between;gap:.7rem;color:var(--color-text-secondary);font-size:.72rem;font-weight:700}.course-card__topline span{display:inline-flex;align-items:center;gap:.3rem}.course-card__topline :global(svg){color:var(--color-primary)}h2{margin:.8rem 0 .5rem;font-size:1.16rem;line-height:1.3}h2 a:hover{color:var(--color-primary)}p{margin:0 0 1rem;color:var(--color-text-secondary);font-size:.84rem;line-height:1.65}.course-card__category-line{display:flex;align-items:center;gap:.4rem;margin-top:auto;padding-top:.9rem;border-top:1px solid var(--color-border);color:var(--color-text-secondary);font-size:.72rem}.course-card__category-line :global(svg){color:var(--color-primary)}.course-card__button{align-self:flex-start;margin-top:1rem}
+  @media(max-width:380px){.course-card__topline{align-items:flex-start;flex-direction:column}.course-card__body{padding:1.05rem}}
+</style>

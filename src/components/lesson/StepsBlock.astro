@@ -1,0 +1,14 @@
+---
+import type { StepsBlockData } from '../../data/lessons';
+interface Props { block: StepsBlockData }
+const { block } = Astro.props;
+---
+
+<section class="steps-block">
+  {block.title && <h3>{block.title}</h3>}
+  <ol>{block.items.map((item, index) => <li><span>{index + 1}</span><div><strong>{item.title}</strong><p>{item.content}</p></div></li>)}</ol>
+</section>
+
+<style>
+  .steps-block{margin:1.75rem 0;padding:clamp(1.15rem,3vw,1.6rem);border:1px solid var(--color-border);border-radius:var(--radius-xl);background:var(--color-surface);box-shadow:var(--shadow-sm)}h3{margin-bottom:1rem;font-size:1.15rem}ol{display:grid}li{display:grid;grid-template-columns:42px 1fr;gap:.85rem;position:relative;padding:.1rem 0 1.15rem}li:not(:last-child)::after{content:'';position:absolute;top:38px;bottom:0;left:20px;width:2px;background:var(--color-border)}li>span{display:grid;z-index:1;place-items:center;width:42px;height:42px;border-radius:13px;background:var(--color-primary);color:#fff;font-size:.8rem;font-weight:800}li strong{font-size:.88rem}li p{margin-top:.2rem;color:var(--color-text-secondary);font-size:.84rem;line-height:1.58}
+</style>

@@ -1,0 +1,25 @@
+---
+interface Props {
+  id: string;
+  eyebrow: string;
+  title: string;
+  description: string;
+  instructions: string[];
+}
+const { id, eyebrow, title, description, instructions } = Astro.props;
+---
+
+<article class="game-card" id={id}>
+  <header class="game-card__header">
+    <div><span>{eyebrow}</span><h2>{title}</h2><p>{description}</p></div>
+    <aside aria-label="Instrucciones"><strong>Cómo jugar</strong><ol>{instructions.map((instruction) => <li>{instruction}</li>)}</ol></aside>
+  </header>
+  <div class="game-card__play"><slot /></div>
+</article>
+
+<style>
+  .game-card{scroll-margin-top:calc(var(--header-height) + 1.5rem);overflow:hidden;border:1px solid var(--color-border);border-radius:clamp(22px,3vw,32px);background:var(--color-surface);box-shadow:var(--shadow-lg)}
+  .game-card__header{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(250px,.65fr);gap:clamp(1.5rem,4vw,3rem);padding:clamp(1.4rem,4vw,2.5rem);border-bottom:1px solid var(--color-border);background:linear-gradient(135deg,rgba(22,163,74,.08),var(--color-surface))}.game-card__header>div>span{color:var(--color-primary);font-size:.7rem;font-weight:800;text-transform:uppercase;letter-spacing:.09em}.game-card h2{margin:.35rem 0 .55rem;font-size:clamp(1.55rem,3vw,2.15rem)}.game-card__header p{max-width:650px;color:var(--color-text-secondary);font-size:.88rem;line-height:1.7}.game-card aside{padding:1rem;border:1px solid rgba(22,163,74,.18);border-radius:16px;background:var(--color-surface)}.game-card aside strong{font-size:.75rem}.game-card aside ol{display:grid;gap:.4rem;margin-top:.55rem;counter-reset:instruction}.game-card aside li{counter-increment:instruction;color:var(--color-text-secondary);font-size:.72rem}.game-card aside li::before{content:counter(instruction) '.';margin-right:.4rem;color:var(--color-primary);font-weight:800}.game-card__play{padding:clamp(1.2rem,4vw,2.5rem)}
+  @media(max-width:760px){.game-card__header{grid-template-columns:1fr}.game-card aside{padding:.85rem}}
+</style>
+

@@ -1,0 +1,103 @@
+---
+import { ArrowLeft, BookOpen, CirclePlay, Clock3, GraduationCap, Layers, Sparkles, UserRound } from '@lucide/astro';
+import Button from '../ui/Button.astro';
+import Container from '../ui/Container.astro';
+import type { Course } from '../../data/courses';
+import { getLessonCount } from '../../data/courses';
+
+interface Props { course?: Course; courseCount?: number }
+const { course, courseCount = 0 } = Astro.props;
+---
+
+{course ? (
+  <section class="course-hero course-hero--detail" style={`--course-accent:${course.accent}`}>
+    <Container>
+      <a class="course-hero__back" href="/cursos"><ArrowLeft size={16} aria-hidden="true" /> Todos los cursos</a>
+      <div class="course-hero__detail-grid">
+        <div class="course-hero__content">
+          <span class="course-hero__eyebrow"><GraduationCap size={17} aria-hidden="true" /> {course.category}</span>
+          <h1>{course.title}</h1>
+          <p class="course-hero__description">{course.description}</p>
+          <div class="course-hero__facts">
+            <span><Clock3 size={18} aria-hidden="true" /><strong>{course.duration}</strong><small>Duración</small></span>
+            <span><Layers size={18} aria-hidden="true" /><strong>{course.modules.length} módulos</strong><small>Contenido</small></span>
+            <span><BookOpen size={18} aria-hidden="true" /><strong>{getLessonCount(course)} lecciones</strong><small>Clases</small></span>
+            <span><UserRound size={18} aria-hidden="true" /><strong>{course.level}</strong><small>Nivel</small></span>
+          </div>
+          <div class="course-hero__actions">
+            <form class="course-hero__enroll" method="post" action="/api/courses/enroll"><input type="hidden" name="courseSlug" value={course.slug} /><button type="submit"><CirclePlay size={19} aria-hidden="true" /> Inscribirme y comenzar</button></form>
+            <span>Instructor: <strong>{course.instructor}</strong></span>
+          </div>
+        </div>
+        <div class="course-hero__cover">
+          <img src={course.image} alt={`Portada del curso ${course.title}`} />
+          <div class="course-hero__cover-overlay"><span>{course.badge}</span><strong>{course.title}</strong><small>InduTech Academy</small></div>
+        </div>
+      </div>
+    </Container>
+  </section>
+) : (
+  <section class="course-hero">
+    <div class="course-hero__orb course-hero__orb--one" aria-hidden="true"></div>
+    <div class="course-hero__orb course-hero__orb--two" aria-hidden="true"></div>
+    <Container>
+      <div class="course-hero__listing-grid">
+        <div>
+          <span class="course-hero__eyebrow"><Sparkles size={17} aria-hidden="true" /> Formación técnica aplicada</span>
+          <h1>Cursos <span>Técnicos</span></h1>
+          <p class="course-hero__description">Aprende con rutas claras, proyectos reales y contenido creado para los desafíos de la industria. Avanza desde los fundamentos hasta la aplicación en campo.</p>
+          <div class="course-hero__listing-actions">
+            <Button href="#catalogo" variant="primary" size="lg">Explorar cursos</Button>
+            <span><strong>{courseCount}</strong> {courseCount === 1 ? 'programa disponible' : 'programas disponibles'}</span>
+          </div>
+        </div>
+        <div class="course-hero__visual" aria-hidden="true">
+          <div class="course-hero__panel course-hero__panel--main"><GraduationCap size={54} stroke-width={1.35} /><strong>Aprendizaje práctico</strong><span>De la teoría a la planta</span></div>
+          <div class="course-hero__panel course-hero__panel--small"><CirclePlay size={24} /><span>Lecciones paso a paso</span></div>
+          <div class="course-hero__signal"><i></i><i></i><i></i><i></i></div>
+        </div>
+      </div>
+    </Container>
+  </section>
+)}
+
+<style>
+  .course-hero { position:relative; isolation:isolate; overflow:hidden; padding:clamp(8.5rem,14vw,12rem) 0 clamp(4rem,8vw,6.5rem); background:linear-gradient(135deg,#f0fdf4 0%,#fff 55%,#ecfdf5 100%); }
+  .course-hero__listing-grid,.course-hero__detail-grid { display:grid; align-items:center; gap:clamp(2rem,5vw,5rem); }
+  .course-hero__listing-grid { grid-template-columns:minmax(0,1.15fr) minmax(310px,.65fr); }
+  .course-hero__eyebrow { display:inline-flex; align-items:center; gap:.45rem; padding:.42rem .82rem; border:1px solid rgba(22,163,74,.2); border-radius:var(--radius-full); background:rgba(255,255,255,.72); color:var(--color-primary-dark); font-size:.78rem; font-weight:750; }
+  h1 { max-width:900px; margin:1.1rem 0 1rem; font-size:clamp(2.8rem,7vw,5.5rem); font-weight:800; letter-spacing:-.06em; text-wrap:balance; }
+  h1 span { color:var(--color-primary); }
+  .course-hero__description { max-width:760px; color:var(--color-text-secondary); font-size:clamp(1rem,1.7vw,1.2rem); line-height:1.72; }
+  .course-hero__listing-actions,.course-hero__actions { display:flex; align-items:center; flex-wrap:wrap; gap:1.25rem; margin-top:1.8rem; }
+  .course-hero__enroll button{display:inline-flex;align-items:center;gap:.5rem;min-height:52px;padding:.8rem 1.35rem;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;font-size:.9rem;font-weight:800;box-shadow:0 8px 24px rgba(22,163,74,.24);transition:transform var(--transition-fast),background var(--transition-fast)}.course-hero__enroll button:hover{transform:translateY(-2px);background:var(--color-primary-dark)}
+  .course-hero__listing-actions>span,.course-hero__actions>span { color:var(--color-text-secondary); font-size:.88rem; }
+  .course-hero__listing-actions>span strong { color:var(--color-primary-dark); font-size:1.1rem; }
+  .course-hero__visual { position:relative; min-height:340px; }
+  .course-hero__panel { position:absolute; display:flex; flex-direction:column; border:1px solid rgba(22,163,74,.16); background:rgba(255,255,255,.82); color:var(--color-primary-dark); box-shadow:0 24px 60px rgba(20,83,45,.13); backdrop-filter:blur(12px); }
+  .course-hero__panel--main { inset:20px 12% 52px 4%; justify-content:end; padding:2rem; border-radius:32px; transform:rotate(3deg); }
+  .course-hero__panel--main svg { margin-bottom:auto; }
+  .course-hero__panel--main strong { color:var(--color-text); font:800 1.35rem var(--font-display); }
+  .course-hero__panel--main span,.course-hero__panel--small span { color:var(--color-text-secondary); font-size:.82rem; }
+  .course-hero__panel--small { right:0; bottom:20px; flex-direction:row; align-items:center; gap:.65rem; padding:1rem; border-radius:18px; transform:rotate(-4deg); }
+  .course-hero__signal { position:absolute; top:0; right:4%; display:flex; align-items:end; gap:5px; width:70px; height:58px; padding:12px; border-radius:16px; background:#14532d; box-shadow:var(--shadow-lg); }
+  .course-hero__signal i { flex:1; border-radius:3px; background:#86efac; }.course-hero__signal i:nth-child(1){height:30%}.course-hero__signal i:nth-child(2){height:55%}.course-hero__signal i:nth-child(3){height:78%}.course-hero__signal i:nth-child(4){height:100%}
+  .course-hero__orb { position:absolute; z-index:-1; border-radius:50%; background:rgba(34,197,94,.1); filter:blur(8px); }.course-hero__orb--one{width:320px;height:320px;top:-140px;right:8%}.course-hero__orb--two{width:220px;height:220px;bottom:-100px;left:18%}
+
+  .course-hero--detail { padding:calc(var(--header-height) + clamp(3rem,7vw,5rem)) 0 clamp(4rem,7vw,5.5rem); background:linear-gradient(135deg,color-mix(in srgb,var(--course-accent),#fff 91%),#fff 55%,color-mix(in srgb,var(--course-accent),#fff 94%)); }
+  .course-hero__back { display:inline-flex; align-items:center; gap:.4rem; margin-bottom:1.8rem; color:var(--color-text-secondary); font-size:.86rem; font-weight:650; }
+  .course-hero__back:hover { color:var(--color-primary); }
+  .course-hero__detail-grid { grid-template-columns:minmax(0,1.2fr) minmax(280px,.6fr); }
+  .course-hero--detail h1 { max-width:850px; font-size:clamp(2.5rem,5vw,4.65rem); }
+  .course-hero__facts { display:grid; grid-template-columns:repeat(4,minmax(110px,1fr)); max-width:760px; gap:.75rem; margin-top:1.8rem; }
+  .course-hero__facts>span { display:grid; grid-template-columns:auto 1fr; align-items:center; gap:.05rem .45rem; padding:.8rem; border:1px solid var(--color-border); border-radius:14px; background:rgba(255,255,255,.65); }
+  .course-hero__facts svg { grid-row:1/3; color:var(--course-accent); }.course-hero__facts strong{font-size:.82rem}.course-hero__facts small{color:var(--color-text-secondary);font-size:.68rem}
+  .course-hero__cover { position:relative; min-height:430px; overflow:hidden; border-radius:32px; background:linear-gradient(145deg,var(--course-accent),#0f172a); box-shadow:0 32px 70px color-mix(in srgb,var(--course-accent),transparent 76%); }
+  .course-hero__cover::after { content:''; position:absolute; inset:0; background:linear-gradient(180deg,rgba(15,23,42,.06),rgba(15,23,42,.86)); }
+  .course-hero__cover img { width:100%; height:100%; object-fit:cover; opacity:.64; }
+  .course-hero__cover-overlay { position:absolute; inset:0; z-index:1; display:flex; flex-direction:column; justify-content:end; padding:2rem; color:#fff; }
+  .course-hero__cover-overlay span { align-self:flex-start; margin-bottom:auto; padding:.35rem .7rem; border-radius:999px; background:#fff; color:var(--course-accent); font-size:.7rem; font-weight:800; text-transform:uppercase; }
+  .course-hero__cover-overlay strong { font:800 clamp(1.45rem,3vw,2rem)/1.15 var(--font-display); }.course-hero__cover-overlay small{margin-top:.6rem;opacity:.72}
+  @media(max-width:900px) { .course-hero__listing-grid,.course-hero__detail-grid { grid-template-columns:1fr; }.course-hero__visual{display:none}.course-hero__cover{min-height:330px}.course-hero__facts{grid-template-columns:repeat(2,1fr)} }
+  @media(max-width:480px) { .course-hero__facts{grid-template-columns:1fr}.course-hero__cover{min-height:290px}.course-hero__cover-overlay{padding:1.4rem} }
+</style>

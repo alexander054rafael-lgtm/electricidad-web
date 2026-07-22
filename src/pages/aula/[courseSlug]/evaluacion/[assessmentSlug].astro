@@ -1,0 +1,35 @@
+---
+import Layout from '../../../../layouts/Layout.astro';
+import ClassroomHeader from '../../../../components/classroom/ClassroomHeader.astro';
+import Quiz from '../../../../components/assessments/Quiz';
+import type { Assessment } from '../../../../data/assessments';
+import { assessments } from '../../../../data/assessments';
+import type { Course } from '../../../../data/courses';
+import { courses } from '../../../../data/courses';
+
+export function getStaticPaths() {
+  return assessments.flatMap((assessment) => {
+    const course = courses.find((candidate) => candidate.slug === assessment.courseSlug);
+    return course ? [{ params: { courseSlug: course.slug, assessmentSlug: assessment.slug }, props: { course, assessment } }] : [];
+  });
+}
+
+interface Props { course: Course; assessment: Assessment }
+const { course, assessment } = Astro.props;
+---
+
+<Layout title={`${assessment.title} | ${course.title}`} description={assessment.description}>
+  <div class="assessment-shell">
+    <ClassroomHeader courseTitle={course.title} courseHref={`/cursos/${course.slug}`} />
+    <main class="assessment-main">
+      <Quiz assessment={assessment} client:load />
+    </main>
+  </div>
+</Layout>
+
+<style>
+  .assessment-shell{min-height:100vh;background:var(--color-gray-50)}
+  .assessment-main{width:100%;min-height:100vh;padding:calc(72px + clamp(2rem,5vw,4rem)) clamp(1rem,5vw,4rem) clamp(4rem,8vw,7rem)}
+  @media(max-width:900px){.assessment-main{padding-top:calc(64px + 2rem)}}
+</style>
+

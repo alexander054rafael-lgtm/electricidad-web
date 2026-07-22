@@ -1,0 +1,39 @@
+---
+import type { GameBlockData } from '../../data/lessons';
+import GameCard from './GameCard.astro';
+import MatchingGame from './MatchingGame';
+import SortingGame from './SortingGame';
+import SynchronousSpeedGame from './SynchronousSpeedGame';
+
+interface Props { block: GameBlockData }
+const { block } = Astro.props;
+const [, root, courseSlug, lessonSlug] = Astro.url.pathname.split('/');
+const tracking = root === 'aula' ? { courseSlug, lessonSlug } : {};
+const content = {
+  matching: {
+    eyebrow: 'Juego de conceptos', title: 'Relaciona los fundamentos',
+    description: 'Conecta cada magnitud con su definición técnica.',
+    instructions: ['Selecciona un concepto.', 'Selecciona su definición.', 'Completa los cinco pares.'],
+  },
+  sorting: {
+    eyebrow: 'Juego de procedimiento', title: 'Ordena una instalación segura',
+    description: 'Organiza la secuencia recomendada para instalar y comprobar un variador.',
+    instructions: ['Mueve cada paso con las flechas.', 'Comprueba el orden.', 'Corrige y vuelve a intentarlo.'],
+  },
+  'synchronous-speed': {
+    eyebrow: 'Calculadora interactiva', title: 'Calcula la velocidad sincrónica',
+    description: 'Aplica la frecuencia y el número de polos para obtener la velocidad del campo.',
+    instructions: ['Introduce valores válidos.', 'Calcula el resultado.', 'Revisa el procedimiento.'],
+  },
+}[block.game];
+---
+
+<div class="lesson-game">
+  <GameCard id={`lesson-game-${block.game}`} {...content}>
+    {block.game === 'matching' && <MatchingGame {...tracking} client:visible />}
+    {block.game === 'sorting' && <SortingGame {...tracking} client:visible />}
+    {block.game === 'synchronous-speed' && <SynchronousSpeedGame {...tracking} client:visible />}
+  </GameCard>
+</div>
+
+<style>.lesson-game{margin:2.5rem 0}.lesson-game :global(.game-card__header){grid-template-columns:1fr}</style>

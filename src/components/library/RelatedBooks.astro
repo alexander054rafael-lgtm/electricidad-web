@@ -1,8 +1,10 @@
 ---
 import type { Book } from '../../data/books';
-import BookGrid from './BookGrid.astro';
-interface Props { books: Book[] }
-const { books } = Astro.props;
+import RelatedBookCard from './RelatedBookCard.astro';
+interface Props { books: Book[]; title?: string; subtitle?: string; embedded?: boolean }
+const { books, title = 'Libros relacionados', subtitle, embedded = false } = Astro.props;
 ---
-{books.length > 0 && <section class="related-books"><h2>Libros relacionados</h2><BookGrid books={books} /></section>}
-<style>.related-books{margin-top:4rem;padding-top:3rem;border-top:1px solid var(--color-border)}.related-books>h2{margin-bottom:1.5rem;font-size:1.6rem}</style>
+{books.length > 0 && <section class:list={['related-books', { 'related-books--embedded': embedded }]}><div class="related-books__heading"><span>Biblioteca PDF</span><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><div class="related-books__grid">{books.map((book) => <RelatedBookCard book={book} />)}</div></section>}
+<style>
+  .related-books{margin-top:4rem;padding-top:3rem;border-top:1px solid var(--color-border)}.related-books--embedded{margin-top:0;padding-top:0;border-top:0}.related-books__heading{margin-bottom:1.4rem}.related-books__heading>span{color:var(--color-primary);font-size:.68rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}.related-books__heading h2{margin-top:.25rem;font-size:clamp(1.5rem,3vw,2rem)}.related-books__heading p{max-width:680px;margin-top:.4rem;color:var(--color-text-secondary);font-size:.84rem}.related-books__grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,410px),1fr));gap:1rem}
+</style>

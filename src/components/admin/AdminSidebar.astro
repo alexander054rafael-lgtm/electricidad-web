@@ -1,0 +1,233 @@
+---
+import {
+  ArrowLeft,
+  Award,
+  BookOpen,
+  ClipboardCheck,
+  FileText,
+  Gamepad2,
+  LayoutDashboard,
+  ListVideo,
+  LogOut,
+  Settings,
+  UserRound,
+  Users,
+  X,
+} from '@lucide/astro';
+
+interface Props {
+  activeSection?: string;
+  role: AppRole;
+}
+
+const { activeSection = '', role } = Astro.props;
+const currentPath = Astro.url.pathname;
+const links = [
+  { href: '/admin', label: 'Dashboard', key: 'dashboard', icon: LayoutDashboard },
+  { href: '/admin/cursos', label: 'Cursos', key: 'courses', icon: BookOpen },
+  { href: '/admin/lecciones', label: 'Lecciones', key: 'lessons', icon: ListVideo },
+  { href: '/admin/recursos', label: 'Recursos', key: 'resources', icon: FileText },
+  { href: '/admin/evaluaciones', label: 'Evaluaciones', key: 'assessments', icon: ClipboardCheck },
+  { href: '/admin/estudiantes', label: 'Estudiantes', key: 'students', icon: Users },
+  { href: '/admin/certificados', label: 'Certificados', key: 'certificates', icon: Award },
+  { href: '/admin/juegos', label: 'Juegos educativos', key: 'games', icon: Gamepad2 },
+  { href: '/admin/configuracion', label: 'Configuración', key: 'settings', icon: Settings },
+];
+
+const isCurrent = (href: string, key: string) => {
+  if (activeSection === key) return true;
+  if (href === '/admin') return currentPath === href && !activeSection;
+  return currentPath.startsWith(`${href}/`) || (currentPath === href && !activeSection);
+};
+---
+
+<aside
+  class="admin-sidebar"
+  id="admin-sidebar"
+  data-admin-sidebar
+  aria-label="Navegación administrativa"
+>
+  <div class="sidebar-head">
+    <a class="brand" href="/admin" aria-label="Ir al resumen administrativo">
+      <span class="brand-mark" aria-hidden="true">IT</span>
+      <span><strong>InduTech Academy</strong><small>Panel de administración</small></span>
+    </a>
+    <button type="button" data-admin-close aria-label="Cerrar navegación">
+      <X size={20} />
+    </button>
+  </div>
+
+  <div class="workspace"><span>Espacio de trabajo</span><strong>Academia Industrial</strong><small>{role === 'admin' ? 'Administrador' : 'Acceso restringido'}</small></div>
+
+  <nav aria-label="Secciones del panel">
+    {links.map(({ href, label, key, icon: Icon }) => {
+      const selected = isCurrent(href, key);
+      return (
+        <a href={href} class:list={{ active: selected }} aria-current={selected ? 'page' : undefined}>
+          <span class="nav-icon"><Icon size={18} aria-hidden="true" /></span>
+          <span>{label}</span>
+        </a>
+      );
+    })}
+  </nav>
+
+  <div class="sidebar-foot">
+    <a href="/">
+      <ArrowLeft size={17} aria-hidden="true" />
+      Volver al sitio
+    </a>
+    <a href="/perfil">
+      <UserRound size={17} aria-hidden="true" />
+      Mi perfil
+    </a>
+    <form method="post" action="/auth/logout">
+      <button type="submit"><LogOut size={17} aria-hidden="true" /> Cerrar sesión</button>
+    </form>
+  </div>
+</aside>
+
+<style>
+  .admin-sidebar {
+    position: fixed;
+    z-index: 60;
+    inset: 0 auto 0 0;
+    display: flex;
+    width: 272px;
+    max-width: calc(100vw - 3rem);
+    flex-direction: column;
+    padding: 1.1rem;
+    overflow: hidden;
+    border-right: 1px solid #26312b;
+    background: #0a0f0d;
+    color: #dce9e1;
+    box-shadow: 16px 0 40px rgba(0, 0, 0, 0.18);
+  }
+
+  .sidebar-head { display: flex; align-items: center; justify-content: space-between; }
+  .sidebar-head > button {
+    display: none;
+    width: 44px;
+    height: 44px;
+    padding: 0;
+    place-items: center;
+    border-radius: 8px;
+    color: #dce9e1;
+  }
+  .brand { display: flex; align-items: center; gap: 0.75rem; color: #fff; }
+  .brand-mark {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    place-items: center;
+    border-radius: 12px;
+    background: #25a95b;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.22);
+    font-weight: 900;
+  }
+  .brand > span:last-child { display: grid; min-width: 0; }
+  .brand strong { font-size: 0.88rem; letter-spacing: -0.01em; }
+  .brand small { color: #87a998; font-size: 0.64rem; }
+  .workspace {
+    display: grid;
+    margin: 1.5rem 0 1rem;
+    padding: 0.85rem;
+    border: 1px solid #2a3730;
+    border-radius: 12px;
+    background: #131a16;
+  }
+  .workspace span, .workspace small { color: #86a696; font-size: 0.65rem; }
+  .workspace strong { font-size: 0.8rem; }
+  nav { display: grid; gap: 0.18rem; overflow-y: auto; overscroll-behavior: contain; }
+  nav a {
+    position: relative;
+    display: flex;
+    flex: none;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.7rem 0.8rem;
+    border-radius: 9px;
+    color: #aac3b5;
+    font-size: 0.79rem;
+    font-weight: 650;
+    outline: none;
+    transition: background-color 160ms ease, color 160ms ease, transform 160ms ease;
+  }
+  nav a:hover { transform: translateX(2px); background: #18241e; color: #fff; }
+  nav a:focus-visible,
+  .sidebar-foot a:focus-visible,
+  .sidebar-foot button:focus-visible,
+  .brand:focus-visible,
+  .sidebar-head > button:focus-visible {
+    outline: 2px solid #5fe393;
+    outline-offset: 2px;
+  }
+  nav a.active {
+    background: #193526;
+    color: #fff;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.12);
+  }
+  nav a.active::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    border-radius: 0 3px 3px 0;
+    background: #43d67d;
+    content: '';
+  }
+  .nav-icon {
+    display: grid;
+    width: 28px;
+    height: 28px;
+    flex: none;
+    place-items: center;
+    border-radius: 7px;
+    color: #8fb7a1;
+    transition: background-color 160ms ease, color 160ms ease;
+  }
+  nav a:hover .nav-icon { color: #d8f7e4; }
+  nav a.active .nav-icon {
+    background: rgba(68, 214, 125, 0.14);
+    color: #63e696;
+  }
+  .sidebar-foot {
+    display: grid;
+    gap: 0.2rem;
+    margin-top: auto;
+    padding-top: 1rem;
+    border-top: 1px solid #284438;
+  }
+  .sidebar-foot a, .sidebar-foot button {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 0.55rem;
+    min-height: 44px;
+    padding: 0.65rem 0.75rem;
+    border-radius: 8px;
+    color: #91ad9e;
+    font: inherit;
+    font-size: 0.72rem;
+    text-align: left;
+  }
+  .sidebar-foot a, .sidebar-foot button { outline: none; transition: background-color 160ms ease, color 160ms ease; }
+  .sidebar-foot a:hover, .sidebar-foot button:hover { background: #18241e; color: #fff; }
+
+  @media (max-width: 900px) {
+    .admin-sidebar {
+      transform: translateX(-105%);
+      box-shadow: 18px 0 45px rgba(4, 15, 9, 0.25);
+      transition: transform 220ms ease;
+    }
+    .admin-sidebar.is-open { transform: none; }
+    .sidebar-head > button { display: grid; }
+  }
+
+  @media (max-width: 360px) {
+    .admin-sidebar { width:calc(100vw - 2rem); max-width:none; padding:1rem; }
+    .brand-mark { width:38px; height:38px; }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .admin-sidebar, nav a { transition: none; }
+  }
+</style>

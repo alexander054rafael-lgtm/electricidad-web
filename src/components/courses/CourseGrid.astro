@@ -1,0 +1,44 @@
+---
+import CourseCard from './CourseCard.astro';
+import type { Course } from '../../data/courses';
+
+interface Props {
+  courses: Course[];
+  id?: string;
+  title?: string;
+  subtitle?: string;
+  interactive?: boolean;
+}
+
+const { courses, id, title, subtitle, interactive = false } = Astro.props;
+---
+
+<section class:list={['course-grid-section', { 'course-grid-section--catalog': interactive }]} id={id}>
+  {(title || subtitle) && (
+    <div class="course-grid-section__heading">
+      <div>
+        {title && <h2>{title}</h2>}
+        {subtitle && <p>{subtitle}</p>}
+      </div>
+      {interactive && <p class="course-grid-section__count" aria-live="polite"><strong data-course-count>{courses.length}</strong> cursos disponibles</p>}
+    </div>
+  )}
+  <div class="course-grid" data-course-grid={interactive ? '' : undefined}>
+    {courses.map((course) => <CourseCard course={course} />)}
+  </div>
+  {interactive && <div class="course-grid-section__empty" data-course-empty hidden><strong>No encontramos cursos</strong><span>Prueba con otra búsqueda o ajusta los filtros.</span></div>}
+</section>
+
+<style>
+  .course-grid-section { scroll-margin-top:calc(var(--header-height) + 1.5rem); }
+  .course-grid-section__heading { display:flex; align-items:end; justify-content:space-between; gap:1.5rem; margin-bottom:1.6rem; }
+  h2 { font-size:clamp(1.7rem,3vw,2.35rem); }
+  .course-grid-section__heading p { max-width:680px; margin-top:.45rem; color:var(--color-text-secondary); }
+  .course-grid-section__count { flex:0 0 auto; font-size:.88rem; }
+  .course-grid-section__count strong { color:var(--color-text); }
+  .course-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr)); gap:clamp(1rem,2vw,1.5rem); }
+  .course-grid-section__empty { display:grid; place-items:center; gap:.35rem; min-height:220px; padding:2rem; border:1px dashed var(--color-border); border-radius:var(--radius-xl); color:var(--color-text-secondary); text-align:center; }
+  .course-grid-section__empty[hidden] { display:none; }
+  .course-grid-section__empty strong { color:var(--color-text); font-size:1.1rem; }
+  @media(max-width:600px) { .course-grid-section__heading { align-items:start; flex-direction:column; gap:.6rem; } }
+</style>

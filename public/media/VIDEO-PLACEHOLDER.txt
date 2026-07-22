@@ -1,0 +1,10 @@
+VIDEO LOCAL PLACEHOLDER
+
+El aula carga /media/video-local-placeholder.mp4 únicamente cuando el usuario activa el reproductor.
+Es un clip visual CC0 no técnico usado solo para verificar la reproducción local.
+
+Fuente del placeholder:
+https://interactive-examples.mdn.mozilla.net/media/cc0-videos/flower.mp4
+
+Para sustituirlo, reemplace el archivo llamado:
+video-local-placeholder.mp4

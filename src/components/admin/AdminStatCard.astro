@@ -1,0 +1,93 @@
+---
+import { ArrowUpRight } from '@lucide/astro';
+import type { AstroComponent } from '@lucide/astro';
+
+interface Props {
+  label: string;
+  value: number;
+  description: string;
+  icon: AstroComponent;
+  href?: string;
+  available?: boolean;
+  tone?: 'green' | 'blue' | 'amber' | 'slate';
+}
+
+const {
+  label,
+  value,
+  description,
+  icon: Icon,
+  href,
+  available = true,
+  tone = 'green',
+} = Astro.props;
+const CardTag = href ? 'a' : 'article';
+---
+
+<CardTag
+  class:list={['stat', tone, { 'stat-link': Boolean(href) }]}
+  href={href}
+  aria-label={href ? `${label}: ${available ? value : 'dato no disponible'}. ${description}` : undefined}
+>
+  <div class="stat-top">
+    <span class="stat-icon"><Icon size={19} aria-hidden="true" /></span>
+    {href && <ArrowUpRight class="stat-arrow" size={17} aria-hidden="true" />}
+  </div>
+  <span class="stat-label">{label}</span>
+  <strong>{available ? value : '—'}</strong>
+  <small>{description}</small>
+</CardTag>
+<style>
+  .stat {
+    position: relative;
+    display: grid;
+    min-height: 170px;
+    padding: 1.2rem;
+    align-content: start;
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    border-radius: var(--admin-radius);
+    background: var(--admin-surface-raised);
+    box-shadow: 0 12px 28px rgba(0, 0, 0, 0.12);
+  }
+  .stat-link {
+    color: inherit;
+    cursor: pointer;
+    transition: transform 180ms ease, border-color 180ms ease, background-color 180ms ease, box-shadow 180ms ease;
+  }
+  .stat-link:hover {
+    transform: translateY(-3px);
+    border-color: var(--icon-border);
+    background: var(--admin-surface-soft);
+    box-shadow: 0 18px 34px rgba(0, 0, 0, 0.2);
+  }
+  .stat-link:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+  .stat::before {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 3px;
+    background: var(--accent);
+    content: '';
+  }
+  .stat-top { display:flex; align-items:center; justify-content:space-between; gap:.75rem; }
+  .stat-icon {
+    display: grid;
+    width: 40px;
+    height: 40px;
+    place-items: center;
+    border: 1px solid var(--icon-border);
+    border-radius: 11px;
+    background: var(--soft);
+    color: var(--accent);
+  }
+  .stat-arrow { color:var(--admin-text-subtle); transition:color 180ms ease, transform 180ms ease; }
+  .stat-link:hover .stat-arrow { transform:translate(2px,-2px); color:var(--accent); }
+  .stat-label { margin-top: 1rem; color: var(--admin-text-muted); font-size: 0.73rem; font-weight: 700; }
+  .stat > strong { margin-top: 0.15rem; color: var(--admin-text); font-size: clamp(1.9rem, 4vw, 2.35rem); letter-spacing: -0.045em; line-height: 1; }
+  .stat > small { margin-top: 0.5rem; color: var(--admin-text-subtle); font-size: 0.64rem; }
+  .green { --accent: var(--admin-green); --soft: var(--admin-green-soft); --icon-border: rgba(66, 201, 119, 0.2); }
+  .blue { --accent: var(--admin-blue); --soft: var(--admin-blue-soft); --icon-border: rgba(85, 167, 245, 0.2); }
+  .amber { --accent: var(--admin-warning); --soft: var(--admin-warning-soft); --icon-border: rgba(231, 184, 75, 0.2); }
+  .slate { --accent: #9aa8a0; --soft: rgba(154, 168, 160, 0.1); --icon-border: rgba(154, 168, 160, 0.18); }
+  @media (prefers-reduced-motion: reduce) { .stat-link, .stat-arrow { transition:none; } }
+</style>

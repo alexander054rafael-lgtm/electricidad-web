@@ -1,0 +1,93 @@
+---
+export const prerender = false;
+import { TriangleAlert, Users } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+import AdminTable from '../../../components/admin/AdminTable.astro';
+import type {
+  AdminEnrollmentRecord,
+  AdminProgressRecord,
+  AdminStudentRecord,
+} from '../../../types/admin';
+
+interface StudentRow extends AdminStudentRecord {
+  enrolledCourses: number;
+  completedCourses: number;
+  averageProgress: number;
+}
+
+const supabase = Astro.locals.supabase;
+const emptyResult = { data: [], error: null };
+const [studentResult, enrollmentResult, progressResult] = supabase
+  ? await Promise.all([
+      supabase.from('profiles').select('id,full_name,created_at').eq('role', 'student').order('created_at', { ascending: false }),
+      supabase.from('course_enrollments').select('user_id,status'),
+      supabase.from('course_progress').select('user_id,progress_percent,status'),
+    ])
+  : [emptyResult, emptyResult, emptyResult];
+
+if (import.meta.env.DEV) {
+  [studentResult.error, enrollmentResult.error, progressResult.error]
+    .filter(Boolean)
+    .forEach((error) => console.error('[admin-estudiantes] No se pudo consultar una fuente:', error));
+}
+
+const students = (studentResult.data ?? []) as AdminStudentRecord[];
+const enrollments = (enrollmentResult.data ?? []) as AdminEnrollmentRecord[];
+const progressRecords = (progressResult.data ?? []) as AdminProgressRecord[];
+const isUnavailable = Boolean(studentResult.error || enrollmentResult.error || progressResult.error);
+
+const rows: StudentRow[] = students.map((student) => {
+  const studentEnrollments = enrollments.filter((enrollment) => enrollment.user_id === student.id);
+  const studentProgress = progressRecords.filter((progress) => progress.user_id === student.id);
+  const progressTotal = studentProgress.reduce(
+    (total, progress) => total + Number(progress.progress_percent),
+    0,
+  );
+
+  return {
+    ...student,
+    enrolledCourses: studentEnrollments.filter((enrollment) => enrollment.status !== 'cancelled').length,
+    completedCourses: studentEnrollments.filter((enrollment) => enrollment.status === 'completed').length,
+    averageProgress: studentProgress.length ? Math.round(progressTotal / studentProgress.length) : 0,
+  };
+});
+---
+
+<AdminLayout title="Estudiantes" description="Consulta inscripciones y avance académico." activeSection="students">
+  <AdminPageHeader title="Estudiantes" description="Supervisa la comunidad estudiantil y su progreso sin crear cuentas manualmente." eyebrow="Comunidad" />
+
+  {isUnavailable ? (
+    <AdminEmptyState title="Datos temporalmente no disponibles" description="No pudimos consultar la información de estudiantes en este momento. Intenta nuevamente más tarde.">
+      <TriangleAlert slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  ) : rows.length ? (
+    <AdminTable label="Listado de estudiantes">
+      <table>
+        <thead>
+          <tr><th>Estudiante</th><th>Inscripciones</th><th>Cursos terminados</th><th>Progreso promedio</th><th>Registro</th></tr>
+        </thead>
+        <tbody>
+          {rows.map((student) => (
+            <tr>
+              <td><strong>{student.full_name ?? 'Sin nombre'}</strong><small>{student.id.slice(0, 8)}…</small></td>
+              <td>{student.enrolledCourses}</td>
+              <td>{student.completedCourses}</td>
+              <td><progress max="100" value={student.averageProgress}></progress> {student.averageProgress}%</td>
+              <td>{new Date(student.created_at).toLocaleDateString('es-PE')}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </AdminTable>
+  ) : (
+    <AdminEmptyState title="No hay estudiantes registrados todavía" description="Los estudiantes aparecerán aquí cuando creen su cuenta y se inscriban en un curso.">
+      <Users slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  )}
+</AdminLayout>
+
+<style>
+  progress { accent-color: var(--admin-green); }
+</style>

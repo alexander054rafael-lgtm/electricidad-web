@@ -1,0 +1,37 @@
+---
+import { FlaskConical } from '@lucide/astro';
+import type { LessonContentBlock } from '../../data/lessons';
+import AlertBlock from './AlertBlock.astro';
+import FormulaBlock from './FormulaBlock.astro';
+import ImageBlock from './ImageBlock.astro';
+import ImageGallery from './ImageGallery.astro';
+import ResourceBlock from './ResourceBlock.astro';
+import StepsBlock from './StepsBlock.astro';
+import VideoBlock from './VideoBlock.astro';
+import GameBlock from '../games/GameBlock.astro';
+
+interface Props { block: LessonContentBlock }
+const { block } = Astro.props;
+---
+
+{block.type === 'heading' && block.level === 3 && <h3 class="content-heading content-heading--three">{block.content}</h3>}
+{block.type === 'heading' && block.level !== 3 && <h2 class="content-heading">{block.content}</h2>}
+{block.type === 'paragraph' && <p class="content-paragraph">{block.content}</p>}
+{block.type === 'list' && (block.ordered ? <ol class="content-list content-list--ordered">{block.items.map((item) => <li>{item}</li>)}</ol> : <ul class="content-list">{block.items.map((item) => <li>{item}</li>)}</ul>)}
+{block.type === 'formula' && <FormulaBlock block={block} />}
+{block.type === 'image' && <ImageBlock block={block} />}
+{block.type === 'gallery' && <ImageGallery block={block} />}
+{block.type === 'table' && <figure class="content-table"><div><table><thead><tr>{block.headers.map((header) => <th>{header}</th>)}</tr></thead><tbody>{block.rows.map((row) => <tr>{row.map((cell) => <td>{cell}</td>)}</tr>)}</tbody></table></div>{block.caption && <figcaption>{block.caption}</figcaption>}</figure>}
+{(block.type === 'note' || block.type === 'tip' || block.type === 'warning' || block.type === 'danger') && <AlertBlock block={block} />}
+{block.type === 'example' && <section class="content-example"><div class="content-example__title"><FlaskConical size={19} aria-hidden="true" /><h3>{block.title}</h3></div><ol>{block.content.map((item) => <li>{item}</li>)}</ol>{block.result && <p><strong>Resultado:</strong> {block.result}</p>}</section>}
+{block.type === 'steps' && <StepsBlock block={block} />}
+{block.type === 'resource' && <ResourceBlock block={block} />}
+{block.type === 'video' && <VideoBlock block={block} />}
+{block.type === 'game' && <GameBlock block={block} />}
+
+<style>
+  .content-heading{margin:2.5rem 0 .85rem;font-size:clamp(1.55rem,3vw,2rem);scroll-margin-top:90px}.content-heading--three{margin-top:2rem;font-size:1.25rem}.content-paragraph{margin:.85rem 0;color:var(--color-text-secondary);font-size:1rem;line-height:1.82}.content-list{display:grid;gap:.65rem;margin:1rem 0;padding-left:1.15rem}.content-list li{position:relative;padding-left:.65rem;color:var(--color-text-secondary)}.content-list li::before{content:'';position:absolute;top:.65em;left:-.75rem;width:6px;height:6px;border-radius:50%;background:var(--color-primary)}.content-list--ordered{counter-reset:item}.content-list--ordered li{counter-increment:item}.content-list--ordered li::before{content:counter(item);top:.1rem;display:grid;place-items:center;width:22px;height:22px;background:rgba(22,163,74,.12);color:var(--color-primary);font-size:.68rem;font-weight:800}
+  .content-table{margin:1.75rem 0}.content-table>div{overflow-x:auto;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface)}table{width:100%;min-width:580px;border-collapse:collapse;text-align:left}th,td{padding:.85rem 1rem;border-bottom:1px solid var(--color-border);font-size:.82rem}th{background:var(--color-gray-50);color:var(--color-text);font-size:.72rem;text-transform:uppercase;letter-spacing:.04em}td{color:var(--color-text-secondary)}tbody tr:last-child td{border-bottom:0}figcaption{margin-top:.55rem;color:var(--color-text-secondary);font-size:.74rem;text-align:center}
+  .content-example{margin:1.75rem 0;padding:clamp(1.1rem,3vw,1.5rem);border:1px solid rgba(14,116,144,.2);border-radius:var(--radius-xl);background:linear-gradient(135deg,rgba(6,182,212,.07),var(--color-surface))}.content-example__title{display:flex;align-items:center;gap:.55rem;color:#0e7490}.content-example h3{font-size:1rem}.content-example ol{display:grid;gap:.55rem;margin:1rem 0;counter-reset:example}.content-example li{counter-increment:example;color:var(--color-text-secondary);font-size:.86rem}.content-example li::before{content:counter(example) '.';margin-right:.5rem;color:#0e7490;font-weight:800}.content-example>p{padding-top:.8rem;border-top:1px solid rgba(14,116,144,.16);color:var(--color-text-secondary);font-size:.86rem}.content-example>p strong{color:var(--color-text)}
+  @media(max-width:480px){.content-paragraph{font-size:.94rem}}
+</style>

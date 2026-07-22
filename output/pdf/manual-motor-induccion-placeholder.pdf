@@ -1,0 +1,53 @@
+%PDF-1.4
+%PLACEHOLDER
+1 0 obj
+<< /Type /Catalog /Pages 2 0 R >>
+endobj
+2 0 obj
+<< /Type /Pages /Kids [3 0 R] /Count 1 >>
+endobj
+3 0 obj
+<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>
+endobj
+4 0 obj
+<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
+endobj
+5 0 obj
+<< /Length 852 >>
+stream
+0.08 0.33 0.18 rg
+0 724 595 118 re f
+1 1 1 rg
+BT /F1 10 Tf 42 800 Td (INDUTECH ACADEMY) Tj ET
+BT /F1 22 Tf 42 768 Td (Manual de motor de induccion) Tj ET
+BT /F1 10 Tf 42 746 Td (Recurso descargable de demostracion - 1 pagina) Tj ET
+0.71 0.33 0.04 rg
+42 652 511 38 re f
+1 1 1 rg
+BT /F1 9 Tf 55 667 Td (ARCHIVO PLACEHOLDER - NO USAR COMO DOCUMENTACION TECNICA REAL) Tj ET
+0.06 0.09 0.16 rg
+BT /F1 15 Tf 42 620 Td (Contenido de muestra) Tj ET
+0.28 0.35 0.44 rg
+BT /F1 10 Tf 52 590 Td (- Identificacion de estator y rotor) Tj ET
+0.28 0.35 0.44 rg
+BT /F1 10 Tf 52 568 Td (- Verificacion previa a la puesta en marcha) Tj ET
+0.28 0.35 0.44 rg
+BT /F1 10 Tf 52 546 Td (- Registro basico de inspeccion) Tj ET
+0.4 0.46 0.55 rg
+BT /F1 8 Tf 42 42 Td (Material demostrativo para validar descargas y componentes del aula.) Tj ET
+BT /F1 8 Tf 500 42 Td (Pagina 1) Tj ET
+endstream
+endobj
+xref
+0 6
+0000000000 65535 f 
+0000000022 00000 n 
+0000000071 00000 n 
+0000000128 00000 n 
+0000000254 00000 n 
+0000000324 00000 n 
+trailer
+<< /Size 6 /Root 1 0 R >>
+startxref
+1227
+%%EOF

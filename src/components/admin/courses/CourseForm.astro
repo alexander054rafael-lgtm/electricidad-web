@@ -1,0 +1,10 @@
+---
+import type { ComponentProps } from 'astro/types';
+import CourseFormBase from '../CourseForm.astro';
+
+type Props = ComponentProps<typeof CourseFormBase>;
+---
+
+<!-- Punto de entrada estable del módulo de cursos. La implementación base se
+     conserva temporalmente para no romper formularios administrativos previos. -->
+<CourseFormBase {...Astro.props} />

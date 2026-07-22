@@ -1,0 +1,347 @@
+---
+export const prerender = false;
+
+import {
+  BookOpen,
+  ListFilter,
+  Plus,
+  Search,
+  TriangleAlert,
+} from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+import CourseDeleteDialog from '../../../components/admin/CourseDeleteDialog.astro';
+import CourseTable from '../../../components/admin/courses/CourseTable.astro';
+import CourseCard from '../../../components/admin/courses/CourseCard.astro';
+import type { Course, CourseLevel, CourseStatus } from '../../../types/course';
+
+type CourseOrder = 'recent' | 'oldest' | 'title' | 'position' | 'updated';
+interface CategoryRow { category: string | null }
+
+const validStatuses: CourseStatus[] = ['draft', 'published', 'archived'];
+const validLevels: CourseLevel[] = ['beginner', 'intermediate', 'advanced'];
+const validOrders: CourseOrder[] = ['recent', 'oldest', 'title', 'position', 'updated'];
+
+const readParam = (name: string, maxLength = 100) =>
+  (Astro.url.searchParams.get(name) ?? '').trim().slice(0, maxLength);
+const isOneOf = <Value extends string>(value: string, options: readonly Value[]): value is Value =>
+  options.includes(value as Value);
+const escapeIlike = (value: string) => value.replace(/[\\%_]/g, '\\$&');
+
+const search = readParam('search', 120);
+const requestedStatus = readParam('status', 20);
+const requestedCategory = readParam('category', 100);
+const requestedLevel = readParam('level', 20);
+const requestedOrder = readParam('order', 20);
+
+const status = isOneOf(requestedStatus, validStatuses) ? requestedStatus : '';
+const level = isOneOf(requestedLevel, validLevels) ? requestedLevel : '';
+const order: CourseOrder = isOneOf(requestedOrder, validOrders) ? requestedOrder : 'recent';
+const category = requestedCategory;
+const hasFilters = Boolean(search || status || category || level || order !== 'recent');
+const courseCreated = Astro.url.searchParams.get('created') === '1';
+const courseDeleted = Astro.url.searchParams.get('deleted') === '1';
+const statusUpdated = readParam('status_updated', 20);
+const actionError = readParam('error', 50);
+
+const supabase = Astro.locals.supabase;
+let courses: Course[] = [];
+let categories: string[] = [];
+let loadError = false;
+
+if (supabase) {
+  let courseQuery = supabase
+    .from('courses')
+    .select('id,title,slug,short_description,description,cover_url,category,level,status,duration_minutes,position,is_featured,instructor_id,created_by,created_at,updated_at,published_at');
+
+  if (search) courseQuery = courseQuery.ilike('title', `%${escapeIlike(search)}%`);
+  if (status) courseQuery = courseQuery.eq('status', status);
+  if (category) courseQuery = courseQuery.eq('category', category);
+  if (level) courseQuery = courseQuery.eq('level', level);
+
+  switch (order) {
+    case 'oldest':
+      courseQuery = courseQuery.order('created_at', { ascending: true });
+      break;
+    case 'title':
+      courseQuery = courseQuery.order('title', { ascending: true });
+      break;
+    case 'position':
+      courseQuery = courseQuery.order('position', { ascending: true }).order('title', { ascending: true });
+      break;
+    case 'updated':
+      courseQuery = courseQuery.order('updated_at', { ascending: false });
+      break;
+    default:
+      courseQuery = courseQuery.order('created_at', { ascending: false });
+  }
+
+  const [courseResult, categoryResult] = await Promise.all([
+    courseQuery,
+    supabase.from('courses').select('category').not('category', 'is', null).order('category'),
+  ]);
+
+  if (courseResult.error) {
+    loadError = true;
+    if (import.meta.env.DEV) console.error('[admin-courses-list] No se pudieron cargar los cursos:', courseResult.error);
+  } else {
+    courses = (courseResult.data ?? []) as Course[];
+  }
+
+  if (categoryResult.error) {
+    if (import.meta.env.DEV) console.error('[admin-courses-categories] No se pudieron cargar las categorías:', categoryResult.error);
+  } else {
+    categories = [...new Set(
+      ((categoryResult.data ?? []) as CategoryRow[])
+        .map((row) => row.category?.trim())
+        .filter((value): value is string => Boolean(value)),
+    )];
+  }
+} else {
+  loadError = true;
+}
+
+const statusNotices: Record<string, string> = {
+  published: 'Curso publicado correctamente.',
+  draft: 'Curso despublicado correctamente.',
+  archived: 'Curso archivado correctamente.',
+};
+const errorNotices: Record<string, string> = {
+  course_has_dependencies: 'No se puede eliminar el curso porque tiene módulos, lecciones o actividad académica relacionada.',
+  dependency_check_failed: 'No pudimos verificar de forma segura las dependencias del curso. No se eliminó ningún dato.',
+  delete_failed: 'No se pudo eliminar el curso. Intenta nuevamente.',
+  delete_confirmation_required: 'Debes confirmar explícitamente la eliminación del curso.',
+  status_update_failed: 'No se pudo actualizar el estado del curso.',
+  invalid_status: 'El estado solicitado no es válido.',
+  course_not_found: 'El curso solicitado no existe.',
+  invalid_request: 'La solicitud no pudo ser validada.',
+  action_failed: 'No se pudo completar la acción. Intenta nuevamente.',
+};
+---
+
+<AdminLayout
+  title="Gestión de cursos"
+  description="Crea, publica y organiza los cursos de InduTech Academy."
+  activeSection="courses"
+>
+  <AdminPageHeader
+    title="Gestión de cursos"
+    description="Crea, publica y organiza los cursos de InduTech Academy."
+    eyebrow="Contenido"
+    actionHref="/admin/cursos/nuevo"
+    actionLabel="Crear curso"
+  >
+    <Plus slot="action-icon" size={17} aria-hidden="true" />
+  </AdminPageHeader>
+
+  {courseCreated && (
+    <div class="success-notice" role="status">Curso creado correctamente.</div>
+  )}
+  {courseDeleted && <div class="success-notice" role="status">Curso eliminado correctamente.</div>}
+  {statusNotices[statusUpdated] && <div class="success-notice" role="status">{statusNotices[statusUpdated]}</div>}
+  {actionError && <div class="error-notice" role="alert">{errorNotices[actionError] ?? 'No se pudo completar la acción solicitada.'}</div>}
+
+  <form class="course-filters" method="get" action="/admin/cursos" aria-label="Filtrar cursos">
+    <label class="search-field">
+      <span>Buscar por título</span>
+      <span class="control-with-icon">
+        <Search size={16} aria-hidden="true" />
+        <input
+          type="search"
+          name="search"
+          value={search}
+          maxlength="120"
+          placeholder="Ej. Motores eléctricos"
+        />
+      </span>
+    </label>
+
+    <label>
+      <span>Estado</span>
+      <select name="status">
+        <option value="">Todos los estados</option>
+        <option value="draft" selected={status === 'draft'}>Borrador</option>
+        <option value="published" selected={status === 'published'}>Publicado</option>
+        <option value="archived" selected={status === 'archived'}>Archivado</option>
+      </select>
+    </label>
+
+    <label>
+      <span>Categoría</span>
+      <select name="category">
+        <option value="">Todas las categorías</option>
+        {categories.map((option) => <option value={option} selected={category === option}>{option}</option>)}
+      </select>
+    </label>
+
+    <label>
+      <span>Nivel</span>
+      <select name="level">
+        <option value="">Todos los niveles</option>
+        <option value="beginner" selected={level === 'beginner'}>Principiante</option>
+        <option value="intermediate" selected={level === 'intermediate'}>Intermedio</option>
+        <option value="advanced" selected={level === 'advanced'}>Avanzado</option>
+      </select>
+    </label>
+
+    <label>
+      <span>Ordenar por</span>
+      <select name="order">
+        <option value="recent" selected={order === 'recent'}>Más recientes</option>
+        <option value="oldest" selected={order === 'oldest'}>Más antiguos</option>
+        <option value="title" selected={order === 'title'}>Título A-Z</option>
+        <option value="position" selected={order === 'position'}>Posición</option>
+        <option value="updated" selected={order === 'updated'}>Última actualización</option>
+      </select>
+    </label>
+
+    <div class="filter-actions">
+      <button type="submit"><ListFilter size={16} aria-hidden="true" /> Aplicar filtros</button>
+      {hasFilters && <a href="/admin/cursos">Limpiar</a>}
+    </div>
+  </form>
+
+  <div class="results-summary" aria-live="polite">
+    <strong>{courses.length}</strong>
+    <span>{courses.length === 1 ? 'curso encontrado' : 'cursos encontrados'}</span>
+  </div>
+
+  {loadError ? (
+    <AdminEmptyState
+      title="Datos temporalmente no disponibles"
+      description="No pudimos consultar los cursos en este momento. Intenta nuevamente más tarde."
+    >
+      <TriangleAlert slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  ) : courses.length ? (
+    <div class="course-results">
+      <div class="desktop-course-list"><CourseTable courses={courses} /></div>
+      <div class="mobile-course-list" aria-label="Listado de cursos">{courses.map((course) => <CourseCard course={course} />)}</div>
+    </div>
+  ) : (
+    <AdminEmptyState
+      title={hasFilters ? 'No encontramos cursos con estos filtros' : 'Todavía no hay cursos'}
+      description={hasFilters
+        ? 'Prueba con otros criterios o limpia los filtros para consultar todo el catálogo.'
+        : 'Crea tu primer curso para empezar a organizar módulos, lecciones y recursos.'}
+      href={hasFilters ? '/admin/cursos' : '/admin/cursos/nuevo'}
+      action={hasFilters ? 'Limpiar filtros' : 'Crear primer curso'}
+    >
+      <BookOpen slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  )}
+
+  <CourseDeleteDialog />
+</AdminLayout>
+
+<style>
+  .course-filters {
+    display: grid;
+    grid-template-columns: minmax(230px, 1.7fr) repeat(4, minmax(140px, 1fr)) auto;
+    align-items: end;
+    gap: 0.8rem;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 16px;
+    background: var(--admin-surface);
+    box-shadow: var(--admin-shadow);
+  }
+  .success-notice { margin-bottom: 1rem; padding: 0.8rem 1rem; border: 1px solid color-mix(in srgb, var(--admin-green) 30%, var(--admin-border)); border-radius: 11px; background: var(--admin-green-soft); color: var(--admin-green); font-size: 0.76rem; font-weight: 750; }
+  .error-notice { margin-bottom: 1rem; padding: 0.8rem 1rem; border: 1px solid color-mix(in srgb, var(--admin-danger) 32%, var(--admin-border)); border-radius: 11px; background: color-mix(in srgb, var(--admin-danger) 10%, transparent); color: #ffaaaa; font-size: 0.76rem; font-weight: 700; }
+
+  label { display: grid; min-width: 0; gap: 0.4rem; }
+  label > span:first-child {
+    color: var(--admin-text-muted);
+    font-size: 0.67rem;
+    font-weight: 750;
+  }
+
+  input,
+  select {
+    width: 100%;
+    min-width: 0;
+    min-height: 42px;
+    padding: 0.65rem 0.72rem;
+    border: 1px solid var(--admin-border-strong);
+    border-radius: 10px;
+    outline: none;
+    background: var(--admin-surface-raised);
+    color: var(--admin-text);
+    font: inherit;
+    font-size: 0.75rem;
+  }
+
+  input::placeholder { color: var(--admin-text-subtle); }
+  input:focus,
+  select:focus { border-color: var(--admin-green); box-shadow: 0 0 0 3px var(--admin-green-soft); }
+
+  .control-with-icon { position: relative; display: block; }
+  .control-with-icon :global(svg) {
+    position: absolute;
+    z-index: 1;
+    top: 50%;
+    left: 0.72rem;
+    color: var(--admin-text-subtle);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+  .control-with-icon input { padding-left: 2.2rem; }
+
+  .filter-actions { display: flex; align-items: center; gap: 0.6rem; }
+  .filter-actions button,
+  .filter-actions a {
+    display: inline-flex;
+    min-height: 42px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    padding: 0.65rem 0.82rem;
+    border-radius: 10px;
+    font-size: 0.7rem;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+  .filter-actions button {
+    border: 1px solid rgba(66, 201, 119, 0.3);
+    background: var(--admin-green-strong);
+    color: #fff;
+    cursor: pointer;
+  }
+  .filter-actions a { border: 1px solid var(--admin-border-strong); color: var(--admin-text-muted); }
+  .filter-actions button:focus-visible,
+  .filter-actions a:focus-visible { outline: 2px solid var(--admin-green); outline-offset: 2px; }
+
+  .results-summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.38rem;
+    margin: 0 0 0.7rem;
+    color: var(--admin-text-muted);
+    font-size: 0.72rem;
+  }
+  .results-summary strong { color: var(--admin-text); font-size: 0.9rem; }
+
+  .mobile-course-list { display: none; }
+
+  @media (max-width: 1280px) {
+    .course-filters { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .search-field { grid-column: span 2; }
+  }
+
+  @media (max-width: 720px) {
+    .course-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .search-field { grid-column: 1 / -1; }
+    .filter-actions { grid-column: 1 / -1; }
+    .desktop-course-list { display: none; }
+    .mobile-course-list { display: grid; gap: 0.8rem; }
+  }
+
+  @media (max-width: 480px) {
+    .course-filters { grid-template-columns: 1fr; padding: 0.85rem; }
+    .search-field,
+    .filter-actions { grid-column: auto; }
+    .filter-actions { align-items: stretch; flex-direction: column; }
+  }
+</style>

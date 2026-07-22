@@ -1,0 +1,33 @@
+---
+import { BookOpen, Download, Eye } from '@lucide/astro';
+import type { Book } from '../../data/books';
+interface Props { book: Book }
+const { book } = Astro.props;
+---
+
+<article class="related-book-card" style={`--book-accent:${book.accent}`}>
+  <a class="related-book-card__cover" href={`/biblioteca/${book.slug}`} aria-label={`Ver libro ${book.title}`}>
+    <span>{book.type}</span>
+    <BookOpen size={38} stroke-width={1.25} aria-hidden="true" />
+    <strong>{book.title}</strong>
+    <small>Biblioteca técnica · InduTech</small>
+  </a>
+  <div class="related-book-card__body">
+    <span class="related-book-card__category">{book.category}</span>
+    <h3>{book.title}</h3>
+    <p class="related-book-card__author">{book.author}</p>
+    <p class="related-book-card__description">{book.description}</p>
+    <div class="related-book-card__actions">
+      <a href={`/biblioteca/${book.slug}`} class="related-book-card__view"><Eye size={15} aria-hidden="true" /> Ver libro</a>
+      <a href={`/biblioteca/${book.slug}#visor`} class="related-book-card__read"><BookOpen size={15} aria-hidden="true" /> Leer PDF</a>
+      {book.allowDownload && <a href={book.pdfUrl} download class="related-book-card__download"><Download size={15} aria-hidden="true" /> Descargar</a>}
+    </div>
+  </div>
+</article>
+
+<style>
+  .related-book-card{display:grid;grid-template-columns:minmax(130px,36%) 1fr;min-width:0;overflow:hidden;border:1px solid var(--color-border);border-radius:var(--radius-xl);background:var(--color-surface);box-shadow:var(--shadow-sm);transition:transform var(--transition-base),box-shadow var(--transition-base),border-color var(--transition-base)}.related-book-card:hover{transform:translateY(-4px);border-color:color-mix(in srgb,var(--book-accent),transparent 68%);box-shadow:var(--shadow-lg)}
+  .related-book-card__cover{position:relative;display:flex;min-height:250px;flex-direction:column;justify-content:flex-end;overflow:hidden;padding:1rem;color:#fff;background:linear-gradient(150deg,color-mix(in srgb,var(--book-accent),#0f172a 15%),#0f172a);isolation:isolate}.related-book-card__cover::before{content:'';position:absolute;z-index:-1;top:-40px;right:-55px;width:170px;aspect-ratio:1;border:1px solid rgba(255,255,255,.18);border-radius:50%;box-shadow:0 0 0 24px rgba(255,255,255,.04),0 0 0 48px rgba(255,255,255,.025)}.related-book-card__cover>span{position:absolute;top:.8rem;left:.8rem;padding:.25rem .5rem;border-radius:999px;background:rgba(255,255,255,.15);font-size:.6rem;font-weight:800;text-transform:uppercase}.related-book-card__cover svg{position:absolute;right:.8rem;bottom:.8rem;opacity:.18}.related-book-card__cover strong{position:relative;max-width:88%;font:800 1rem/1.18 var(--font-display)}.related-book-card__cover small{position:relative;margin-top:.45rem;font-size:.58rem;opacity:.7}
+  .related-book-card__body{display:flex;min-width:0;flex-direction:column;padding:1.15rem}.related-book-card__category{color:var(--color-primary);font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.04em}.related-book-card h3{margin:.42rem 0 .2rem;font-size:1.02rem;line-height:1.25}.related-book-card__author{color:var(--color-text-secondary);font-size:.73rem}.related-book-card__description{margin:.7rem 0;color:var(--color-text-secondary);font-size:.77rem;line-height:1.52}.related-book-card__actions{display:flex;flex-wrap:wrap;gap:.45rem;margin-top:auto;padding-top:.65rem}.related-book-card__actions a{display:inline-flex;align-items:center;justify-content:center;gap:.3rem;min-height:34px;padding:.42rem .62rem;border:1px solid var(--color-border);border-radius:9px;font-size:.68rem;font-weight:750;transition:all var(--transition-fast)}.related-book-card__view{color:var(--color-text)}.related-book-card__read{border-color:var(--color-primary)!important;background:var(--color-primary);color:#fff}.related-book-card__download{color:var(--color-primary)}.related-book-card__actions a:hover{transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+  @media(max-width:560px){.related-book-card{grid-template-columns:1fr}.related-book-card__cover{min-height:190px}.related-book-card__body{padding:1rem}}
+</style>

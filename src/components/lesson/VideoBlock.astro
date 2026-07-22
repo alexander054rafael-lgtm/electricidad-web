@@ -1,0 +1,18 @@
+---
+import { Clock3, FileText } from '@lucide/astro';
+import type { VideoBlockData } from '../../data/lessons';
+import VideoPlayer from './VideoPlayer';
+interface Props { block: VideoBlockData }
+const { block } = Astro.props;
+---
+
+<section class="video-block">
+  <div class="video-block__heading"><div><span>Contenido audiovisual</span><h3>{block.title}</h3></div><small><Clock3 size={15} aria-hidden="true" /> {block.duration}</small></div>
+  <p>{block.description}</p>
+  <VideoPlayer provider={block.provider} source={block.source} thumbnail={block.thumbnail} title={block.title} placeholder={block.placeholder} client:visible={{ rootMargin: '220px' }} />
+  {block.transcript && <details><summary><FileText size={16} aria-hidden="true" /> Leer transcripción</summary><div>{block.transcript}</div></details>}
+</section>
+
+<style>
+  .video-block{margin:2rem 0}.video-block__heading{display:flex;align-items:end;justify-content:space-between;gap:1rem;margin-bottom:.45rem}.video-block__heading>div{display:grid}.video-block__heading span{color:var(--color-primary);font-size:.65rem;font-weight:800;text-transform:uppercase;letter-spacing:.07em}.video-block h3{font-size:1.2rem}.video-block__heading small{display:inline-flex;align-items:center;gap:.35rem;color:var(--color-text-secondary);font-size:.72rem}.video-block>p{margin-bottom:1rem;color:var(--color-text-secondary);font-size:.84rem;line-height:1.55}.video-block details{margin-top:.75rem;border:1px solid var(--color-border);border-radius:14px;background:var(--color-surface)}.video-block summary{display:flex;align-items:center;gap:.45rem;padding:.8rem 1rem;cursor:pointer;color:var(--color-text);font-size:.78rem;font-weight:750}.video-block details div{padding:0 1rem 1rem;color:var(--color-text-secondary);font-size:.8rem;line-height:1.7}
+</style>

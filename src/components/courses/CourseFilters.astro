@@ -1,0 +1,100 @@
+---
+import { Search, SlidersHorizontal } from '@lucide/astro';
+import { courseCategories } from '../../data/courses';
+---
+
+<section class="course-filters" aria-label="Buscar y filtrar cursos">
+  <div class="course-filters__search">
+    <Search size={20} aria-hidden="true" />
+    <label class="sr-only" for="course-search">Buscar cursos</label>
+    <input id="course-search" type="search" placeholder="Busca por curso, categoría o instructor…" autocomplete="off" data-course-search />
+  </div>
+
+  <div class="course-filters__categories" aria-label="Categorías de cursos">
+    {courseCategories.map((category, index) => (
+      <button class:list={['course-filters__chip', { 'is-active': index === 0 }]} type="button" data-course-category={category}>{category}</button>
+    ))}
+  </div>
+
+  <div class="course-filters__selects">
+    <span class="course-filters__label"><SlidersHorizontal size={18} aria-hidden="true" /> Afinar resultados</span>
+    <label>Nivel
+      <select data-course-filter="level">
+        <option value="">Todos</option><option>Básico</option><option>Intermedio</option><option>Avanzado</option>
+      </select>
+    </label>
+    <label>Duración
+      <select data-course-filter="duration">
+        <option value="">Todas</option><option value="short">Hasta 10 h</option><option value="medium">11 a 20 h</option><option value="long">Más de 20 h</option>
+      </select>
+    </label>
+    <label>Ordenar
+      <select data-course-filter="sort">
+        <option value="popularity">Popularidad</option><option value="date">Más recientes</option>
+      </select>
+    </label>
+  </div>
+</section>
+
+<script>
+  const grid = document.querySelector<HTMLElement>('[data-course-grid]');
+  const cards = grid ? [...grid.querySelectorAll<HTMLElement>('[data-course]')] : [];
+  const search = document.querySelector<HTMLInputElement>('[data-course-search]');
+  const count = document.querySelector<HTMLElement>('[data-course-count]');
+  const empty = document.querySelector<HTMLElement>('[data-course-empty]');
+  let category = 'Todas';
+
+  const durationMatches = (hours: number, value: string) => {
+    if (!value) return true;
+    if (value === 'short') return hours <= 10;
+    if (value === 'medium') return hours > 10 && hours <= 20;
+    return hours > 20;
+  };
+
+  const applyFilters = () => {
+    const level = document.querySelector<HTMLSelectElement>('[data-course-filter="level"]')?.value ?? '';
+    const duration = document.querySelector<HTMLSelectElement>('[data-course-filter="duration"]')?.value ?? '';
+    const sort = document.querySelector<HTMLSelectElement>('[data-course-filter="sort"]')?.value ?? 'popularity';
+    const query = search?.value.trim().toLowerCase() ?? '';
+    const visible = cards.filter((card) =>
+      (category === 'Todas' || card.dataset.category === category) &&
+      (!level || card.dataset.level === level) &&
+      durationMatches(Number(card.dataset.duration), duration) &&
+      (!query || card.dataset.search?.includes(query))
+    );
+
+    visible.sort((a, b) => sort === 'date'
+      ? String(b.dataset.published).localeCompare(String(a.dataset.published))
+      : Number(b.dataset.popularity) - Number(a.dataset.popularity)
+    ).forEach((card) => grid?.append(card));
+
+    cards.forEach((card) => { card.hidden = !visible.includes(card); });
+    if (count) count.textContent = String(visible.length);
+    if (empty) empty.hidden = visible.length > 0;
+  };
+
+  search?.addEventListener('input', applyFilters);
+  document.querySelectorAll<HTMLButtonElement>('[data-course-category]').forEach((button) => {
+    button.addEventListener('click', () => {
+      category = button.dataset.courseCategory ?? 'Todas';
+      document.querySelectorAll('[data-course-category]').forEach((chip) => chip.classList.toggle('is-active', chip === button));
+      applyFilters();
+    });
+  });
+  document.querySelectorAll<HTMLSelectElement>('[data-course-filter]').forEach((select) => select.addEventListener('change', applyFilters));
+</script>
+
+<style>
+  .course-filters { display:grid; gap:1rem; margin-bottom:3rem; padding:clamp(1rem,2.2vw,1.5rem); border:1px solid var(--color-border); border-radius:var(--radius-xl); background:var(--color-surface); box-shadow:var(--shadow-md); }
+  .course-filters__search { display:flex; align-items:center; gap:.7rem; min-height:54px; padding:.25rem 1rem; border:1px solid var(--color-border); border-radius:var(--radius-lg); color:var(--color-text-secondary); background:var(--color-gray-50); }
+  .course-filters__search:focus-within { border-color:var(--color-primary); box-shadow:0 0 0 3px rgba(22,163,74,.1); }
+  .course-filters__search input { width:100%; padding:.6rem 0; border:0; outline:0; background:transparent; color:var(--color-text); font:inherit; }
+  .course-filters__categories { display:flex; gap:.55rem; overflow-x:auto; padding:.1rem 0 .45rem; scrollbar-width:thin; }
+  .course-filters__chip { flex:0 0 auto; padding:.5rem .8rem; border:1px solid var(--color-border); border-radius:var(--radius-full); background:var(--color-surface); color:var(--color-text-secondary); font:600 .78rem/1 var(--font-sans); transition:all var(--transition-fast); }
+  .course-filters__chip:hover,.course-filters__chip.is-active { border-color:var(--color-primary); background:var(--color-primary); color:#fff; }
+  .course-filters__selects { display:flex; align-items:center; flex-wrap:wrap; gap:.8rem 1rem; }
+  .course-filters__label { display:inline-flex; align-items:center; gap:.45rem; margin-right:auto; color:var(--color-text-secondary); font-size:.8rem; font-weight:700; }
+  .course-filters__selects label { display:inline-flex; align-items:center; gap:.4rem; color:var(--color-text-secondary); font-size:.78rem; font-weight:700; }
+  select { min-height:38px; padding:.4rem 2rem .4rem .65rem; border:1px solid var(--color-border); border-radius:10px; background:var(--color-surface); color:var(--color-text); font:inherit; font-size:.78rem; }
+  @media(max-width:680px) { .course-filters__label { width:100%; }.course-filters__selects label { flex:1 1 140px; justify-content:space-between; }.course-filters__selects select { flex:1; } }
+</style>

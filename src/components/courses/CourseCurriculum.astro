@@ -1,0 +1,48 @@
+---
+import { BookOpen, ChevronDown, CirclePlay } from '@lucide/astro';
+import type { CourseModule } from '../../data/courses';
+import { slugifyLesson } from '../../data/courses';
+
+interface Props { modules: CourseModule[]; courseSlug: string }
+const { modules, courseSlug } = Astro.props;
+---
+
+<section class="curriculum" id="temario">
+  <div class="curriculum__heading">
+    <span>Plan de estudio</span>
+    <h2>Temario completo</h2>
+    <p>Avanza en orden o consulta cada módulo según tu experiencia.</p>
+  </div>
+  <div class="curriculum__modules">
+    {modules.map((module, index) => (
+      <details class="curriculum__module" open={index === 0}>
+        <summary>
+          <span class="curriculum__number">{String(index + 1).padStart(2, '0')}</span>
+          <span class="curriculum__summary"><strong>{module.title}</strong><small>{module.lessons.length} lecciones · {module.description}</small></span>
+          <ChevronDown class="curriculum__chevron" size={20} aria-hidden="true" />
+        </summary>
+        <ol>
+          {module.lessons.map((lesson, lessonIndex) => <li><CirclePlay size={17} aria-hidden="true" /><a href={`/aula/${courseSlug}/${slugifyLesson(lesson)}`}>{lesson}</a><small>Lección {lessonIndex + 1}</small></li>)}
+        </ol>
+      </details>
+    ))}
+  </div>
+  <div class="curriculum__note"><BookOpen size={20} aria-hidden="true" /><span><strong>Aprendizaje progresivo.</strong> Cada módulo combina explicación técnica, ejemplos y aplicación práctica.</span></div>
+</section>
+
+<style>
+  .curriculum { scroll-margin-top:calc(var(--header-height) + 1.5rem); }
+  .curriculum__heading>span { color:var(--color-primary); font-size:.78rem; font-weight:800; text-transform:uppercase; letter-spacing:.08em; }
+  h2 { margin:.35rem 0 .45rem; font-size:clamp(1.8rem,3vw,2.5rem); }.curriculum__heading p{color:var(--color-text-secondary)}
+  .curriculum__modules { display:grid; gap:.75rem; margin-top:1.7rem; }
+  .curriculum__module { overflow:hidden; border:1px solid var(--color-border); border-radius:var(--radius-lg); background:var(--color-surface); transition:border-color var(--transition-fast),box-shadow var(--transition-fast); }
+  .curriculum__module[open] { border-color:rgba(22,163,74,.3); box-shadow:var(--shadow-md); }
+  summary { display:flex; align-items:center; gap:1rem; padding:1.1rem 1.2rem; cursor:pointer; list-style:none; }summary::-webkit-details-marker{display:none}
+  .curriculum__number { display:grid; flex:0 0 auto; place-items:center; width:42px; height:42px; border-radius:12px; background:rgba(22,163,74,.1); color:var(--color-primary-dark); font-size:.78rem; font-weight:800; }
+  .curriculum__summary { display:grid; gap:.2rem; min-width:0; }.curriculum__summary strong{font-family:var(--font-display)}.curriculum__summary small{overflow:hidden;color:var(--color-text-secondary);font-size:.76rem;text-overflow:ellipsis;white-space:nowrap}
+  .curriculum__chevron { flex:0 0 auto; margin-left:auto; color:var(--color-text-secondary); transition:transform var(--transition-base); }.curriculum__module[open] .curriculum__chevron{transform:rotate(180deg)}
+  ol { padding:0 1.2rem 1rem 4.55rem; }
+  li { display:flex; align-items:center; gap:.6rem; padding:.72rem 0; border-top:1px solid var(--color-border); color:var(--color-text-secondary); font-size:.84rem; }li svg{flex:0 0 auto;color:var(--color-primary)}li a{transition:color var(--transition-fast)}li a:hover{color:var(--color-primary)}li small{margin-left:auto;font-size:.68rem}
+  .curriculum__note { display:flex; align-items:flex-start; gap:.7rem; margin-top:1rem; padding:1rem; border-radius:var(--radius-lg); background:rgba(22,163,74,.08); color:var(--color-text-secondary); font-size:.82rem; }.curriculum__note svg{flex:0 0 auto;color:var(--color-primary)}.curriculum__note strong{color:var(--color-text)}
+  @media(max-width:520px){summary{padding:1rem}.curriculum__summary small{white-space:normal}.curriculum__number{width:36px;height:36px}ol{padding:0 1rem 1rem}li small{display:none}}
+</style>

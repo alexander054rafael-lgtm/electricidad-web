@@ -1,0 +1,33 @@
+---
+import { ArrowLeft, ArrowRight, CircleCheckBig } from '@lucide/astro';
+import type { CourseLessonReference } from '../../data/courses';
+interface Props { previous?: CourseLessonReference; next?: CourseLessonReference; courseSlug: string; lessonSlug: string }
+const { previous, next, courseSlug, lessonSlug } = Astro.props;
+---
+
+<nav class="lesson-navigation" aria-label="Navegación entre lecciones">
+  {previous ? <a class="lesson-navigation__link lesson-navigation__link--previous" href={previous.href}><ArrowLeft size={18} aria-hidden="true" /><span><small>Anterior</small><strong>{previous.title}</strong></span></a> : <span class="lesson-navigation__space"></span>}
+  <button class="lesson-navigation__complete" type="button" data-complete-lesson data-course-slug={courseSlug} data-lesson-slug={lessonSlug} aria-pressed="false"><CircleCheckBig size={19} aria-hidden="true" /><span>Marcar como completada</span></button>
+  {next ? <a class="lesson-navigation__link lesson-navigation__link--next" href={next.href}><span><small>Siguiente</small><strong>{next.title}</strong></span><ArrowRight size={18} aria-hidden="true" /></a> : <a class="lesson-navigation__link lesson-navigation__link--next" href="/cursos"><span><small>Finalizar</small><strong>Volver a cursos</strong></span><ArrowRight size={18} aria-hidden="true" /></a>}
+</nav>
+
+<script>
+  document.querySelectorAll<HTMLButtonElement>('[data-complete-lesson]').forEach((button) => button.addEventListener('click', async () => {
+    if (button.getAttribute('aria-pressed') === 'true') return;
+    const label = button.querySelector('span');
+    button.disabled = true;
+    if (label) label.textContent = 'Guardando…';
+    try {
+      const response = await fetch('/api/progress/lesson', { method:'POST', headers:{'content-type':'application/json'}, body:JSON.stringify({courseSlug:button.dataset.courseSlug,lessonSlug:button.dataset.lessonSlug}) });
+      if (response.ok) { button.setAttribute('aria-pressed','true'); if(label) label.textContent='Lección completada'; }
+      else if (response.status === 401) { if(label) label.textContent='Inicia sesión para guardar'; }
+      else { const result = await response.json(); if(label) label.textContent=result.error ?? 'No se pudo guardar'; }
+    } catch { if(label) label.textContent='No se pudo guardar'; }
+    finally { button.disabled = false; }
+  }));
+</script>
+
+<style>
+  .lesson-navigation{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:1rem;margin-top:3.5rem;padding-top:2rem;border-top:1px solid var(--color-border)}.lesson-navigation__link{display:flex;align-items:center;gap:.65rem;min-width:0;padding:.85rem 1rem;border:1px solid var(--color-border);border-radius:var(--radius-lg);background:var(--color-surface);transition:all var(--transition-fast)}.lesson-navigation__link:hover{transform:translateY(-2px);border-color:rgba(22,163,74,.35);box-shadow:var(--shadow-md)}.lesson-navigation__link>span{display:grid;min-width:0}.lesson-navigation__link small{color:var(--color-text-secondary);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em}.lesson-navigation__link strong{overflow:hidden;font-size:.77rem;text-overflow:ellipsis;white-space:nowrap}.lesson-navigation__link--next{justify-content:flex-end;text-align:right}.lesson-navigation__complete{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem 1.15rem;border-radius:var(--radius-full);background:var(--color-primary);color:#fff;font-size:.78rem;font-weight:750;box-shadow:0 6px 18px rgba(22,163,74,.2)}.lesson-navigation__complete[aria-pressed='true']{background:var(--color-primary-dark)}
+  @media(max-width:760px){.lesson-navigation{grid-template-columns:1fr 1fr}.lesson-navigation__complete{grid-column:1/-1;grid-row:1;min-height:50px}.lesson-navigation__space{display:none}.lesson-navigation__link{min-height:62px}.lesson-navigation__link strong{white-space:normal}.lesson-navigation__link--next{grid-column:2}.lesson-navigation__link--previous{grid-column:1}}@media(max-width:420px){.lesson-navigation{gap:.6rem}.lesson-navigation__link{padding:.7rem}.lesson-navigation__link svg{display:none}}
+</style>

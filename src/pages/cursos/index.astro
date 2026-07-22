@@ -1,0 +1,57 @@
+---
+export const prerender = false;
+
+import { BookOpen } from '@lucide/astro';
+import Layout from '../../layouts/Layout.astro';
+import Header from '../../components/landing/Header.astro';
+import Footer from '../../components/landing/Footer.astro';
+import CourseHero from '../../components/courses/CourseHero.astro';
+import PublicCourseCard from '../../components/courses/PublicCourseCard.astro';
+import type { Course } from '../../types/course';
+
+const supabase = Astro.locals.supabase;
+const result = supabase
+  ? await supabase
+      .from('courses')
+      .select('id,title,slug,short_description,description,cover_url,category,level,status,duration_minutes,position,is_featured,instructor_id,created_by,created_at,updated_at,published_at')
+      .eq('status', 'published')
+      .order('position', { ascending: true })
+      .order('created_at', { ascending: false })
+  : { data: [], error: null };
+
+if (result.error && import.meta.env.DEV) {
+  console.error('[public-course-catalog] No se pudieron cargar los cursos publicados:', result.error);
+}
+const courses = result.error ? [] : (result.data ?? []) as Course[];
+---
+
+<Layout title="Cursos Técnicos | InduTech Academy" description="Cursos publicados de electricidad industrial, automatización, PLC, variadores, motores, instrumentación y seguridad eléctrica.">
+  <Header />
+  <main>
+    <CourseHero courseCount={courses.length} />
+    <section class="courses-page" id="catalogo" aria-labelledby="catalog-title">
+      <div class="container">
+        <header class="catalog-heading">
+          <span>Catálogo formativo</span>
+          <h2 id="catalog-title">Cursos disponibles</h2>
+          <p>Explora los programas publicados y elige la ruta que mejor se adapte a tus objetivos profesionales.</p>
+        </header>
+
+        {courses.length ? (
+          <div class="course-grid">{courses.map((course) => <PublicCourseCard course={course} />)}</div>
+        ) : (
+          <section class="empty-catalog" aria-labelledby="empty-catalog-title">
+            <span><BookOpen size={29} aria-hidden="true" /></span>
+            <h2 id="empty-catalog-title">Próximamente nuevos cursos</h2>
+            <p>Estamos preparando contenido técnico para ayudarte a seguir creciendo profesionalmente.</p>
+          </section>
+        )}
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
+
+<style>
+  .courses-page{scroll-margin-top:var(--header-height);padding:clamp(3.5rem,7vw,6rem) 0 clamp(5rem,9vw,8rem);background:var(--color-gray-50)}.catalog-heading{max-width:760px;margin-bottom:clamp(1.8rem,4vw,2.8rem)}.catalog-heading>span{color:var(--color-primary);font-size:.7rem;font-weight:850;letter-spacing:.08em;text-transform:uppercase}.catalog-heading h2{margin:.35rem 0 .55rem;font-size:clamp(1.9rem,4vw,2.8rem)}.catalog-heading p{margin:0;color:var(--color-text-secondary);line-height:1.7}.course-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:clamp(1rem,2.5vw,1.5rem)}.empty-catalog{display:grid;min-height:310px;padding:2rem;place-items:center;align-content:center;border:1px dashed var(--color-border);border-radius:var(--radius-xl);background:var(--color-surface);text-align:center}.empty-catalog>span{display:grid;width:60px;height:60px;place-items:center;border-radius:17px;background:rgba(22,163,74,.09);color:var(--color-primary)}.empty-catalog h2{margin:1rem 0 .4rem;font-size:1.35rem}.empty-catalog p{max-width:520px;margin:0;color:var(--color-text-secondary);line-height:1.65}@media(max-width:960px){.course-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}@media(max-width:620px){.courses-page{padding-inline:1rem}.course-grid{grid-template-columns:1fr}}
+</style>

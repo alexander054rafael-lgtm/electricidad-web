@@ -1,0 +1,66 @@
+<dialog class="delete-dialog" data-course-delete-dialog aria-modal="true" aria-labelledby="delete-dialog-title" aria-describedby="delete-dialog-description">
+  <div class="dialog-panel">
+    <span class="danger-label">Acción permanente</span>
+    <h2 id="delete-dialog-title">Eliminar curso</h2>
+    <p id="delete-dialog-description">
+      Vas a eliminar <strong data-delete-course-name></strong>. Esta acción solo continuará si el curso no tiene módulos, lecciones ni actividad académica relacionada.
+    </p>
+
+    <div class="dialog-actions">
+      <button type="button" class="cancel" data-delete-cancel>Cancelar</button>
+      <form method="post" data-delete-form>
+        <input type="hidden" name="intent" value="delete-course" />
+        <input type="hidden" name="confirmation" value="delete-course" />
+        <input type="hidden" name="return_to" value="/admin/cursos" data-delete-return />
+        <button type="submit" class="confirm">Eliminar curso definitivamente</button>
+      </form>
+    </div>
+  </div>
+</dialog>
+
+<script>
+  const dialog = document.querySelector<HTMLDialogElement>('[data-course-delete-dialog]');
+  const nameTarget = dialog?.querySelector<HTMLElement>('[data-delete-course-name]');
+  const deleteForm = dialog?.querySelector<HTMLFormElement>('[data-delete-form]');
+  const returnInput = dialog?.querySelector<HTMLInputElement>('[data-delete-return]');
+  const cancelButton = dialog?.querySelector<HTMLButtonElement>('[data-delete-cancel]');
+  let deleteTrigger: HTMLButtonElement | null = null;
+
+  document.querySelectorAll<HTMLButtonElement>('[data-delete-course]').forEach((trigger) => {
+    trigger.addEventListener('click', () => {
+      if (!dialog || !deleteForm || !nameTarget) return;
+      deleteTrigger = trigger;
+      nameTarget.textContent = trigger.dataset.courseName || 'este curso';
+      deleteForm.action = `/api/admin/courses/${trigger.dataset.courseId || ''}`;
+      if (returnInput) returnInput.value = trigger.dataset.returnTo || '/admin/cursos';
+      dialog.showModal();
+      cancelButton?.focus();
+    });
+  });
+
+  const closeDialog = () => {
+    dialog?.close();
+  };
+  cancelButton?.addEventListener('click', closeDialog);
+  dialog?.addEventListener('close', () => deleteTrigger?.focus());
+  dialog?.addEventListener('click', (event) => {
+    if (event.target === dialog) closeDialog();
+  });
+</script>
+
+<style>
+  .delete-dialog { width: min(calc(100% - 2rem), 500px); padding: 0; border: 1px solid var(--admin-border-strong); border-radius: 17px; background: var(--admin-surface); color: var(--admin-text); box-shadow: 0 28px 80px rgba(0, 0, 0, 0.5); }
+  .delete-dialog::backdrop { background: rgba(3, 8, 5, 0.72); backdrop-filter: blur(4px); }
+  .dialog-panel { padding: clamp(1.2rem, 4vw, 1.7rem); }
+  .danger-label { display: inline-flex; padding: 0.28rem 0.5rem; border-radius: 999px; background: color-mix(in srgb, var(--admin-danger) 12%, transparent); color: #ff9c9c; font-size: 0.6rem; font-weight: 850; letter-spacing: 0.06em; text-transform: uppercase; }
+  h2 { margin: 0.75rem 0 0.4rem; color: var(--admin-text); font-size: 1.35rem; }
+  p { margin: 0; color: var(--admin-text-muted); font-size: 0.78rem; line-height: 1.65; }
+  p strong { color: var(--admin-text); }
+  .dialog-actions { display: flex; justify-content: flex-end; gap: 0.65rem; margin-top: 1.3rem; }
+  form { margin: 0; }
+  button { min-height: 44px; padding: 0.65rem 0.82rem; border-radius: 9px; font: inherit; font-size: 0.7rem; font-weight: 800; cursor: pointer; }
+  .cancel { border: 1px solid var(--admin-border-strong); background: var(--admin-surface-raised); color: var(--admin-text-muted); }
+  .confirm { border: 1px solid color-mix(in srgb, var(--admin-danger) 35%, var(--admin-border)); background: #a93f3f; color: #fff; }
+  button:focus-visible { outline: 2px solid var(--admin-green); outline-offset: 2px; }
+  @media (max-width: 520px) { .dialog-actions { align-items: stretch; flex-direction: column-reverse; } form, button { width: 100%; } }
+</style>

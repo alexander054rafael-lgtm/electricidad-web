@@ -1,0 +1,16 @@
+---
+export const prerender = false;
+import { FileUp, Files } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+---
+
+<AdminLayout title="Biblioteca de recursos" description="Administra materiales y archivos educativos." activeSection="resources">
+  <AdminPageHeader title="Biblioteca de recursos" description="Centraliza manuales, fichas técnicas y materiales asociados a los cursos." eyebrow="Contenido" actionHref="/admin/cursos" actionLabel="Añadir recurso">
+    <FileUp slot="action-icon" size={17} aria-hidden="true" />
+  </AdminPageHeader>
+  <AdminEmptyState title="No hay recursos para mostrar todavía" description="Los recursos se añadirán desde el editor del curso o de la lección correspondiente." href="/admin/cursos" action="Seleccionar un curso">
+    <Files slot="icon" size={25} aria-hidden="true" />
+  </AdminEmptyState>
+</AdminLayout>

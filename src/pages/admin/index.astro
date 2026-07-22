@@ -1,0 +1,231 @@
+---
+export const prerender = false;
+
+import {
+  Award,
+  BookOpen,
+  Clock3,
+  ClipboardCheck,
+  FileText,
+  ListVideo,
+  Plus,
+  Users,
+} from '@lucide/astro';
+import AdminLayout from '../../layouts/AdminLayout.astro';
+import AdminStatCard from '../../components/admin/AdminStatCard.astro';
+import AdminQuickAction from '../../components/admin/AdminQuickAction.astro';
+import AdminEmptyState from '../../components/admin/AdminEmptyState.astro';
+
+const supabase = Astro.locals.supabase;
+
+interface CountFilter {
+  column: string;
+  value: string | number | boolean;
+}
+
+/** Cuenta registros sin permitir que una tabla ausente interrumpa el dashboard. */
+interface SafeCount { value: number; available: boolean }
+
+const countRecords = async (table: string, filter?: CountFilter): Promise<SafeCount> => {
+  if (!supabase) return { value: 0, available: false };
+
+  try {
+    let query = supabase.from(table).select('*', { count: 'exact', head: true });
+    if (filter) query = query.eq(filter.column, filter.value);
+
+    const { count, error } = await query;
+    if (error) {
+      if (import.meta.env.DEV) console.error(`[admin-dashboard] No se pudo contar ${table}:`, error.message);
+      return { value: 0, available: false };
+    }
+
+    return { value: count ?? 0, available: true };
+  } catch (error) {
+    if (import.meta.env.DEV) console.error(`[admin-dashboard] Error inesperado al contar ${table}:`, error);
+    return { value: 0, available: false };
+  }
+};
+
+const [courses, students, lessons, assessments, certificates, resources] = await Promise.all([
+  countRecords('courses'),
+  countRecords('profiles', { column: 'role', value: 'student' }),
+  countRecords('lessons'),
+  countRecords('assessment_attempts'),
+  countRecords('certificates'),
+  countRecords('course_resources'),
+]);
+
+const statistics = [
+  { label: 'Cursos', count: courses, description: 'Registros disponibles', tone: 'green', icon: BookOpen, href: '/admin/cursos' },
+  { label: 'Estudiantes', count: students, description: 'Perfiles de estudiantes', tone: 'blue', icon: Users, href: '/admin/estudiantes' },
+  { label: 'Lecciones', count: lessons, description: 'Contenido registrado', tone: 'slate', icon: ListVideo, href: '/admin/lecciones' },
+  { label: 'Evaluaciones', count: assessments, description: 'Intentos registrados', tone: 'blue', icon: ClipboardCheck, href: '/admin/evaluaciones' },
+  { label: 'Certificados', count: certificates, description: 'Certificados emitidos', tone: 'green', icon: Award, href: '/admin/certificados' },
+  { label: 'Recursos', count: resources, description: 'Materiales disponibles', tone: 'blue', icon: FileText, href: '/admin/recursos' },
+] as const;
+---
+
+<AdminLayout
+  title="Panel de administración"
+  description="Gestiona cursos, estudiantes y contenido de InduTech Academy."
+  activeSection="dashboard"
+>
+  <header class="dashboard-heading">
+    <div>
+      <span>Vista general</span>
+      <h1>Panel de administración</h1>
+      <p>Gestiona cursos, estudiantes y contenido de InduTech Academy.</p>
+    </div>
+    <a href="/admin/cursos/nuevo"><Plus size={17} aria-hidden="true" /> Crear curso</a>
+  </header>
+
+  <section class="statistics" aria-labelledby="statistics-title">
+    <div class="section-heading">
+      <div>
+        <span>Resumen</span>
+        <h2 id="statistics-title">Estadísticas de la academia</h2>
+      </div>
+      <small>Datos consultados desde Supabase</small>
+    </div>
+
+    <div class="statistics-grid">
+      {statistics.map(({ label, count, description, tone, icon, href }) => (
+        <AdminStatCard
+          label={label}
+          value={count.value}
+          description={count.available ? description : 'Dato temporalmente no disponible'}
+          available={count.available}
+          tone={tone}
+          icon={icon}
+          href={href}
+        />
+      ))}
+    </div>
+  </section>
+
+  <section class="quick-actions" aria-labelledby="quick-actions-title">
+    <div class="section-heading">
+      <div>
+        <span>Accesos directos</span>
+        <h2 id="quick-actions-title">Acciones rápidas</h2>
+      </div>
+    </div>
+    <div class="actions-grid">
+      <AdminQuickAction href="/admin/cursos/nuevo" title="Crear curso" description="Añade un nuevo programa formativo">
+        <Plus slot="icon" size={18} />
+      </AdminQuickAction>
+      <AdminQuickAction href="/admin/estudiantes" title="Gestionar estudiantes" description="Consulta la comunidad académica">
+        <Users slot="icon" size={18} />
+      </AdminQuickAction>
+      <AdminQuickAction href="/admin/recursos" title="Añadir recurso" description="Abre el módulo de archivos y materiales" status="upcoming">
+        <FileText slot="icon" size={18} />
+      </AdminQuickAction>
+      <AdminQuickAction href="/admin/evaluaciones" title="Crear evaluación" description="Abre el módulo de evaluaciones" status="upcoming">
+        <ClipboardCheck slot="icon" size={18} />
+      </AdminQuickAction>
+    </div>
+  </section>
+
+  <section class="recent-activity" aria-labelledby="recent-activity-title">
+    <div class="section-heading">
+      <div>
+        <span>Seguimiento</span>
+        <h2 id="recent-activity-title">Actividad reciente</h2>
+      </div>
+    </div>
+    <AdminEmptyState
+      title="No hay actividad reciente todavía."
+      description="Las acciones administrativas aparecerán aquí cuando empieces a crear cursos y contenido."
+    >
+      <Clock3 slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  </section>
+</AdminLayout>
+
+<style>
+  .dashboard-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.8rem;
+  }
+
+  .dashboard-heading span,
+  .section-heading span {
+    color: var(--admin-green);
+    font-size: 0.68rem;
+    font-weight: 850;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+  }
+
+  .dashboard-heading h1 {
+    margin: 0.28rem 0 0.35rem;
+    font-size: clamp(2rem, 5vw, 3rem);
+    letter-spacing: -0.04em;
+    line-height: 1.05;
+  }
+
+  .dashboard-heading h1 { color:var(--admin-text); }
+  .dashboard-heading p { max-width: 720px; margin: 0; color: var(--admin-text-muted); line-height:1.6; }
+  .dashboard-heading > a {
+    display: inline-flex;
+    min-height:44px;
+    flex: none;
+    align-items: center;
+    gap: 0.45rem;
+    padding: 0.75rem 1rem;
+    border-radius: 10px;
+    border:1px solid rgba(66,201,119,.28);
+    background: var(--admin-green-strong);
+    color: #fff;
+    font-size: 0.78rem;
+    font-weight: 800;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  }
+
+  .statistics,
+  .quick-actions {
+    padding: clamp(1rem, 2.5vw, 1.4rem);
+    border: 1px solid var(--admin-border);
+    border-radius: 17px;
+    background: var(--admin-surface);
+    box-shadow: var(--admin-shadow);
+  }
+
+  .quick-actions { margin-top: 1rem; }
+  .recent-activity { margin-top: 1rem; }
+  .section-heading {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1rem;
+  }
+  .section-heading h2 { margin: 0.22rem 0 0; color:var(--admin-text); font-size: 1.08rem; }
+  .section-heading small { color: var(--admin-text-subtle); font-size: 0.65rem; }
+  .statistics-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1rem; }
+  .actions-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+
+  .dashboard-heading > a:focus-visible {
+    outline: 2px solid var(--admin-green);
+    outline-offset: 3px;
+  }
+
+  @media (max-width: 1050px) {
+    .statistics-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+
+  @media (max-width: 680px) {
+    .dashboard-heading { align-items: stretch; flex-direction: column; }
+    .dashboard-heading > a { justify-content: center; }
+    .actions-grid { grid-template-columns: 1fr; }
+    .statistics-grid { grid-template-columns: 1fr; }
+  }
+
+  @media (max-width: 520px) {
+    .section-heading { align-items: start; flex-direction: column; }
+    .statistics, .quick-actions { padding:1rem; }
+  }
+</style>

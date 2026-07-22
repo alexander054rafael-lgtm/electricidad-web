@@ -1,0 +1,55 @@
+---
+import { Check, ChevronDown, Circle, LockKeyhole, Play } from '@lucide/astro';
+import type { Course, CourseLessonReference } from '../../data/courses';
+import { getCourseLessons, slugifyLesson } from '../../data/courses';
+interface Props { course: Course; currentLesson: CourseLessonReference }
+const { course, currentLesson } = Astro.props;
+const lessons = getCourseLessons(course);
+const statusFor = (index: number) => index < currentLesson.globalIndex ? 'completed' : index === currentLesson.globalIndex ? 'progress' : index === currentLesson.globalIndex + 1 ? 'pending' : 'locked';
+const statusLabel = { completed: 'Completada', progress: 'En progreso', pending: 'Pendiente', locked: 'Bloqueada' };
+const statusIcons = { completed: Check, progress: Play, pending: Circle, locked: LockKeyhole };
+---
+
+<div class="lesson-sidebar__overlay" data-sidebar-overlay></div>
+<aside class="lesson-sidebar" id="lesson-sidebar" aria-label="Temario del curso">
+  <div class="lesson-sidebar__head"><div><small>Contenido del curso</small><strong>{lessons.length} lecciones</strong></div><span>{currentLesson.globalIndex + 1}/{lessons.length}</span></div>
+  <nav>
+    {course.modules.map((module, moduleIndex) => (
+      <details open={moduleIndex === currentLesson.moduleIndex}>
+        <summary><span><small>Módulo {moduleIndex + 1}</small><strong>{module.title}</strong></span><ChevronDown size={17} aria-hidden="true" /></summary>
+        <ol>
+          {module.lessons.map((title, lessonIndex) => {
+            const item = lessons.find((lesson) => lesson.moduleIndex === moduleIndex && lesson.lessonIndex === lessonIndex)!;
+            const status = statusFor(item.globalIndex);
+            const Icon = statusIcons[status];
+            const isCurrent = item.slug === currentLesson.slug;
+            return <li><a href={status === 'locked' ? undefined : `/aula/${course.slug}/${slugifyLesson(title)}`} aria-current={isCurrent ? 'page' : undefined} aria-disabled={status === 'locked' ? 'true' : undefined} class:list={['lesson-sidebar__lesson', `lesson-sidebar__lesson--${status}`]}><span class="lesson-sidebar__status"><Icon size={14} aria-hidden="true" /></span><span><strong>{title}</strong><small>{statusLabel[status]}</small></span></a></li>;
+          })}
+        </ol>
+      </details>
+    ))}
+  </nav>
+</aside>
+
+<script>
+  const sidebar = document.getElementById('lesson-sidebar');
+  const menu = document.getElementById('classroom-menu');
+  const overlay = document.querySelector<HTMLElement>('[data-sidebar-overlay]');
+  const setOpen = (open: boolean) => {
+    sidebar?.classList.toggle('is-open', open);
+    overlay?.classList.toggle('is-visible', open);
+    menu?.setAttribute('aria-expanded', String(open));
+    document.body.style.overflow = open ? 'hidden' : '';
+  };
+  menu?.addEventListener('click', () => setOpen(!sidebar?.classList.contains('is-open')));
+  overlay?.addEventListener('click', () => setOpen(false));
+  sidebar?.querySelectorAll('a').forEach((link) => link.addEventListener('click', () => setOpen(false)));
+</script>
+
+<style>
+  .lesson-sidebar{position:fixed;z-index:150;top:72px;bottom:0;left:0;width:320px;overflow-y:auto;border-right:1px solid var(--color-border);background:var(--color-surface);scrollbar-width:thin}.lesson-sidebar__head{display:flex;align-items:center;justify-content:space-between;padding:1.2rem;border-bottom:1px solid var(--color-border);background:var(--color-gray-50)}.lesson-sidebar__head div{display:grid}.lesson-sidebar__head small{color:var(--color-text-secondary);font-size:.65rem;text-transform:uppercase;letter-spacing:.06em}.lesson-sidebar__head strong{font-size:.82rem}.lesson-sidebar__head>span{display:grid;place-items:center;min-width:44px;height:30px;border-radius:999px;background:rgba(22,163,74,.1);color:var(--color-primary-dark);font-size:.7rem;font-weight:800}
+  details{border-bottom:1px solid var(--color-border)}summary{display:flex;align-items:center;justify-content:space-between;gap:.6rem;padding:1rem 1.15rem;cursor:pointer;list-style:none}summary::-webkit-details-marker{display:none}summary>span{display:grid;min-width:0}summary small{color:var(--color-primary);font-size:.58rem;font-weight:800;text-transform:uppercase;letter-spacing:.08em}summary strong{overflow:hidden;font-size:.78rem;text-overflow:ellipsis;white-space:nowrap}summary svg{transition:transform var(--transition-fast)}details[open] summary svg{transform:rotate(180deg)}ol{padding:0 .75rem .8rem}
+  .lesson-sidebar__lesson{display:grid;grid-template-columns:30px 1fr;align-items:center;gap:.6rem;min-height:54px;padding:.5rem .65rem;border-radius:11px;color:var(--color-text-secondary);transition:background var(--transition-fast),color var(--transition-fast)}.lesson-sidebar__lesson:hover{background:var(--color-gray-50);color:var(--color-text)}.lesson-sidebar__lesson[aria-current='page']{background:rgba(22,163,74,.1);color:var(--color-primary-dark)}.lesson-sidebar__lesson[aria-disabled='true']{cursor:not-allowed;opacity:.52}.lesson-sidebar__status{display:grid;place-items:center;width:28px;height:28px;border:1px solid var(--color-border);border-radius:9px;background:var(--color-surface)}.lesson-sidebar__lesson--completed .lesson-sidebar__status{border-color:var(--color-primary);background:var(--color-primary);color:#fff}.lesson-sidebar__lesson--progress .lesson-sidebar__status{border-color:var(--color-primary);background:rgba(22,163,74,.13);color:var(--color-primary)}.lesson-sidebar__lesson>span:last-child{display:grid;min-width:0}.lesson-sidebar__lesson strong{overflow:hidden;font-size:.73rem;text-overflow:ellipsis;white-space:nowrap}.lesson-sidebar__lesson small{font-size:.59rem;color:var(--color-text-secondary)}
+  .lesson-sidebar__overlay{display:none}
+  @media(max-width:900px){.lesson-sidebar{top:64px;width:min(88vw,340px);transform:translateX(-105%);box-shadow:20px 0 50px rgba(15,23,42,.18);transition:transform var(--transition-base)}.lesson-sidebar.is-open{transform:translateX(0)}.lesson-sidebar__overlay{display:block;position:fixed;z-index:140;inset:64px 0 0;background:rgba(15,23,42,.45);opacity:0;pointer-events:none;transition:opacity var(--transition-base)}.lesson-sidebar__overlay.is-visible{opacity:1;pointer-events:auto}}
+</style>

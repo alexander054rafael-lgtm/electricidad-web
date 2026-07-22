@@ -1,0 +1,16 @@
+---
+export const prerender = false;
+import { ListPlus, ListVideo } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+---
+
+<AdminLayout title="Gestión de lecciones" description="Organiza las lecciones dentro de cada curso." activeSection="lessons">
+  <AdminPageHeader title="Gestión de lecciones" description="Crea y organiza lecciones desde el constructor del curso correspondiente." eyebrow="Contenido" actionHref="/admin/cursos" actionLabel="Crear lección">
+    <ListPlus slot="action-icon" size={17} aria-hidden="true" />
+  </AdminPageHeader>
+  <AdminEmptyState title="Aún no hay un curso seleccionado" description="Selecciona un curso para crear lecciones y mantener correctamente el orden de sus módulos." href="/admin/cursos" action="Seleccionar un curso">
+    <ListVideo slot="icon" size={25} aria-hidden="true" />
+  </AdminEmptyState>
+</AdminLayout>

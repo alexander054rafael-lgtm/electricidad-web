@@ -1,0 +1,44 @@
+---
+export const prerender = false;
+import { Award, Building2, Mail, Palette, Plug, Settings } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+
+const futureSections = [
+  { id: 'academia', title: 'Información de la academia', description: 'Nombre, identidad y datos institucionales.', icon: Building2 },
+  { id: 'apariencia', title: 'Apariencia', description: 'Colores, marca y preferencias visuales.', icon: Palette },
+  { id: 'correos', title: 'Correos', description: 'Plantillas y comunicaciones automáticas.', icon: Mail },
+  { id: 'certificados', title: 'Certificados', description: 'Criterios, diseño y emisión de acreditaciones.', icon: Award },
+  { id: 'integraciones', title: 'Integraciones', description: 'Servicios externos y conexiones futuras.', icon: Plug },
+];
+---
+
+<AdminLayout title="Configuración" description="Prepara las preferencias generales de la academia." activeSection="settings">
+  <AdminPageHeader title="Configuración" description="Este espacio reunirá las preferencias institucionales y las integraciones de InduTech Academy." eyebrow="Sistema" />
+
+  <section class="future-grid" aria-label="Secciones futuras de configuración">
+    {futureSections.map(({ id, title, description, icon: Icon }) => (
+      <article id={id}><span><Icon size={20} aria-hidden="true" /></span><div><strong>{title}</strong><p>{description}</p></div><small>Próximamente</small></article>
+    ))}
+  </section>
+
+  <div class="configuration-empty">
+    <AdminEmptyState title="La configuración avanzada estará disponible próximamente" description="Estas secciones se habilitarán gradualmente sin modificar todavía la configuración actual de Supabase.">
+      <Settings slot="icon" size={25} aria-hidden="true" />
+    </AdminEmptyState>
+  </div>
+</AdminLayout>
+
+<style>
+  .future-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.8rem; }
+  article { display: grid; grid-template-columns: 42px minmax(0, 1fr) auto; align-items: center; gap: 0.8rem; padding: 1rem; scroll-margin-top: 90px; border: 1px solid var(--admin-border); border-radius: 14px; background: var(--admin-surface-raised); box-shadow:0 10px 24px rgba(0,0,0,.1); }
+  article > span { display: grid; width: 42px; height: 42px; place-items: center; border:1px solid rgba(85,167,245,.18); border-radius: 10px; background: var(--admin-blue-soft); color: var(--admin-blue); }
+  article div { display: grid; gap: 0.15rem; }
+  article strong { color:var(--admin-text); font-size: 0.8rem; }
+  article p { margin: 0; color: var(--admin-text-muted); font-size: 0.68rem; }
+  article > small { padding: 0.2rem 0.45rem; border-radius: 999px; background: var(--admin-warning-soft); color: var(--admin-warning); font-size: 0.55rem; font-weight: 800; text-transform: uppercase; }
+  .configuration-empty { margin-top: 1rem; }
+  @media (max-width: 760px) { .future-grid { grid-template-columns: 1fr; } }
+  @media (max-width: 430px) { article { grid-template-columns: 42px minmax(0, 1fr); } article > small { grid-column: 2; justify-self: start; } }
+</style>

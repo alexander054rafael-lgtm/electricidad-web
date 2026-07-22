@@ -1,0 +1,16 @@
+---
+import type { ResourceBlockData } from '../../data/lessons';
+import ResourceList from './ResourceList.astro';
+interface Props { block: ResourceBlockData }
+const { block } = Astro.props;
+---
+
+<section class="resource-block">
+  <h3>{block.title ?? 'Recursos relacionados'}</h3>
+  {block.description && <p>{block.description}</p>}
+  <ResourceList items={block.items} />
+</section>
+
+<style>
+  .resource-block{margin:2rem 0}.resource-block h3{margin-bottom:.35rem;font-size:1.15rem}.resource-block>p{margin-bottom:1rem;color:var(--color-text-secondary);font-size:.78rem}
+</style>

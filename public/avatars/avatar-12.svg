@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="bg" x1="10" y1="8" x2="117" y2="122"><stop stop-color="#DDF7E9"/><stop offset="1" stop-color="#85C7A7"/></linearGradient><linearGradient id="badge" x1="64" y1="17" x2="64" y2="113"><stop stop-color="#2B5570"/><stop offset="1" stop-color="#17384C"/></linearGradient></defs>
+  <g id="background"><circle cx="64" cy="64" r="64" fill="url(#bg)"/><circle cx="24" cy="27" r="13" fill="#fff" opacity=".21"/><ellipse cx="64" cy="112" rx="38" ry="7" fill="#143A2B" opacity=".13"/></g>
+  <g id="technical-badge" stroke="#263A36" stroke-width="3" stroke-linejoin="round"><path d="M64 14 99 28v31c0 25-14 43-35 56-21-13-35-31-35-56V28z" fill="url(#badge)"/><path d="M64 24 90 34v24c0 20-10 34-26 45-16-11-26-25-26-45V34z" fill="#F4F8F6" opacity=".96"/><g id="gear"><path d="m64 36 6 7 9-2 3 9 8 4-2 9 6 6-6 6 2 9-8 4-3 9-9-2-6 7-6-7-9 2-3-9-8-4 2-9-6-6 6-6-2-9 8-4 3-9 9 2z" fill="#168C5A"/><circle cx="64" cy="69" r="20" fill="#DFF3E8"/></g><path d="m68 45-15 25h11l-5 22 19-31H67z" fill="#F4C52E" stroke-width="2.5"/><path d="M44 99c7 7 13 11 20 16 7-5 13-9 20-16" fill="#F4A340"/></g>
+</svg>

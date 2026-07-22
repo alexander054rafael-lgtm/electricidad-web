@@ -1,0 +1,13 @@
+---
+export const prerender = false;
+import AuthShell from '../components/auth/AuthShell.astro';
+import { siteUrl } from '../lib/supabase/config';
+let error = ''; let success = '';
+if (Astro.request.method === 'POST') {
+  const form = await Astro.request.formData(); const email = String(form.get('email') ?? '').trim().toLowerCase();
+  if (!Astro.locals.supabase) error = 'Supabase todavía no está configurado.';
+  else if (!/^\S+@\S+\.\S+$/.test(email)) error = 'Ingresa un correo válido.';
+  else { await Astro.locals.supabase.auth.resetPasswordForEmail(email, { redirectTo: `${siteUrl}/restablecer-contrasena` }); success = 'Si existe una cuenta con ese correo, recibirás un enlace para continuar.'; }
+}
+---
+<AuthShell title="Recuperar contraseña" eyebrow="Seguridad de cuenta" description="Te enviaremos un enlace temporal para establecer una nueva contraseña.">{error && <p class="auth-message auth-message--error" role="alert">{error}</p>}{success && <p class="auth-message auth-message--success" role="status">{success}</p>}<form class="auth-form" method="post"><label>Correo electrónico<input type="email" name="email" autocomplete="email" required /></label><button type="submit">Enviar enlace</button></form><div class="auth-form__links"><a href="/login">Volver al inicio de sesión</a></div></AuthShell>

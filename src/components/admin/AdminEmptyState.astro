@@ -1,0 +1,13 @@
+---
+interface Props { title:string; description:string; href?:string; action?:string }
+const {title,description,href,action}=Astro.props;
+---
+<section class="empty"><span><slot name="icon"/></span><h2>{title}</h2><p>{description}</p>{href&&action&&<a href={href}>{action}</a>}</section>
+<style>
+  .empty { display:grid; min-height:320px; padding:clamp(1.5rem,4vw,2.5rem); place-items:center; align-content:center; border:1px dashed var(--admin-border-strong); border-radius:var(--admin-radius); background:var(--admin-surface); text-align:center; }
+  .empty > span { display:grid; width:58px; height:58px; place-items:center; border:1px solid rgba(85,167,245,.2); border-radius:16px; background:var(--admin-blue-soft); color:var(--admin-blue); }
+  .empty h2 { margin:1rem 0 .4rem; color:var(--admin-text); font-size:1.2rem; letter-spacing:-.02em; }
+  .empty p { max-width:480px; margin:0; color:var(--admin-text-muted); font-size:.82rem; line-height:1.65; }
+  .empty a { margin-top:1.1rem; padding:.72rem 1rem; border-radius:10px; background:var(--admin-green-strong); color:#fff; font-size:.76rem; font-weight:800; box-shadow:0 8px 20px rgba(0,0,0,.16); }
+  .empty a:focus-visible { outline:2px solid var(--admin-green); outline-offset:3px; }
+</style>

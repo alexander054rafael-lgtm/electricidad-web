@@ -3,8 +3,9 @@ import Button from '../ui/Button.astro';
 
 const navLinks = [
   { label: 'Inicio', href: '#inicio' },
-  { label: 'Cursos', href: '#cursos' },
+  { label: 'Cursos', href: '/cursos' },
   { label: 'Biblioteca', href: '/biblioteca' },
+  { label: 'Juegos', href: '/juegos' },
   { label: 'Blog', href: '#blog' },
   { label: 'Ebooks', href: '#ebook' },
   { label: 'Recursos', href: '#recursos' },
@@ -45,8 +46,8 @@ const navLinks = [
     </nav>
 
     <div class="header__actions">
-      <Button href="#cursos" variant="primary" size="sm" class="header__cta">
-        Comenzar Ahora
+      <Button href="/mi-aprendizaje" variant="primary" size="sm" class="header__cta">
+        Mi aprendizaje
       </Button>
       <button class="header__menu-btn" id="menu-toggle" aria-label="Abrir menú" aria-expanded="false">
         <span></span>
@@ -61,7 +62,7 @@ const navLinks = [
       {navLinks.map((link) => (
         <li><a href={link.href} class="header__mobile-link">{link.label}</a></li>
       ))}
-      <li><Button href="#cursos" variant="primary" size="md" class="header__mobile-cta">Comenzar Ahora</Button></li>
+      <li><Button href="/mi-aprendizaje" variant="primary" size="md" class="header__mobile-cta">Mi aprendizaje</Button></li>
     </ul>
   </div>
 </header>

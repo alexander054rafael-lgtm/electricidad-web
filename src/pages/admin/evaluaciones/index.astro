@@ -1,0 +1,16 @@
+---
+export const prerender = false;
+import { ClipboardCheck, Plus } from '@lucide/astro';
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import AdminEmptyState from '../../../components/admin/AdminEmptyState.astro';
+import AdminPageHeader from '../../../components/admin/AdminPageHeader.astro';
+---
+
+<AdminLayout title="Evaluaciones" description="Gestiona evaluaciones vinculadas al contenido formativo." activeSection="assessments">
+  <AdminPageHeader title="Evaluaciones" description="Prepara cuestionarios y actividades de comprobación dentro de cada curso." eyebrow="Aprendizaje" actionHref="/admin/cursos" actionLabel="Crear evaluación">
+    <Plus slot="action-icon" size={17} aria-hidden="true" />
+  </AdminPageHeader>
+  <AdminEmptyState title="No hay evaluaciones disponibles" description="El creador de evaluaciones se habilitará desde el editor de contenido de cada curso." href="/admin/cursos" action="Seleccionar un curso">
+    <ClipboardCheck slot="icon" size={25} aria-hidden="true" />
+  </AdminEmptyState>
+</AdminLayout>

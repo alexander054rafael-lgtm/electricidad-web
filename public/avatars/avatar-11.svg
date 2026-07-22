@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128">
+  <defs><linearGradient id="bg" x1="12" y1="8" x2="114" y2="122"><stop stop-color="#FFF2C4"/><stop offset="1" stop-color="#E5C265"/></linearGradient><linearGradient id="helmet" x1="64" y1="25" x2="64" y2="92"><stop stop-color="#FFE063"/><stop offset="1" stop-color="#EAB723"/></linearGradient></defs>
+  <g id="background"><circle cx="64" cy="64" r="64" fill="url(#bg)"/><circle cx="101" cy="28" r="15" fill="#fff" opacity=".2"/><ellipse cx="64" cy="104" rx="43" ry="8" fill="#463B1A" opacity=".13"/></g>
+  <g id="safety-helmet" stroke="#263A36" stroke-width="3" stroke-linejoin="round"><path d="M28 76c1-32 14-51 36-51s35 19 36 51" fill="url(#helmet)"/><path d="M48 30v41M80 30v41" stroke="#FFF1A0" stroke-width="5"/><path d="M23 74h82c5 0 8 4 8 9H15c0-5 3-9 8-9z" fill="#DDA817"/><path d="M31 83c6 15 17 23 33 23s27-8 33-23" fill="#F7D149"/><g id="electric-badge"><circle cx="64" cy="61" r="18" fill="#F8FAF9"/><path d="m68 42-14 22h10l-4 16 17-26H66z" fill="#F4A340" stroke-width="2"/></g><path d="M25 91c11 17 24 25 39 25s28-8 39-25" fill="none" stroke="#fff" opacity=".45"/></g>
+</svg>

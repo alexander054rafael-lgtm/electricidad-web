@@ -1,0 +1,12 @@
+---
+import type { ImageBlockData } from '../../data/lessons';
+import ImageLightbox from './ImageLightbox';
+interface Props { block: ImageBlockData }
+const { block } = Astro.props;
+---
+
+<div class="image-block"><ImageLightbox images={[block]} client:visible={{ rootMargin: '180px' }} /></div>
+
+<style>
+  .image-block{margin:1.75rem 0}
+</style>

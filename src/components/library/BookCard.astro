@@ -12,7 +12,7 @@ const { book } = Astro.props;
     <div class="book-card__meta"><span>{book.category}</span>{book.badge && <b>{book.badge}</b>}</div>
     <h2><a href={`/biblioteca/${book.slug}`}>{book.title}</a></h2><p class="book-card__author">{book.author}</p><p class="book-card__description">{book.description}</p>
     <div class="book-card__details"><span><FileText size={14}/> {book.pages} págs.</span><span><Languages size={14}/> {book.language}</span><span>{book.level}</span></div>
-    <div class="book-card__actions"><a href={`/biblioteca/${book.slug}`} class="book-card__read"><BookOpen size={16}/> Leer PDF</a><a href={book.pdfUrl} target="_blank" rel="noopener" class="book-card__download" aria-label={`Descargar ${book.title}`}><Download size={17}/></a><button type="button" class="book-card__favorite" aria-label={`Guardar ${book.title} en favoritos`}><Heart size={17}/></button></div>
+    <div class="book-card__actions"><a href={`/biblioteca/${book.slug}`} class="book-card__read"><BookOpen size={16}/> Leer PDF</a>{book.allowDownload && <a href={book.pdfUrl} download class="book-card__download" aria-label={`Descargar ${book.title}`}><Download size={17}/></a>}<button type="button" class="book-card__favorite" aria-label={`Guardar ${book.title} en favoritos`}><Heart size={17}/></button></div>
   </div>
 </article>
 <style>
