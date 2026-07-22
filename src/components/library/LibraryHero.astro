@@ -1,5 +1,5 @@
 ---
-import { BookOpen, Zap } from '@lucide/astro';
+import { BookOpen, Check, Cog, Download, FileText, Search, ShieldCheck, Zap } from '@lucide/astro';
 ---
 
 <section class="library-hero">
@@ -12,24 +12,91 @@ import { BookOpen, Zap } from '@lucide/astro';
       <p>Explora libros, manuales, guías y documentos técnicos de electricidad industrial y automatización.</p>
     </div>
     <div class="library-hero__visual" aria-hidden="true">
-      <BookOpen size={68} stroke-width={1.25} />
-      <span class="library-hero__line"></span><span class="library-hero__line"></span><span class="library-hero__line"></span>
-      <div class="library-hero__bolt">⚡</div>
+      <div class="library-hero__dashboard">
+        <div class="library-hero__dashboard-topline">
+          <span><BookOpen size={17} stroke-width={1.8} /> Biblioteca digital</span>
+          <span class="library-hero__document-count">8 documentos</span>
+        </div>
+        <h2>Recursos técnicos</h2>
+        <div class="library-hero__search"><Search size={17} stroke-width={1.8} /><span>Buscar manuales y guías…</span></div>
+        <div class="library-hero__documents">
+          <div class="library-hero__document">
+            <span class="library-hero__document-icon"><Zap size={18} stroke-width={1.8} /></span>
+            <span class="library-hero__document-copy"><small>GUÍA</small><strong>Fundamentos de electricidad industrial</strong></span>
+            <span class="library-hero__document-status"><i></i>Disponible</span>
+          </div>
+          <div class="library-hero__document">
+            <span class="library-hero__document-icon"><Cog size={18} stroke-width={1.8} /></span>
+            <span class="library-hero__document-copy"><small>MANUAL</small><strong>Variadores de frecuencia</strong></span>
+            <span class="library-hero__document-status"><i></i>Actualizado</span>
+          </div>
+          <div class="library-hero__document">
+            <span class="library-hero__document-icon"><FileText size={18} stroke-width={1.8} /></span>
+            <span class="library-hero__document-copy"><small>LIBRO</small><strong>Control y automatización</strong></span>
+            <span class="library-hero__document-status"><i></i>PDF</span>
+          </div>
+        </div>
+        <div class="library-hero__summary">
+          <span><Download size={18} stroke-width={1.8} /></span>
+          <span><strong>Acceso técnico</strong><small>Lectura online y recursos descargables</small></span>
+          <Check size={17} stroke-width={2.2} />
+        </div>
+      </div>
+      <div class="library-hero__floating"><span><ShieldCheck size={18} stroke-width={2} /></span><span><strong>Contenido verificado</strong><small>Acceso gratuito</small></span></div>
     </div>
   </div>
 </section>
 
 <style>
-  .library-hero { position: relative; isolation: isolate; overflow: hidden; padding: clamp(8rem, 13vw, 11rem) 0 clamp(3.5rem, 7vw, 5rem); background: linear-gradient(135deg, #f0fdf4, #fff 55%, #ecfdf5); }
+  .library-hero { position: relative; isolation: isolate; overflow: hidden; padding: clamp(8rem, 13vw, 11rem) 0 clamp(3.5rem, 7vw, 5rem); background: radial-gradient(circle at 12% 16%,var(--hero-ambient-green),transparent 32rem),radial-gradient(circle at 88% 18%,var(--hero-ambient-blue),transparent 30rem),linear-gradient(180deg,var(--hero-bg-start) 0%,var(--hero-bg-mid) 68%,var(--hero-bg-end) 100%); }
   .library-hero__inner { display: grid; grid-template-columns: 1fr; align-items: center; gap: 2rem; position: relative; z-index: 1; }
-  @media (min-width: 760px) { .library-hero__inner { grid-template-columns: 1.4fr .6fr; } }
-  .library-hero__eyebrow { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .8rem; border: 1px solid rgba(22,163,74,.18); border-radius: 999px; color: var(--color-primary-dark); background: rgba(255,255,255,.7); font-size: .8rem; font-weight: 700; }
+  @media (min-width: 960px) { .library-hero__inner { grid-template-columns: 1.4fr .6fr; } }
+  .library-hero__eyebrow { display: inline-flex; align-items: center; gap: .45rem; padding: .4rem .8rem; border: 1px solid var(--hero-card-border); border-radius: 999px; color: var(--hero-card-primary); background: var(--hero-card-surface); font-size: .8rem; font-weight: 700; }
   h1 { margin: 1rem 0; font-size: clamp(2.65rem, 6vw, 4.8rem); font-weight: 800; letter-spacing: -.055em; }
   h1 span { color: var(--color-primary); }
   p { max-width: 650px; font-size: clamp(1rem, 2vw, 1.18rem); color: var(--color-text-secondary); }
-  .library-hero__visual { position: relative; place-self: center; display: grid; place-items: center; width: 180px; aspect-ratio: 1; border: 1px solid rgba(22,163,74,.16); border-radius: 30px; color: var(--color-primary-dark); background: rgba(255,255,255,.72); box-shadow: 0 20px 50px rgba(20,83,45,.12); transform: rotate(4deg); }
-  .library-hero__line { width: 72px; height: 3px; margin: 3px; border-radius: 999px; background: rgba(22,163,74,.25); }
-  .library-hero__bolt { position: absolute; top: -14px; right: -14px; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: #14532d; color: white; box-shadow: 0 8px 22px rgba(20,83,45,.25); transform: rotate(-10deg); }
-  .library-hero__orb { position: absolute; z-index: -1; border-radius: 50%; filter: blur(12px); background: rgba(34,197,94,.12); }
+  .library-hero__visual { position:relative; display:grid; width:100%; max-width:460px; min-width:0; min-height:540px; padding:1rem 0 2rem; place-self:center; place-items:center; animation:library-visual-enter .65s cubic-bezier(.22,1,.36,1) both; }
+  .library-hero__dashboard { position:relative; width:100%; max-width:100%; padding:clamp(1.2rem,3vw,1.65rem); overflow:hidden; border:1px solid rgba(22,163,74,.16); border-radius:28px; background:linear-gradient(145deg,rgba(255,255,255,.97),rgba(242,250,245,.96),rgba(235,247,241,.94)); box-shadow:0 28px 70px rgba(15,23,42,.13),0 8px 24px rgba(22,163,74,.08); animation:library-dashboard-float 6.4s ease-in-out .65s infinite; }
+  .library-hero__dashboard::before { position:absolute; top:-100px; right:-80px; width:220px; height:220px; border-radius:50%; background:radial-gradient(circle,rgba(56,189,248,.11),rgba(56,189,248,0) 68%); content:''; pointer-events:none; }
+  .library-hero__dashboard-topline { position:relative; display:flex; align-items:center; justify-content:space-between; gap:.75rem; color:#64748b; font-size:.66rem; font-weight:750; letter-spacing:.035em; opacity:1; }
+  .library-hero__dashboard-topline>span:first-child { display:inline-flex; align-items:center; gap:.4rem; color:#16a34a; text-transform:uppercase; letter-spacing:.08em; opacity:1; }
+  .library-hero__document-count { flex:none; padding:.34rem .55rem; border:1px solid #bbf7d0; border-radius:999px; background:#dcfce7; color:#166534; opacity:1; }
+  .library-hero__dashboard h2 { position:relative; margin:.95rem 0 1rem; color:#0f172a; font-size:clamp(1.35rem,2.4vw,1.72rem); letter-spacing:-.035em; opacity:1; }
+  .library-hero__search { position:relative; display:flex; align-items:center; gap:.65rem; min-width:0; padding:.78rem .9rem; border:1px solid #d7ebdd; border-radius:13px; background:rgba(248,250,252,.92); color:#64748b; font-size:.72rem; opacity:1; }
+  .library-hero__search svg { flex:none; color:#166534; }
+  .library-hero__search span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; opacity:1; }
+  .library-hero__documents { position:relative; display:grid; gap:.62rem; margin-top:.85rem; }
+  .library-hero__document { display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.7rem; min-width:0; padding:.72rem .75rem; border:1px solid rgba(22,163,74,.14); border-radius:14px; background:rgba(255,255,255,.88); transition:border-color .2s ease,background .2s ease,transform .2s ease; }
+  .library-hero__document:hover { transform:translateY(-2px); border-color:rgba(22,163,74,.28); background:#fff; }
+  .library-hero__document:nth-child(2) { border-color:rgba(74,222,128,.24); background:linear-gradient(135deg,#132238,#172b46); }
+  .library-hero__document:nth-child(2):hover { border-color:rgba(74,222,128,.42); background:linear-gradient(135deg,#162944,#1a3352); }
+  .library-hero__document-icon { display:grid; width:35px; height:35px; flex:none; place-items:center; border-radius:10px; background:rgba(22,163,74,.1); color:#166534; }
+  .library-hero__document:nth-child(2) .library-hero__document-icon { background:rgba(74,222,128,.12); color:#4ade80; }
+  .library-hero__document-copy { display:grid; min-width:0; }
+  .library-hero__document-copy small { color:#64748b; font-size:.56rem; font-weight:800; letter-spacing:.08em; opacity:1; }
+  .library-hero__document-copy strong { overflow:hidden; color:#0f172a; font-size:.72rem; line-height:1.35; text-overflow:ellipsis; white-space:nowrap; opacity:1; }
+  .library-hero__document-status { display:inline-flex; align-items:center; gap:.32rem; color:#64748b; font-size:.58rem; font-weight:700; opacity:1; }
+  .library-hero__document:nth-child(2) .library-hero__document-copy small,.library-hero__document:nth-child(2) .library-hero__document-status { color:#cbd5e1; }
+  .library-hero__document:nth-child(2) .library-hero__document-copy strong { color:#f8fafc; }
+  .library-hero__document:nth-child(2) .library-hero__document-status i { background:#4ade80; }
+  .library-hero__document-status i { width:6px; height:6px; flex:none; border-radius:50%; background:#22c55e; box-shadow:0 0 0 3px rgba(34,197,94,.1); }
+  .library-hero__summary { position:relative; display:grid; grid-template-columns:auto minmax(0,1fr) auto; align-items:center; gap:.7rem; margin-top:.85rem; padding:.78rem .85rem; border:1px solid rgba(22,163,74,.14); border-radius:14px; background:rgba(220,252,231,.58); color:#16a34a; }
+  .library-hero__summary>span:first-child { display:grid; width:32px; height:32px; place-items:center; border-radius:10px; background:rgba(22,163,74,.1); color:#166534; }
+  .library-hero__summary>span:nth-child(2) { display:grid; min-width:0; }
+  .library-hero__summary strong { color:#166534; font-size:.7rem; opacity:1; }
+  .library-hero__summary small { color:#64748b; font-size:.6rem; line-height:1.4; opacity:1; }
+  .library-hero__floating { position:absolute; right:0; bottom:.5rem; display:flex; align-items:center; gap:.6rem; max-width:calc(100% - 1rem); padding:.7rem .85rem; border:1px solid rgba(22,163,74,.16); border-radius:14px; background:rgba(255,255,255,.96); color:#0f172a; box-shadow:0 16px 34px rgba(15,23,42,.16); animation:library-card-float 4.9s ease-in-out 1s infinite; }
+  .library-hero__floating>span:first-child { display:grid; width:30px; height:30px; flex:none; place-items:center; border-radius:9px; background:rgba(34,197,94,.14); color:#16a34a; }
+  .library-hero__floating>span:last-child { display:grid; }
+  .library-hero__floating strong { color:#0f172a; font-size:.68rem; opacity:1; }
+  .library-hero__floating small { color:#64748b; font-size:.58rem; opacity:1; }
+  .library-hero__orb { position: absolute; z-index: -1; border-radius: 50%; filter: blur(24px); background: var(--hero-ambient-green); }
   .library-hero__orb--one { width: 280px; height: 280px; top: -100px; right: 8%; }.library-hero__orb--two { width: 190px; height: 190px; bottom: -80px; left: 20%; }
+  @keyframes library-visual-enter { from { opacity:0; transform:translateY(18px) scale(.98); } to { opacity:1; transform:translateY(0) scale(1); } }
+  @keyframes library-dashboard-float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-6px); } }
+  @keyframes library-card-float { 0%,100% { transform:translateY(0); } 50% { transform:translateY(-5px); } }
+  @media(max-width:959px) { .library-hero__visual { width:min(100%,560px); margin:1rem auto 0; } }
+  @media(max-width:520px) { .library-hero__visual{min-height:auto;padding:1rem 0 0;place-items:stretch}.library-hero__dashboard{padding:1rem;border-radius:22px}.library-hero__dashboard-topline{align-items:flex-start}.library-hero__document{gap:.58rem;padding:.65rem}.library-hero__document-copy strong{white-space:normal}.library-hero__document-status{align-self:start;margin-top:.12rem}.library-hero__floating{position:relative;right:auto;bottom:auto;justify-self:end;margin:-.4rem .55rem 0 0}.library-hero__summary{padding-inline:.65rem} }
+  @media(max-width:380px) { .library-hero__dashboard-topline{display:grid}.library-hero__document-count{justify-self:start}.library-hero__document{grid-template-columns:auto minmax(0,1fr)}.library-hero__document-status{grid-column:2}.library-hero__summary>svg{display:none} }
+  @media(prefers-reduced-motion:reduce) { .library-hero__visual,.library-hero__dashboard,.library-hero__floating { animation:none; }.library-hero__document { transition:none; } }
 </style>
