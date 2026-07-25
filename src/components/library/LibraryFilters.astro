@@ -9,8 +9,9 @@ import { categories } from '../../data/books';
   <div class="library-filters__selects">
     <SlidersHorizontal size={18} aria-hidden="true" />
     <label>Nivel <select data-filter="level"><option value="">Todos</option><option>Básico</option><option>Intermedio</option><option>Avanzado</option></select></label>
-    <label>Tipo <select data-filter="type"><option value="">Todos</option><option>Libro</option><option>Manual</option><option>Guía</option><option>Catálogo</option><option>Norma</option></select></label>
+    <label>Tipo <select data-filter="type"><option value="">Todos</option><option>Libro</option><option>Manual</option><option>Guía</option><option>Documento</option><option>Catálogo</option><option>Ficha técnica</option><option>Norma</option></select></label>
     <label>Idioma <select data-filter="language"><option value="">Todos</option><option>Español</option></select></label>
+    <label>Destacado <select data-filter="featured"><option value="">Todos</option><option value="true">Solo destacados</option></select></label>
     <label>Ordenar <select data-filter="sort"><option value="recent">Más recientes</option><option value="downloads">Más descargados</option></select></label>
   </div>
 </div>

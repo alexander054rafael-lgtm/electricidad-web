@@ -1,7 +1,7 @@
 ---
-import type { Book } from '../../data/books';
+import type { LibraryResource } from '../../lib/library/types';
 import BookCard from './BookCard.astro';
-interface Props { books: Book[] }
+interface Props { books: LibraryResource[] }
 const { books } = Astro.props;
 ---
 <p class="library-results" aria-live="polite"><span data-results-count>{books.length}</span> documentos disponibles</p>
@@ -13,7 +13,7 @@ const { books } = Astro.props;
   const count = document.querySelector<HTMLElement>('[data-results-count]');
   const empty = document.querySelector<HTMLElement>('[data-library-empty]');
   let category = 'Todos';
-  const apply = () => { const level = document.querySelector<HTMLSelectElement>('[data-filter="level"]')?.value ?? ''; const type = document.querySelector<HTMLSelectElement>('[data-filter="type"]')?.value ?? ''; const language = document.querySelector<HTMLSelectElement>('[data-filter="language"]')?.value ?? ''; const query = search?.value.trim().toLowerCase() ?? ''; const sort = document.querySelector<HTMLSelectElement>('[data-filter="sort"]')?.value; let visible = cards.filter(card => (category === 'Todos' || card.dataset.category === category || (category === 'Manuales Técnicos' && card.dataset.type === 'Manual')) && (!level || card.dataset.level === level) && (!type || card.dataset.type === type) && (!language || card.dataset.language === language) && (!query || card.dataset.search?.includes(query))); visible.sort((a,b) => sort === 'downloads' ? Number(b.dataset.downloads)-Number(a.dataset.downloads) : Number(b.dataset.year)-Number(a.dataset.year)).forEach(card => card.parentElement?.append(card)); cards.forEach(card => card.hidden = !visible.includes(card)); if (count) count.textContent = String(visible.length); if (empty) empty.hidden = visible.length > 0; };
+  const apply = () => { const level = document.querySelector<HTMLSelectElement>('[data-filter="level"]')?.value ?? ''; const type = document.querySelector<HTMLSelectElement>('[data-filter="type"]')?.value ?? ''; const language = document.querySelector<HTMLSelectElement>('[data-filter="language"]')?.value ?? ''; const featured = document.querySelector<HTMLSelectElement>('[data-filter="featured"]')?.value ?? ''; const query = search?.value.trim().toLowerCase() ?? ''; const sort = document.querySelector<HTMLSelectElement>('[data-filter="sort"]')?.value; let visible = cards.filter(card => (category === 'Todos' || card.dataset.category === category || (category === 'Manuales Técnicos' && card.dataset.type === 'Manual')) && (!level || card.dataset.level === level) && (!type || card.dataset.type === type) && (!language || card.dataset.language === language) && (!featured || card.dataset.featured === featured) && (!query || card.dataset.search?.includes(query))); visible.sort((a,b) => sort === 'downloads' ? Number(b.dataset.downloads)-Number(a.dataset.downloads) : Number(b.dataset.year)-Number(a.dataset.year)).forEach(card => card.parentElement?.append(card)); cards.forEach(card => card.hidden = !visible.includes(card)); if (count) count.textContent = String(visible.length); if (empty) empty.hidden = visible.length > 0; };
   search?.addEventListener('input', apply); document.querySelectorAll<HTMLButtonElement>('[data-category]').forEach(button => button.addEventListener('click', () => { category = button.dataset.category ?? 'Todos'; document.querySelectorAll('[data-category]').forEach(chip => chip.classList.toggle('is-active', chip === button)); apply(); })); document.querySelectorAll<HTMLSelectElement>('[data-filter]').forEach(select => select.addEventListener('change', apply));
 </script>
 <style>

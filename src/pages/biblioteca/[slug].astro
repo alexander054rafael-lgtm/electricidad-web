@@ -4,10 +4,25 @@ import Header from '../../components/landing/Header.astro';
 import Footer from '../../components/landing/Footer.astro';
 import BookDetails from '../../components/library/BookDetails.astro';
 import RelatedBooks from '../../components/library/RelatedBooks.astro';
-import { books } from '../../data/books';
-const book = books.find((candidate) => candidate.slug === Astro.params.slug);
+import { DATABASE_BOOK_SELECT, getPublishedDatabaseBooks, mapDatabaseBook, mergeLibraryResources, staticResources, type DatabaseBookRow } from '../../lib/library/books';
+
+export const prerender = false;
+
+const staticBook = staticResources.find((candidate) => candidate.slug === Astro.params.slug);
+const dynamicResult = staticBook || !Astro.locals.supabase
+  ? { data: null, error: null }
+  : await Astro.locals.supabase
+      .from('library_resources')
+      .select(DATABASE_BOOK_SELECT)
+      .eq('slug', Astro.params.slug ?? '')
+      .eq('is_published', true)
+      .maybeSingle();
+const book = staticBook ?? (dynamicResult.data ? mapDatabaseBook(dynamicResult.data as DatabaseBookRow) : undefined);
 if (!book) return new Response(null, { status: 404 });
-const related = books.filter(candidate => candidate.slug !== book.slug && (candidate.category === book.category || candidate.level === book.level)).slice(0, 4);
+const { books: dynamicResources, error: relatedError } = await getPublishedDatabaseBooks(Astro.locals.supabase);
+if (relatedError) console.warn('[biblioteca-detalle] No se pudieron cargar todos los recursos relacionados.');
+const allResources = mergeLibraryResources(dynamicResources);
+const related = allResources.filter(candidate => candidate.slug !== book.slug && (candidate.category === book.category || candidate.level === book.level)).slice(0, 4);
 ---
 <Layout title={`${book.title} | Biblioteca Técnica`} description={book.description}><Header /><main class="book-page"><div class="container"><BookDetails book={book} /><RelatedBooks books={related} /></div></main><Footer /></Layout>
 <style>.book-page{padding-bottom:6rem}</style>

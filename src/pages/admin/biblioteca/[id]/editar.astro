@@ -1,0 +1,14 @@
+---
+export const prerender = false;
+import AdminLayout from '../../../../layouts/AdminLayout.astro';
+import BookUploadForm from '../../../../components/admin/BookUploadForm.astro';
+const id = Astro.params.id ?? '';
+if (!Astro.locals.supabase) return new Response(null, { status: 503 });
+const result = await Astro.locals.supabase.from('library_resources').select('id,title,slug,author,category,level,resource_type,language,pages,is_published,description,tags,topics,badge,accent,allow_download,is_featured,cover_file_name,drive_file_name,cover_drive_file_id,drive_file_id').eq('id', id).maybeSingle();
+if (result.error || !result.data) return new Response(null, { status: 404 });
+---
+<AdminLayout title="Editar recurso" description="Actualiza metadatos o reemplaza archivos sin eliminar primero los anteriores." active="books">
+  <header class="page-head"><a href="/admin/biblioteca">← Volver a Biblioteca</a><h1>{result.data.title}</h1><p>Recurso dinámico administrado desde Supabase y Google Drive.</p></header>
+  <BookUploadForm book={result.data} />
+</AdminLayout>
+<style>.page-head{margin-bottom:1.4rem}.page-head a{color:var(--admin-green);font-size:.78rem;font-weight:800}.page-head h1{margin:.55rem 0 .25rem;font-size:clamp(1.8rem,4vw,2.6rem)}.page-head p{margin:0;color:var(--admin-text-muted)}</style>

@@ -1,7 +1,8 @@
 ---
+import type { LibraryResource } from '../../lib/library/types';
 import type { Book } from '../../data/books';
 import RelatedBookCard from './RelatedBookCard.astro';
-interface Props { books: Book[]; title?: string; subtitle?: string; embedded?: boolean }
+interface Props { books: Array<LibraryResource | Book>; title?: string; subtitle?: string; embedded?: boolean }
 const { books, title = 'Libros relacionados', subtitle, embedded = false } = Astro.props;
 ---
 {books.length > 0 && <section class:list={['related-books', { 'related-books--embedded': embedded }]}><div class="related-books__heading"><span>Biblioteca PDF</span><h2>{title}</h2>{subtitle && <p>{subtitle}</p>}</div><div class="related-books__grid">{books.map((book) => <RelatedBookCard book={book} />)}</div></section>}

@@ -1,14 +1,249 @@
 ---
-import { Upload } from '@lucide/astro';
+import { Save, Upload } from '@lucide/astro';
+
+interface EditableBook {
+  id: string;
+  title: string;
+  slug: string;
+  author: string | null;
+  category: string;
+  level: string | null;
+  resource_type: string;
+  language: string;
+  pages: number | null;
+  is_published: boolean;
+  description: string | null;
+  tags: string[] | null;
+  topics: string[] | null;
+  badge: string | null;
+  accent: string | null;
+  allow_download: boolean;
+  is_featured: boolean;
+  cover_file_name: string | null;
+  drive_file_name: string | null;
+  cover_drive_file_id: string | null;
+  drive_file_id: string | null;
+}
+
+interface Props { book?: EditableBook }
+const { book } = Astro.props;
+const editing = Boolean(book);
+const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variadores de Frecuencia', 'Motores Eléctricos', 'Instrumentación', 'Electrónica', 'Seguridad Eléctrica'];
 ---
-<form class="upload-form" data-book-form enctype="multipart/form-data" novalidate>
-  <div class="grid"><label>Título*<input name="title" required minlength="3" /></label><label>Autor*<input name="author" required minlength="2" /></label><label>Categoría*<select name="category" required><option value="">Selecciona</option><option>Electricidad Industrial</option><option>Automatización</option><option>PLC</option><option>Variadores de Frecuencia</option><option>Motores Eléctricos</option><option>Instrumentación</option><option>Electrónica Industrial</option><option>Seguridad Eléctrica</option></select></label><label>Nivel*<select name="level"><option>Básico</option><option>Intermedio</option><option>Avanzado</option></select></label><label>Idioma*<input name="language" value="Español" required /></label><label>Páginas*<input name="pages" type="number" min="1" required /></label><label>Año*<input name="publicationYear" type="number" min="1800" max="2200" required /></label><label>Estado<select name="status"><option value="draft">Borrador</option><option value="published">Publicado</option></select></label></div>
-  <label>Descripción*<textarea name="description" rows="5" required></textarea></label><label>Etiquetas<input name="tags" placeholder="PLC, Siemens, automatización" /></label><label class="check"><input name="allowDownload" type="checkbox" /> Permitir descarga a usuarios autorizados</label>
-  <div class="grid"><label>Portada* (JPG, PNG o WebP; 5 MB)<input name="cover" type="file" accept="image/jpeg,image/png,image/webp" required data-cover /></label><label>PDF* (50 MB máximo)<input name="pdf" type="file" accept="application/pdf" required /></label></div><div data-preview hidden><img alt="Vista previa de portada" /></div><p class="message" aria-live="polite" data-message></p><button type="submit"><Upload size={18}/> Guardar libro</button>
+
+<form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} enctype="multipart/form-data" novalidate>
+  {book && <input type="hidden" name="id" value={book.id} />}
+  <div class="form-section">
+    <div class="section-head"><span>01</span><div><h2>Información editorial</h2><p>Datos visibles en la Biblioteca Técnica.</p></div></div>
+    <div class="grid">
+      <label>Título*<input name="title" required minlength="3" value={book?.title ?? ''} /></label>
+      <label>Slug*<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="180" value={book?.slug ?? ''} data-slug /><small>Se genera desde el título y puedes editarlo.</small></label>
+      <label>Autor<input name="author" minlength="2" value={book?.author ?? ''} /></label>
+      <label>Categoría*<select name="category" required><option value="">Selecciona</option>{categories.map(category => <option selected={book?.category === category}>{category}</option>)}</select></label>
+      <label>Tipo*<select name="bookType" required><option selected={!book || book.resource_type === 'Libro'}>Libro</option><option selected={book?.resource_type === 'Manual'}>Manual</option><option selected={book?.resource_type === 'Guía'}>Guía</option><option selected={book?.resource_type === 'Catálogo'}>Catálogo</option><option selected={book?.resource_type === 'Ficha técnica'}>Ficha técnica</option><option selected={book?.resource_type === 'Norma'}>Norma</option><option selected={book?.resource_type === 'Documento'}>Documento</option></select></label>
+      <label>Nivel*<select name="level" required><option selected={!book || book.level === 'Básico'}>Básico</option><option selected={book?.level === 'Intermedio'}>Intermedio</option><option selected={book?.level === 'Avanzado'}>Avanzado</option></select></label>
+      <label>Idioma*<input name="language" value={book?.language ?? 'Español'} required /></label>
+      <label>Páginas*<input name="pages" type="number" min="1" value={book?.pages ?? ''} required /></label>
+    </div>
+    <label>Descripción*<textarea name="description" rows="5" required minlength="20">{book?.description ?? ''}</textarea></label>
+    <div class="grid">
+      <label>Etiquetas<input name="tags" value={book?.tags?.join(', ') ?? ''} placeholder="PLC, Siemens, automatización" /><small>Separadas por comas.</small></label>
+      <label>Temas incluidos<input name="topics" value={book?.topics?.join(', ') ?? ''} placeholder="Sensores, programación, diagnóstico" /><small>Separados por comas.</small></label>
+      <label>Distintivo<select name="badge"><option value="">Sin distintivo</option><option selected={book?.badge === 'Recomendado'}>Recomendado</option><option selected={book?.badge === 'Popular'}>Popular</option><option selected={book?.badge === 'Nuevo'}>Nuevo</option></select></label>
+      <label>Color de acento<input name="accent" type="color" value={book?.accent ?? '#16a34a'} /></label>
+    </div>
+  </div>
+
+  <div class="form-section">
+    <div class="section-head"><span>02</span><div><h2>Archivos en Google Drive</h2><p>{editing ? 'Solo selecciona un archivo si deseas reemplazar el actual.' : 'El PDF es obligatorio; la portada puede usar el fallback visual.'}</p></div></div>
+    <div class="grid files">
+      <div class="file-control"><label>Portada<input name="cover" type="file" accept="image/jpeg,image/png,image/webp" data-cover /><small>JPG, PNG o WebP · máximo 8 MB</small></label><div class="file-state" data-file-state="cover"><strong data-file-name>{book?.cover_file_name ?? 'Sin portada · se usará el fallback'}</strong><span data-file-size>{book?.cover_file_name ? 'Archivo actual' : 'Opcional'}</span><progress hidden></progress></div>{book?.cover_drive_file_id && <button type="button" class="remove-cover" data-remove-cover>Eliminar portada</button>}</div>
+      <div class="file-control"><label>Documento PDF {editing ? '' : '*'}<input name="pdf" type="file" accept="application/pdf,.pdf" required={!editing} data-pdf /><small>PDF · máximo 100 MB</small></label><div class="file-state" data-file-state="pdf"><strong data-file-name>{book?.drive_file_name ?? 'Ningún PDF seleccionado'}</strong><span data-file-size>{book?.drive_file_name ? 'Archivo actual' : 'Obligatorio'}</span><progress hidden></progress></div></div>
+    </div>
+    <div class="preview" data-preview hidden={!book?.cover_drive_file_id}><img src={book?.cover_drive_file_id ? `/api/library/books/${book.id}/cover` : undefined} alt="Vista previa de portada" /></div>
+    <p class="rights-notice">Sube únicamente material propio, de dominio público o que tengas autorización para distribuir.</p>
+  </div>
+
+  <div class="form-section">
+    <div class="section-head"><span>03</span><div><h2>Publicación</h2><p>Controla cómo aparece este recurso dinámico.</p></div></div>
+    <div class="grid options">
+      <label class="check"><input name="allowDownload" type="checkbox" checked={book?.allow_download ?? false} /><span>Permitir descarga del PDF</span></label>
+      <label class="check"><input name="isFeatured" type="checkbox" checked={book?.is_featured ?? false} /><span>Marcar como destacado</span></label>
+    </div>
+  </div>
+
+  <div class="form-actions"><a href="/admin/biblioteca">Cancelar</a><p class="message" aria-live="polite" data-message></p><button type="submit" class="draft-button" data-intent="draft"><Save size={18}/> Guardar borrador</button><button type="submit" data-intent="publish"><Upload size={18}/> Publicar</button></div>
 </form>
+
 <script>
- const form=document.querySelector<HTMLFormElement>('[data-book-form]');const message=form?.querySelector<HTMLElement>('[data-message]');const cover=form?.querySelector<HTMLInputElement>('[data-cover]');const preview=form?.querySelector<HTMLElement>('[data-preview]');let previewUrl='';
- cover?.addEventListener('change',()=>{if(previewUrl)URL.revokeObjectURL(previewUrl);const file=cover.files?.[0];const img=preview?.querySelector('img');if(file&&img&&preview){previewUrl=URL.createObjectURL(file);img.src=previewUrl;preview.hidden=false}});
- form?.addEventListener('submit',async(event)=>{event.preventDefault();if(!form.checkValidity()){form.reportValidity();return}if(message)message.textContent='Validando y cargando…';const response=await fetch('/api/admin/books/save',{method:'POST',body:new FormData(form)});const result=await response.json();if(message){message.textContent=response.ok?'Libro guardado correctamente.':result.error??'No se pudo guardar.';message.dataset.state=response.ok?'ok':'error'}if(response.ok)setTimeout(()=>location.reload(),600)});
+  const initializeBookForm = () => {
+    const form = document.querySelector<HTMLFormElement>('[data-book-form]');
+    if (!form || form.dataset.ready === 'true') return;
+    form.dataset.ready = 'true';
+    const message = form.querySelector<HTMLElement>('[data-message]');
+    const cover = form.querySelector<HTMLInputElement>('[data-cover]');
+    const pdf = form.querySelector<HTMLInputElement>('[data-pdf]');
+    const preview = form.querySelector<HTMLElement>('[data-preview]');
+    const titleInput = form.querySelector<HTMLInputElement>('input[name="title"]');
+    const slugInput = form.querySelector<HTMLInputElement>('[data-slug]');
+    const removeCoverButton = form.querySelector<HTMLButtonElement>('[data-remove-cover]');
+    let removeCoverRequested = false;
+    let isSubmitting = false;
+    let previewUrl = '';
+    const slugify = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+    if (!form.dataset.resourceId) titleInput?.addEventListener('input', () => { if (slugInput && slugInput.dataset.manual !== 'true') slugInput.value = slugify(titleInput.value); });
+    slugInput?.addEventListener('input', () => { slugInput.dataset.manual = 'true'; slugInput.setCustomValidity(''); });
+    const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => {
+      const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`);
+      const name = state?.querySelector<HTMLElement>('[data-file-name]');
+      const size = state?.querySelector<HTMLElement>('[data-file-size]');
+      if (file && name && size) { name.textContent = file.name; size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · ${status ?? 'Listo para subir'}`; }
+      else if (status && size) size.textContent = status;
+    };
+    const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => {
+      if (message) { message.textContent = text; message.dataset.state = state === 'working' ? '' : state; }
+      form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; });
+      if (asset) { const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`); if (progress) progress.hidden = false; }
+    };
+    const applyFieldError = (result: { field?: string; error?: string }) => {
+      if (result.field === 'slug' && slugInput) { slugInput.setCustomValidity(result.error ?? 'Slug inválido.'); slugInput.reportValidity(); slugInput.focus(); }
+    };
+    cover?.addEventListener('change', () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      const file = cover.files?.[0];
+      const image = preview?.querySelector('img');
+      if (file && image && preview) {
+        removeCoverRequested = false;
+        if (removeCoverButton) { removeCoverButton.textContent = 'Eliminar portada'; removeCoverButton.dataset.active = 'false'; }
+        previewUrl = URL.createObjectURL(file);
+        image.src = previewUrl;
+        preview.hidden = false;
+        updateFileState('cover', file);
+      } else if (preview) preview.hidden = true;
+    });
+    pdf?.addEventListener('change', () => updateFileState('pdf', pdf.files?.[0]));
+    removeCoverButton?.addEventListener('click', () => {
+      removeCoverRequested = !removeCoverRequested;
+      removeCoverButton.dataset.active = String(removeCoverRequested);
+      removeCoverButton.textContent = removeCoverRequested ? 'Conservar portada' : 'Eliminar portada';
+      if (removeCoverRequested) {
+        if (cover) cover.value = '';
+        if (preview) preview.hidden = true;
+        updateFileState('cover', undefined, 'Se eliminará al guardar');
+      }
+    });
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      if (isSubmitting) return;
+      if (!form.checkValidity()) { form.reportValidity(); return; }
+      isSubmitting = true;
+      const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
+      const intent = submitter?.dataset.intent === 'publish' ? 'publish' : 'draft';
+      const buttons = [...form.querySelectorAll<HTMLButtonElement>('button')];
+      buttons.forEach(button => { button.disabled = true; });
+      setStage('Validando información…');
+      const temporaryUploads: Array<{ id: string; uploadNonce: string; asset: 'cover' | 'pdf' }> = [];
+      const cleanupTemporaryUploads = async () => {
+        await Promise.allSettled(temporaryUploads.map(upload => fetch('/api/admin/library/upload', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(upload),
+        })));
+      };
+      try {
+        const data = new FormData(form);
+        data.set('status', intent === 'publish' ? 'published' : 'draft');
+        const title = String(data.get('title') ?? 'recurso');
+        const uploadToDrive = async (field: 'cover' | 'pdf', asset: 'cover' | 'pdf') => {
+          const entry = data.get(field);
+          data.delete(field);
+          if (!(entry instanceof File) || entry.size === 0) return;
+          setStage(asset === 'cover' ? 'Subiendo portada…' : 'Subiendo PDF…', asset);
+          const sessionResponse = await fetch('/api/admin/library/upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ asset, title, originalName: entry.name, mimeType: entry.type, size: entry.size }),
+          });
+          const session = await sessionResponse.json() as { uploadUrl?: string; uploadNonce?: string; error?: string };
+          if (!sessionResponse.ok || !session.uploadUrl || !session.uploadNonce) throw new Error(session.error ?? 'No se pudo iniciar la subida a Drive.');
+          const uploadResponse = await fetch(session.uploadUrl, { method: 'PUT', headers: { 'Content-Type': entry.type }, body: entry });
+          const driveFile = await uploadResponse.json() as { id?: string };
+          if (!uploadResponse.ok || !driveFile.id) throw new Error(`Google Drive no confirmó la subida de ${asset === 'cover' ? 'la portada' : 'el PDF'}.`);
+          const reference = { id: driveFile.id, uploadNonce: session.uploadNonce, asset };
+          temporaryUploads.push(reference);
+          data.set(`${asset}DriveUpload`, JSON.stringify({ ...reference, originalName: entry.name }));
+          updateFileState(asset, entry, 'Subida completada');
+        };
+        await uploadToDrive('pdf', 'pdf');
+        await uploadToDrive('cover', 'cover');
+        setStage('Guardando datos…');
+        const resourceId = form.dataset.resourceId;
+        if (!resourceId) {
+          const response = await fetch('/api/admin/library', { method: 'POST', body: data });
+          const result = await response.json();
+          if (!response.ok) applyFieldError(result);
+          if (result.resource) temporaryUploads.length = 0;
+          if (!response.ok && result.resource) {
+            if (message) { message.textContent = result.error ?? 'El recurso se conservó como borrador.'; message.dataset.state = 'error'; }
+            window.location.assign('/admin/biblioteca');
+            return;
+          }
+          if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el recurso.');
+        } else {
+          const desiredPublished = data.get('status') === 'published';
+          const wasPublished = form.dataset.published === 'true';
+          const callAction = async (action: 'publish' | 'unpublish') => {
+            setStage(action === 'publish' ? 'Publicando recurso…' : 'Despublicando recurso…');
+            const response = await fetch(`/api/admin/library/${resourceId}/${action}`, { method: 'POST' });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error ?? `No se pudo ${action === 'publish' ? 'publicar' : 'despublicar'} el recurso.`);
+          };
+          if (wasPublished && !desiredPublished) await callAction('unpublish');
+          if (removeCoverRequested) {
+            const response = await fetch(`/api/admin/library/${resourceId}/replace-cover`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error ?? 'No se pudo eliminar la portada.');
+          }
+          for (const asset of ['cover', 'pdf'] as const) {
+            const ticket = data.get(`${asset}DriveUpload`);
+            if (typeof ticket !== 'string' || !ticket) continue;
+            const replacement = new FormData();
+            replacement.set('driveUpload', ticket);
+            const response = await fetch(`/api/admin/library/${resourceId}/replace-${asset}`, { method: 'POST', body: replacement });
+            const result = await response.json();
+            if (!response.ok) throw new Error(result.error ?? `No se pudo reemplazar ${asset === 'pdf' ? 'el PDF' : 'la portada'}.`);
+            const parsed = JSON.parse(ticket) as { id?: string };
+            const index = temporaryUploads.findIndex(upload => upload.id === parsed.id);
+            if (index >= 0) temporaryUploads.splice(index, 1);
+          }
+          const list = (name: string) => String(data.get(name) ?? '').split(',').map(value => value.trim()).filter(Boolean);
+          const metadata = {
+            title: String(data.get('title') ?? ''), slug: String(data.get('slug') ?? ''), author: String(data.get('author') ?? ''), description: String(data.get('description') ?? ''),
+            category: String(data.get('category') ?? ''), resourceType: String(data.get('bookType') ?? ''), level: String(data.get('level') ?? ''),
+            language: String(data.get('language') ?? ''), pages: Number(data.get('pages')), tags: list('tags'), topics: list('topics'),
+            badge: String(data.get('badge') ?? '') || null, accent: String(data.get('accent') ?? ''), allowDownload: data.get('allowDownload') === 'on', isFeatured: data.get('isFeatured') === 'on',
+          };
+          const patchResponse = await fetch(`/api/admin/library/${resourceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(metadata) });
+          const patchResult = await patchResponse.json();
+          if (!patchResponse.ok) applyFieldError(patchResult);
+          if (!patchResponse.ok) throw new Error(patchResult.error ?? 'No se pudieron guardar los metadatos.');
+          if (!wasPublished && desiredPublished) await callAction('publish');
+        }
+        temporaryUploads.length = 0;
+        setStage('Completado.', undefined, 'ok');
+        window.location.assign('/admin/biblioteca');
+      } catch (error) {
+        await cleanupTemporaryUploads();
+        setStage(error instanceof Error ? error.message : 'No se pudo guardar el recurso.', undefined, 'error');
+        isSubmitting = false;
+        buttons.forEach(button => { button.disabled = false; });
+      }
+    });
+  };
+  initializeBookForm();
+  document.addEventListener('astro:page-load', initializeBookForm);
 </script>
-<style>.upload-form{display:grid;gap:1rem;padding:1.3rem;border:1px solid #dce5df;border-radius:16px;background:#fff}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;gap:.4rem;font-size:.84rem;font-weight:750}.check{display:flex;align-items:center}input,select,textarea{width:100%;padding:.72rem;border:1px solid #cad7ce;border-radius:9px;font:inherit}.check input{width:auto}button{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;padding:.8rem;border-radius:9px;background:#16833e;color:#fff;font:inherit;font-weight:800}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}[data-preview] img{max-width:180px;max-height:140px;border-radius:10px}@media(max-width:650px){.grid{grid-template-columns:1fr}}</style>
+
+<style>
+  .book-form{display:grid;gap:1.2rem}.form-section{display:grid;gap:1.2rem;padding:clamp(1.1rem,3vw,1.6rem);border:1px solid var(--admin-border);border-radius:16px;background:var(--admin-surface-raised);box-shadow:0 8px 24px rgba(15,23,42,.04)}.section-head{display:flex;align-items:flex-start;gap:.8rem}.section-head>span{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:10px;background:var(--admin-green-soft);color:var(--admin-green);font-size:.72rem;font-weight:900}.section-head h2{margin:0;font-size:1.08rem}.section-head p{margin:.15rem 0 0;color:var(--admin-text-muted);font-size:.78rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;align-content:start;gap:.42rem;color:var(--admin-text);font-size:.8rem;font-weight:750}label small{color:var(--admin-text-muted);font-size:.68rem;font-weight:500}input,select,textarea{width:100%;min-width:0;padding:.72rem .78rem;border:1px solid #cbd8cf;border-radius:10px;background:#fff;color:#14231b;font:inherit;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease}input:focus,select:focus,textarea:focus{border-color:#22a757;box-shadow:0 0 0 3px rgba(34,165,87,.13)}textarea{resize:vertical}.options{align-items:end}.check{display:flex;min-height:44px;align-items:center;gap:.55rem;padding:.7rem;border:1px solid var(--admin-border);border-radius:10px}.check input{width:auto;accent-color:var(--admin-green)}.file-control{display:grid;align-content:start;gap:.6rem;padding:.8rem;border:1px solid var(--admin-border);border-radius:12px;background:#f8faf9}.file-state{display:grid;gap:.15rem;padding:.65rem;border-radius:9px;background:#fff}.file-state strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}.file-state span{color:var(--admin-text-muted);font-size:.66rem}.file-state progress{width:100%;height:5px;accent-color:var(--admin-green)}.remove-cover{justify-self:start;border:0;background:transparent;color:#b42318;font:inherit;font-size:.7rem;font-weight:750}.remove-cover[data-active="true"]{color:var(--admin-green)}.preview img{display:block;width:180px;max-width:100%;height:180px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14)}.rights-notice{margin:0;padding:.8rem 1rem;border-left:3px solid #d97706;border-radius:7px;background:#fffbeb;color:#854d0e;font-size:.74rem;line-height:1.5}.form-actions{display:flex;align-items:center;gap:.8rem}.form-actions>a,.form-actions>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.75rem 1rem;border-radius:10px;font:inherit;font-size:.8rem;font-weight:800}.form-actions>a{border:1px solid var(--admin-border);background:#fff;color:var(--admin-text)}.form-actions>button{border:0;background:var(--admin-green);color:#fff}.form-actions .draft-button{border:1px solid var(--admin-green);background:#fff;color:var(--admin-green)}.form-actions>button:disabled{cursor:wait;opacity:.65}.message{flex:1;margin:0;color:var(--admin-text-muted);font-size:.78rem;text-align:right}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}@media(max-width:650px){.grid{grid-template-columns:1fr}.form-actions{flex-wrap:wrap}.message{order:-1;flex-basis:100%;text-align:left}.form-actions>a,.form-actions>button{flex:1}}@media(prefers-reduced-motion:reduce){input,select,textarea{transition:none}}
+</style>

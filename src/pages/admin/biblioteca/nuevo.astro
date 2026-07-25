@@ -1,0 +1,10 @@
+---
+export const prerender = false;
+import AdminLayout from '../../../layouts/AdminLayout.astro';
+import BookUploadForm from '../../../components/admin/BookUploadForm.astro';
+---
+<AdminLayout title="Añadir recurso" description="Carga un documento técnico en Google Drive y administra su publicación." active="books">
+  <header class="page-head"><a href="/admin/biblioteca">← Volver a Biblioteca</a><h1>Añadir recurso</h1><p>Los borradores permanecen privados hasta que un administrador los publique.</p></header>
+  <BookUploadForm />
+</AdminLayout>
+<style>.page-head{margin-bottom:1.4rem}.page-head a{color:var(--admin-green);font-size:.78rem;font-weight:800}.page-head h1{margin:.55rem 0 .25rem;font-size:clamp(1.8rem,4vw,2.6rem)}.page-head p{margin:0;color:var(--admin-text-muted)}</style>

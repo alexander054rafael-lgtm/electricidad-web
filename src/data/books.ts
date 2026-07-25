@@ -1,24 +1,11 @@
-export type Book = {
-  slug: string;
-  title: string;
-  author: string;
-  description: string;
-  category: string;
-  level: 'Básico' | 'Intermedio' | 'Avanzado';
-  type: 'Libro' | 'Manual' | 'Guía' | 'Catálogo' | 'Norma';
-  language: string;
-  pages: number;
-  publicationYear: number;
-  fileSize: string;
-  downloads: number;
-  tags: string[];
-  badge?: 'Nuevo' | 'Popular' | 'Recomendado';
-  accent: string;
-  topics: string[];
-  pdfUrl: string;
-  allowDownload: boolean;
-};
+import type { StaticLibraryResource } from '../lib/library/types';
 
+export type Book = Omit<StaticLibraryResource, 'id' | 'source'>;
+
+/*
+ * Recursos de muestra protegidos. Este arreglo sigue siendo la única fuente
+ * de sus datos y no participa en las operaciones administrativas.
+ */
 const samplePdf = 'https://www.w3.org/WAI/ER/tests/xhtml/testfiles/resources/pdf/dummy.pdf';
 
 export const books: Book[] = [
