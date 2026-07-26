@@ -6,7 +6,7 @@ import type { WorkerContext } from '../types/env';
 
 export const adminStatus = async ({ request, env, operationId }: WorkerContext, origin?: string) => {
   const auth = await requireAdmin(request, env);
-  if (!auth.ok) return json({ ok: false, error: auth.error, operationId }, auth.status, origin);
+  if (!auth.ok) return json({ ok: false, code: auth.code, error: auth.error, operationId }, auth.status, origin);
   const r2 = await checkR2Connection(env);
   return json({
     ok: r2,
