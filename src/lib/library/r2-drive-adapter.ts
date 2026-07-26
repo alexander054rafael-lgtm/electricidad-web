@@ -265,7 +265,7 @@ export const createR2DriveAdapter = (supabase: SupabaseClient) => {
     action: 'draft' | 'publish',
     onProgress?: ProgressCallback,
     abortSignal?: AbortSignal,
-  ): Promise<{ resourceId: string; slug: string; title: string; message: string }> => {
+  ): Promise<{ resourceId: string; slug: string; title: string; message: string; operationId?: string }> => {
     const idempotencyKey = generateIdempotencyKey();
     const uploads: UploadState[] = [];
 
@@ -362,6 +362,7 @@ export const createR2DriveAdapter = (supabase: SupabaseClient) => {
       slug: resourceResult.slug,
       title: resourceResult.title,
       message: resourceResult.message,
+      operationId: resourceResult.operationId,
     };
   };
 

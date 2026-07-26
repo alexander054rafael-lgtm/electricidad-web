@@ -8,6 +8,7 @@ interface Props { book?: EditableBook }
 const { book } = Astro.props;
 const editing = Boolean(book);
 const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variadores de Frecuencia', 'Motores Eléctricos', 'Instrumentación', 'Electrónica', 'Seguridad Eléctrica'];
+const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-browser';
 ---
 
 <form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} novalidate>
@@ -45,7 +46,19 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     <div class="section-head"><span>03</span><div><h2>Publicación</h2><p>Controla cómo aparece este recurso dinámico.</p></div></div>
     <div class="grid options"><label class="check"><input name="allowDownload" type="checkbox" checked={book?.allow_download ?? false} /><span>Permitir descarga del PDF</span></label><label class="check"><input name="isFeatured" type="checkbox" checked={book?.is_featured ?? false} /><span>Marcar como destacado</span></label></div>
   </div>
-  <div class="form-actions"><a href="/admin/biblioteca">Cancelar</a><p class="message" aria-live="polite" data-message></p><button type="button" class="cancel-upload" data-cancel-upload hidden>Cancelar subida</button><button type="submit" class="draft-button" data-intent="draft"><Save size={18}/> Guardar borrador</button><button type="submit" data-intent="publish"><Upload size={18}/> Publicar</button></div>
+  <div class="diagnostic-panel" data-diagnostic-panel hidden>
+    <div class="diagnostic-header">
+      <span class="diagnostic-title">Diagnóstico de subida</span>
+      <span class="backend-badge" data-diag-backend>{FILE_BACKEND}</span>
+    </div>
+    <div class="diagnostic-details">
+      <div class="diag-item"><span>Etapa:</span> <strong data-diag-stage>En espera</strong></div>
+      <div class="diag-item"><span>Backend:</span> <strong>{FILE_BACKEND}</strong></div>
+      <div class="diag-item"><span>Operación:</span> <strong data-diag-operation>—</strong></div>
+      <div class="diag-item diag-full"><span>Último error:</span> <strong data-diag-error>Ninguno</strong></div>
+    </div>
+  </div>
+  <div class="form-actions"><a href="/admin/biblioteca">Cancelar</a><p class="message" aria-live="assertive" data-message></p><button type="button" class="cancel-upload" data-cancel-upload hidden>Cancelar subida</button><button type="submit" class="draft-button" data-intent="draft"><Save size={18}/> Guardar borrador</button><button type="submit" data-intent="publish"><Upload size={18}/> Publicar</button></div>
 </form>
 
 <script>
@@ -58,10 +71,40 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 
   const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-browser';
 
+  const sanitizeErrorMessage = (message: string): string => {
+    if (!message) return 'Ocurrió un error desconocido.';
+    let clean = String(message);
+    clean = clean.replace(/https?:\/\/[^\s"'<>]+/gi, (fullUrl) => {
+      try {
+        const parsed = new URL(fullUrl);
+        return `${parsed.origin}${parsed.pathname}`;
+      } catch {
+        return '[URL protegida]';
+      }
+    });
+    clean = clean.replace(/(bearer\s+|token=)[a-zA-Z0-9_\-\.]{20,}/gi, '$1[TOKEN_PROTEGIDO]');
+    clean = clean.replace(/(secret|key|refresh_token|access_token|client_secret)=[^&\s"']+/gi, '$1=[PROTEGIDO]');
+    clean = clean.replace(/library\/[a-f0-9\-]+\/(pdf|cover)/gi, 'library/[KEY_PROTEGIDA]');
+    return clean;
+  };
+
+  const mapStageName = (text: string): string => {
+    const t = text.toLowerCase();
+    if (t.includes('preparando')) return 'preparando subida';
+    if (t.includes('subiendo pdf')) return 'subiendo PDF';
+    if (t.includes('subiendo portada')) return 'subiendo portada';
+    if (t.includes('validando')) return 'validando';
+    if (t.includes('copiando') || t.includes('drive')) return 'copiando a Drive';
+    if (t.includes('guardando') || t.includes('supabase') || t.includes('registrando')) return 'guardando en Supabase';
+    if (t.includes('limpiando')) return 'limpiando temporales';
+    return text;
+  };
+
   const initializeBookForm = () => {
     const form = document.querySelector<HTMLFormElement>('[data-book-form]');
     if (!form || form.dataset.ready === 'true') return;
     form.dataset.ready = 'true';
+
     const message = form.querySelector<HTMLElement>('[data-message]');
     const cover = form.querySelector<HTMLInputElement>('[data-cover]');
     const pdf = form.querySelector<HTMLInputElement>('[data-pdf]');
@@ -70,14 +113,47 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     const slugInput = form.querySelector<HTMLInputElement>('[data-slug]');
     const removeCoverButton = form.querySelector<HTMLButtonElement>('[data-remove-cover]');
     const cancelUploadButton = form.querySelector<HTMLButtonElement>('[data-cancel-upload]');
+    const diagPanel = form.querySelector<HTMLElement>('[data-diagnostic-panel]');
+    const diagStage = form.querySelector<HTMLElement>('[data-diag-stage]');
+    const diagOperation = form.querySelector<HTMLElement>('[data-diag-operation]');
+    const diagError = form.querySelector<HTMLElement>('[data-diag-error]');
+
     let removeCoverRequested = false;
     let isSubmitting = false;
     let previewUrl = '';
     let activeController: AbortController | undefined;
+    let currentStage = 'en espera';
+    let currentOpId: string | undefined;
 
     const slugify = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
-    if (!form.dataset.resourceId) titleInput?.addEventListener('input', () => { if (slugInput && slugInput.dataset.manual !== 'true') slugInput.value = slugify(titleInput.value); });
-    slugInput?.addEventListener('input', () => { slugInput.dataset.manual = 'true'; slugInput.setCustomValidity(''); });
+    if (!form.dataset.resourceId) {
+      titleInput?.addEventListener('input', () => {
+        if (slugInput && slugInput.dataset.manual !== 'true') slugInput.value = slugify(titleInput.value);
+      });
+    }
+    slugInput?.addEventListener('input', () => {
+      slugInput.dataset.manual = 'true';
+      slugInput.setCustomValidity('');
+    });
+
+    // Remove error highlights on user input
+    form.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>('input, select, textarea').forEach(input => {
+      input.addEventListener('input', () => input.classList.remove('has-error'));
+      input.addEventListener('change', () => input.classList.remove('has-error'));
+    });
+
+    const updateDiagnostic = (stage: string, errorMsg?: string, operationId?: string) => {
+      currentStage = stage;
+      if (operationId) currentOpId = operationId;
+      if (diagPanel) diagPanel.hidden = false;
+      if (diagStage) diagStage.textContent = stage;
+      if (diagOperation) diagOperation.textContent = currentOpId || '—';
+      if (diagError) {
+        const cleanErr = errorMsg ? sanitizeErrorMessage(errorMsg) : 'Ninguno';
+        diagError.textContent = cleanErr;
+        diagError.style.color = errorMsg ? '#dc2626' : 'var(--admin-text-muted)';
+      }
+    };
 
     const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => {
       const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`);
@@ -92,8 +168,9 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     };
 
     const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => {
+      const cleanText = sanitizeErrorMessage(text);
       if (message) {
-        message.textContent = text;
+        message.textContent = cleanText;
         message.dataset.state = state === 'working' ? '' : state;
       }
       form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; });
@@ -101,10 +178,87 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
         const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`);
         if (progress) progress.hidden = false;
       }
+      updateDiagnostic(mapStageName(text), state === 'error' ? cleanText : undefined);
+    };
+
+    const validateFormFields = (): { element: HTMLElement; message: string } | null => {
+      form.querySelectorAll('.has-error').forEach(el => el.classList.remove('has-error'));
+
+      const titleVal = titleInput?.value.trim() ?? '';
+      if (!titleVal) {
+        return { element: titleInput || form, message: 'Falta el título' };
+      }
+
+      const categorySelect = form.querySelector<HTMLSelectElement>('select[name="category"]');
+      if (!categorySelect || !categorySelect.value.trim()) {
+        return { element: categorySelect || form, message: 'Falta la categoría' };
+      }
+
+      const bookTypeSelect = form.querySelector<HTMLSelectElement>('select[name="bookType"]');
+      if (!bookTypeSelect || !bookTypeSelect.value.trim()) {
+        return { element: bookTypeSelect || form, message: 'Falta el tipo de recurso' };
+      }
+
+      const levelSelect = form.querySelector<HTMLSelectElement>('select[name="level"]');
+      if (!levelSelect || !levelSelect.value.trim()) {
+        return { element: levelSelect || form, message: 'Falta el nivel' };
+      }
+
+      const languageInput = form.querySelector<HTMLInputElement>('input[name="language"]');
+      if (!languageInput || !languageInput.value.trim()) {
+        return { element: languageInput || form, message: 'Falta el idioma' };
+      }
+
+      const pagesInput = form.querySelector<HTMLInputElement>('input[name="pages"]');
+      const pagesRaw = pagesInput?.value.trim() ?? '';
+      if (!pagesRaw) {
+        return { element: pagesInput || form, message: 'Falta el número de páginas' };
+      }
+      const pagesNum = Number(pagesRaw);
+      if (isNaN(pagesNum) || pagesNum <= 0) {
+        return { element: pagesInput || form, message: 'El número de páginas debe ser mayor que 0' };
+      }
+
+      const descriptionTextarea = form.querySelector<HTMLTextAreaElement>('textarea[name="description"]');
+      if (!descriptionTextarea || !descriptionTextarea.value.trim()) {
+        return { element: descriptionTextarea || form, message: 'Falta la descripción' };
+      }
+
+      const pdfFile = pdf?.files?.[0];
+      const editing = Boolean(form.dataset.resourceId);
+      if (!editing && !pdfFile) {
+        return { element: pdf || form, message: 'Selecciona un archivo PDF' };
+      }
+      if (pdfFile) {
+        const isPdf = pdfFile.type === 'application/pdf' || pdfFile.name.toLowerCase().endsWith('.pdf');
+        if (!isPdf) {
+          return { element: pdf || form, message: 'El archivo seleccionado no es un PDF válido' };
+        }
+        const maxPdfBytes = 100 * 1024 * 1024;
+        if (pdfFile.size > maxPdfBytes) {
+          return { element: pdf || form, message: 'El PDF supera el tamaño máximo permitido' };
+        }
+      }
+
+      const coverFile = cover?.files?.[0];
+      if (coverFile) {
+        const allowedCoverTypes = ['image/jpeg', 'image/png', 'image/webp'];
+        const isCoverValid = allowedCoverTypes.includes(coverFile.type) || /\.(jpe?g|png|webp)$/i.test(coverFile.name);
+        if (!isCoverValid) {
+          return { element: cover || form, message: 'La portada debe ser JPG, PNG o WebP' };
+        }
+        const maxCoverBytes = 8 * 1024 * 1024;
+        if (coverFile.size > maxCoverBytes) {
+          return { element: cover || form, message: 'La portada supera el tamaño máximo permitido' };
+        }
+      }
+
+      return null;
     };
 
     const applyFieldError = (result: { field?: string; error?: string }) => {
       if (result.field === 'slug' && slugInput) {
+        slugInput.classList.add('has-error');
         slugInput.setCustomValidity(result.error ?? 'Slug inválido.');
         slugInput.reportValidity();
         slugInput.focus();
@@ -157,6 +311,7 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 
     const cleanup = async (uploads: Uploaded[]) => {
       if (!uploads.length) return;
+      updateDiagnostic('limpiando temporales');
       await fetch('/api/admin/library/cleanup-upload', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -167,7 +322,9 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     const upload = async (file: File, asset: 'pdf' | 'cover', config: UploadConfig, token: string, renew: () => Promise<string>, uploads: Uploaded[]) => {
       const valid = asset === 'pdf' ? config.allowedPdfTypes.includes(file.type) && file.size <= config.maxPdfBytes : config.allowedCoverTypes.includes(file.type) && file.size <= config.maxCoverBytes;
       if (!valid) throw new Error(asset === 'pdf' ? 'El PDF debe ser válido y no superar 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
+      const stageName = asset === 'pdf' ? 'subiendo PDF' : 'subiendo portada';
       setStage(asset === 'pdf' ? 'Subiendo PDF…' : 'Subiendo portada…', asset);
+      updateDiagnostic(stageName);
       const result = await uploadFileDirectToGoogleDrive({ file, parentId: asset === 'pdf' ? config.pdfFolderId : config.coverFolderId, accessToken: token, renewAccessToken: renew, signal: activeController?.signal, onProgress: progress => { updateFileState(asset, file, formatUploadProgress(progress)); } });
       uploads.push({ id: result.id, asset });
       updateFileState(asset, file, 'Subida completada');
@@ -207,6 +364,7 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
       if (activeController) {
         activeController.abort();
         setStage('Cancelando subida…', undefined, 'error');
+        updateDiagnostic('subida cancelada', 'Subida cancelada por el usuario.');
       }
     });
 
@@ -215,7 +373,29 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
       if (isSubmitting) return;
 
       slugInput?.setCustomValidity('');
+
+      // ── Step 1: Mandatory Field Validation ──
+      const valError = validateFormFields();
+      if (valError) {
+        valError.element.classList.add('has-error');
+        setStage(valError.message, undefined, 'error');
+        updateDiagnostic('validación local', valError.message);
+        valError.element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        if ('focus' in valError.element && typeof valError.element.focus === 'function') {
+          valError.element.focus({ preventScroll: true });
+        }
+        return;
+      }
+
       if (!form.checkValidity()) {
+        const firstInvalid = form.querySelector<HTMLElement>(':invalid');
+        if (firstInvalid) {
+          firstInvalid.classList.add('has-error');
+          firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          if ('focus' in firstInvalid && typeof firstInvalid.focus === 'function') {
+            firstInvalid.focus({ preventScroll: true });
+          }
+        }
         form.reportValidity();
         return;
       }
@@ -230,7 +410,11 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
       // ── Branch 1: R2 + Drive Worker flow (Phase 4, new resources) ──
       if (FILE_BACKEND === 'r2-drive' && !resourceId) {
         if (!pdfFile) {
-          setStage('El documento PDF es obligatorio para nuevos recursos.', undefined, 'error');
+          setStage('Selecciona un archivo PDF', undefined, 'error');
+          if (pdf) {
+            pdf.classList.add('has-error');
+            pdf.focus({ preventScroll: true });
+          }
           return;
         }
 
@@ -238,6 +422,7 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
         activeController = new AbortController();
         if (cancelUploadButton) cancelUploadButton.hidden = false;
         form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = true; });
+        updateDiagnostic('preparando subida');
 
         try {
           const url = import.meta.env.PUBLIC_SUPABASE_URL;
@@ -251,19 +436,29 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
             { pdf: pdfFile, cover: coverFile },
             metadata,
             intent,
-            (stageText, percent) => setStage(`${stageText} (${percent}%)`),
+            (stageText, percent) => {
+              const mapped = mapStageName(stageText);
+              setStage(`${stageText} (${percent}%)`);
+              updateDiagnostic(mapped);
+            },
             activeController.signal,
           );
 
+          if (result.operationId) currentOpId = result.operationId;
+          updateDiagnostic('completado', undefined, result.operationId);
           setStage(result.message || 'Recurso creado exitosamente.', undefined, 'ok');
           window.location.href = '/admin/biblioteca';
         } catch (error) {
           if (activeController?.signal.aborted) {
             setStage('Subida cancelada.', undefined, 'error');
+            updateDiagnostic('cancelado', 'Subida cancelada por el usuario.');
           } else {
-            const err = error as { field?: string; error?: string; message?: string };
+            const err = error as { field?: string; error?: string; message?: string; code?: string; operationId?: string };
             if (err.field) applyFieldError(err);
-            setStage(err.message ?? 'Error al subir el recurso.', undefined, 'error');
+            const safeCode = err.code ? ` [Código: ${err.code}]` : '';
+            const safeMsg = sanitizeErrorMessage(err.message || err.error || 'Error al subir el recurso.');
+            setStage(`[${currentStage}] ${safeMsg}${safeCode}`, undefined, 'error');
+            updateDiagnostic(currentStage, `${safeMsg}${safeCode}`, err.operationId || currentOpId);
           }
         } finally {
           isSubmitting = false;
@@ -282,6 +477,7 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 
       try {
         setStage('Verificando acceso a Google Drive…');
+        updateDiagnostic('preparando subida');
         const config = await getConfig();
         let token = await requestGoogleDriveAccessToken();
         await verifyBrowserDriveAccess([config.pdfFolderId, config.coverFolderId], token, activeController?.signal);
@@ -301,6 +497,7 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 
         if (resourceId) {
           setStage('Guardando cambios…');
+          updateDiagnostic('guardando en Supabase');
           const body = {
             ...metadataFrom(formData, intent),
             ...(pdfResult ? { driveFileId: pdfResult.id } : {}),
@@ -316,12 +513,15 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
           const result = await response.json();
           if (!response.ok || !result.ok) {
             applyFieldError(result);
-            throw new Error(result.error ?? 'No se pudieron guardar los cambios.');
+            const errCode = result.code ? ` [Código: ${result.code}]` : '';
+            throw new Error(`${result.error ?? 'No se pudieron guardar los cambios.'}${errCode}`);
           }
+          updateDiagnostic('completado');
           setStage('Recurso actualizado con éxito.', undefined, 'ok');
           window.location.href = '/admin/biblioteca';
         } else {
           setStage('Registrando recurso en la biblioteca…');
+          updateDiagnostic('guardando en Supabase');
           if (!pdfResult) throw new Error('El PDF es obligatorio para crear un recurso.');
           const body = {
             ...metadataFrom(formData, intent),
@@ -337,16 +537,23 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
           const result = await response.json();
           if (!response.ok || !result.ok) {
             applyFieldError(result);
-            throw new Error(result.error ?? 'No se pudo completar la creación del recurso.');
+            const errCode = result.code ? ` [Código: ${result.code}]` : '';
+            throw new Error(`${result.error ?? 'No se pudo completar la creación del recurso.'}${errCode}`);
           }
+          updateDiagnostic('completado');
           setStage('Recurso creado con éxito.', undefined, 'ok');
           window.location.href = '/admin/biblioteca';
         }
       } catch (error) {
         if (activeController?.signal.aborted) {
           setStage('Subida cancelada.', undefined, 'error');
+          updateDiagnostic('cancelado', 'Subida cancelada por el usuario.');
         } else {
-          setStage(error instanceof Error ? error.message : 'Ocurrió un error inesperado al subir.', undefined, 'error');
+          const errObj = error as { message?: string; code?: string; operationId?: string };
+          const safeCode = errObj.code ? ` [Código: ${errObj.code}]` : '';
+          const safeMsg = sanitizeErrorMessage(errObj.message || 'Ocurrió un error inesperado al subir.');
+          setStage(`[${currentStage}] ${safeMsg}${safeCode}`, undefined, 'error');
+          updateDiagnostic(currentStage, `${safeMsg}${safeCode}`, errObj.operationId || currentOpId);
         }
         await cleanup(uploads);
       } finally {
@@ -362,5 +569,5 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 </script>
 
 <style>
-  .book-form{display:grid;gap:1.2rem}.form-section{display:grid;gap:1.2rem;padding:clamp(1.1rem,3vw,1.6rem);border:1px solid var(--admin-border);border-radius:16px;background:var(--admin-surface-raised);box-shadow:0 8px 24px rgba(15,23,42,.04)}.section-head{display:flex;align-items:flex-start;gap:.8rem}.section-head>span{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:10px;background:var(--admin-green-soft);color:var(--admin-green);font-size:.72rem;font-weight:900}.section-head h2{margin:0;font-size:1.08rem}.section-head p{margin:.15rem 0 0;color:var(--admin-text-muted);font-size:.78rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;align-content:start;gap:.42rem;color:var(--admin-text);font-size:.8rem;font-weight:750}label small{color:var(--admin-text-muted);font-size:.68rem;font-weight:500}input,select,textarea{width:100%;min-width:0;padding:.72rem .78rem;border:1px solid #cbd8cf;border-radius:10px;background:#fff;color:#14231b;font:inherit;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease}input:focus,select:focus,textarea:focus{border-color:#22a757;box-shadow:0 0 0 3px rgba(34,165,87,.13)}textarea{resize:vertical}.options{align-items:end}.check{display:flex;min-height:44px;align-items:center;gap:.55rem;padding:.7rem;border:1px solid var(--admin-border);border-radius:10px}.check input{width:auto;accent-color:var(--admin-green)}.file-control{display:grid;align-content:start;gap:.6rem;padding:.8rem;border:1px solid var(--admin-border);border-radius:12px;background:#f8faf9}.file-state{display:grid;gap:.15rem;padding:.65rem;border-radius:9px;background:#fff}.file-state strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}.file-state span{color:var(--admin-text-muted);font-size:.66rem}.file-state progress{width:100%;height:5px;accent-color:var(--admin-green)}.remove-cover{justify-self:start;border:0;background:transparent;color:#b42318;font:inherit;font-size:.7rem;font-weight:750}.remove-cover[data-active="true"]{color:var(--admin-green)}.preview img{display:block;width:180px;max-width:100%;height:180px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14)}.rights-notice{margin:0;padding:.8rem 1rem;border-left:3px solid #d97706;border-radius:7px;background:#fffbeb;color:#854d0e;font-size:.74rem;line-height:1.5}.form-actions{display:flex;align-items:center;gap:.8rem}.form-actions>a,.form-actions>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.75rem 1rem;border-radius:10px;font:inherit;font-size:.8rem;font-weight:800}.form-actions>a{border:1px solid var(--admin-border);background:#fff;color:var(--admin-text)}.form-actions>button{border:0;background:var(--admin-green);color:#fff}.form-actions .draft-button{border:1px solid var(--admin-green);background:#fff;color:var(--admin-green)}.form-actions .cancel-upload{border:1px solid #b42318;background:#fff;color:#b42318}.form-actions>button:disabled{cursor:wait;opacity:.65}.message{flex:1;margin:0;color:var(--admin-text-muted);font-size:.78rem;text-align:right}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}@media(max-width:650px){.grid{grid-template-columns:1fr}.form-actions{flex-wrap:wrap}.message{order:-1;flex-basis:100%;text-align:left}.form-actions>a,.form-actions>button{flex:1}}@media(prefers-reduced-motion:reduce){input,select,textarea{transition:none}}
+  .book-form{display:grid;gap:1.2rem}.form-section{display:grid;gap:1.2rem;padding:clamp(1.1rem,3vw,1.6rem);border:1px solid var(--admin-border);border-radius:16px;background:var(--admin-surface-raised);box-shadow:0 8px 24px rgba(15,23,42,.04)}.section-head{display:flex;align-items:flex-start;gap:.8rem}.section-head>span{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:10px;background:var(--admin-green-soft);color:var(--admin-green);font-size:.72rem;font-weight:900}.section-head h2{margin:0;font-size:1.08rem}.section-head p{margin:.15rem 0 0;color:var(--admin-text-muted);font-size:.78rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;align-content:start;gap:.42rem;color:var(--admin-text);font-size:.8rem;font-weight:750}label small{color:var(--admin-text-muted);font-size:.68rem;font-weight:500}input,select,textarea{width:100%;min-width:0;padding:.72rem .78rem;border:1px solid #cbd8cf;border-radius:10px;background:#fff;color:#14231b;font:inherit;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease}input:focus,select:focus,textarea:focus{border-color:#22a757;box-shadow:0 0 0 3px rgba(34,165,87,.13)}textarea{resize:vertical}.options{align-items:end}.check{display:flex;min-height:44px;align-items:center;gap:.55rem;padding:.7rem;border:1px solid var(--admin-border);border-radius:10px}.check input{width:auto;accent-color:var(--admin-green)}.file-control{display:grid;align-content:start;gap:.6rem;padding:.8rem;border:1px solid var(--admin-border);border-radius:12px;background:#f8faf9}.file-state{display:grid;gap:.15rem;padding:.65rem;border-radius:9px;background:#fff}.file-state strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}.file-state span{color:var(--admin-text-muted);font-size:.66rem}.file-state progress{width:100%;height:5px;accent-color:var(--admin-green)}.remove-cover{justify-self:start;border:0;background:transparent;color:#b42318;font:inherit;font-size:.7rem;font-weight:750}.remove-cover[data-active="true"]{color:var(--admin-green)}.preview img{display:block;width:180px;max-width:100%;height:180px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14)}.rights-notice{margin:0;padding:.8rem 1rem;border-left:3px solid #d97706;border-radius:7px;background:#fffbeb;color:#854d0e;font-size:.74rem;line-height:1.5}.form-actions{display:flex;align-items:center;gap:.8rem}.form-actions>a,.form-actions>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.75rem 1rem;border-radius:10px;font:inherit;font-size:.8rem;font-weight:800}.form-actions>a{border:1px solid var(--admin-border);background:#fff;color:var(--admin-text)}.form-actions>button{border:0;background:var(--admin-green);color:#fff}.form-actions .draft-button{border:1px solid var(--admin-green);background:#fff;color:var(--admin-green)}.form-actions .cancel-upload{border:1px solid #b42318;background:#fff;color:#b42318}.form-actions>button:disabled{cursor:wait;opacity:.65}.message{flex:1;margin:0;color:var(--admin-text-muted);font-size:.78rem;text-align:right}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}input.has-error,select.has-error,textarea.has-error{border-color:#dc2626!important;box-shadow:0 0 0 3px rgba(220,38,38,.15)!important}.diagnostic-panel{display:grid;gap:.6rem;padding:.85rem 1.1rem;border:1px solid var(--admin-border);border-radius:12px;background:var(--admin-surface-raised,#f8faf9);font-size:.76rem}.diagnostic-header{display:flex;justify-content:space-between;align-items:center}.diagnostic-title{font-weight:800;color:var(--admin-text);font-size:.78rem}.backend-badge{padding:.18rem .55rem;border-radius:6px;background:#e2e8f0;color:#334155;font-weight:800;font-size:.68rem;font-family:monospace}.diagnostic-details{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.5rem 1rem}.diag-item{display:flex;gap:.4rem;align-items:center}.diag-item span{color:var(--admin-text-muted)}.diag-item strong{font-weight:700;color:var(--admin-text);word-break:break-all}.diag-full{grid-column:span 2}@media(max-width:650px){.grid{grid-template-columns:1fr}.form-actions{flex-wrap:wrap}.message{order:-1;flex-basis:100%;text-align:left}.form-actions>a,.form-actions>button{flex:1}.diagnostic-details{grid-template-columns:1fr}.diag-full{grid-column:span 1}}@media(prefers-reduced-motion:reduce){input,select,textarea{transition:none}}
 </style>
