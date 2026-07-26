@@ -14,6 +14,7 @@
   <ul class="results" aria-live="polite" data-r2-results></ul>
   <div class="drive-sync" data-r2-drive-sync hidden>
     <button type="button" class="sync-btn" data-r2-sync-drive>Probar copia a Drive</button>
+    <button type="button" class="cleanup-btn" data-r2-cleanup disabled>Limpiar archivos temporales</button>
     <span class="sync-stage" data-r2-sync-stage></span>
   </div>
 </section>
@@ -40,8 +41,10 @@
     const requests = new Set<XMLHttpRequest>();
     let cancelled = false;
     const uploads: PreparedUpload[] = [];
+
     const setStatus = (value: string, state: 'error' | 'ok' | '' = '') => { status.textContent = value; status.dataset.state = state; };
     const addResult = (value: string, state: 'error' | 'ok') => { const item = document.createElement('li'); item.textContent = value; item.dataset.state = state; results.append(item); };
+
     const getToken = async () => {
       const url = import.meta.env.PUBLIC_SUPABASE_URL;
       const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
@@ -51,12 +54,23 @@
       if (error || !data.session?.access_token) throw new Error('No se encontró una sesión activa de Supabase.');
       return data.session.access_token;
     };
+
     const workerRequest = async <T,>(path: string, token: string, body: Record<string, unknown>): Promise<T> => {
       const response = await fetch(`${WORKER_BASE_URL}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      const result = await response.json().catch(() => ({})) as T & { error?: string };
-      if (!response.ok) throw new Error(result.error ?? 'El Worker rechazó la operación.');
+      const result = await response.json().catch(() => ({})) as T & { error?: string; code?: string };
+      if (!response.ok) {
+        const code = (result as Record<string, unknown>).code as string | undefined;
+        const messages: Record<string, string> = {
+          sync_route_not_found: 'La ruta de sincronizaci\u00f3n no est\u00e1 disponible. Revisa que el Worker est\u00e9 actualizado.',
+          temporary_operation_missing: 'La operaci\u00f3n temporal no est\u00e1 disponible. Intenta reiniciar la prueba.',
+          upload_not_validated: 'El archivo debe estar validado antes de copiarlo a Drive.',
+          sync_drive_failed: 'Error al copiar a Drive: ' + (result.error ?? 'fallo desconocido.'),
+        };
+        throw new Error(messages[code ?? ''] ?? (result.error ?? 'El Worker rechaz\u00f3 la operaci\u00f3n.'));
+      }
       return result;
     };
+
     const putToR2 = (prepared: PreparedUpload, file: File, percentStart: number, percentWeight: number) => new Promise<void>((resolve, reject) => {
       const xhr = new XMLHttpRequest(); requests.add(xhr);
       xhr.open('PUT', prepared.uploadUrl);
@@ -64,83 +78,161 @@
       xhr.upload.onprogress = event => { if (event.lengthComputable) { progress.hidden = false; progress.value = percentStart + ((event.loaded / event.total) * percentWeight); } };
       xhr.onerror = () => reject(new Error('No se pudo subir directamente a R2. Comprueba el CORS del bucket.'));
       xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
-      xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('R2 rechazó la subida temporal.'));
+      xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('R2 rechaz\u00f3 la subida temporal.'));
       xhr.onloadend = () => requests.delete(xhr);
       xhr.send(file);
     });
+
     const validateFile = (file: File, kind: Kind) => {
-      const max = kind === 'pdf' ? 100 * 1024 * 1024 : 8 * 1024 * 1024;
+      const limitBytes = kind === 'pdf' ? 100 * 1024 * 1024 : 8 * 1024 * 1024;
       const types = kind === 'pdf' ? ['application/pdf'] : ['image/jpeg', 'image/png', 'image/webp'];
-      if (file.size < 1 || file.size > max || !types.includes(file.type) || (kind === 'pdf' && !file.name.toLowerCase().endsWith('.pdf'))) throw new Error(kind === 'pdf' ? 'Selecciona un PDF válido de máximo 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
+      if (file.size < 1 || file.size > limitBytes || !types.includes(file.type) || (kind === 'pdf' && !file.name.toLowerCase().endsWith('.pdf'))) throw new Error(kind === 'pdf' ? 'Selecciona un PDF v\u00e1lido de m\u00e1ximo 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
     };
+
     const setSyncStage = (value: string, state: 'error' | 'ok' | 'busy' | '' = '') => {
       const stage = root?.querySelector<HTMLElement>('[data-r2-sync-stage]');
       if (stage) { stage.textContent = value; stage.dataset.state = state; }
     };
+
+    const runCleanup = async () => {
+      if (!uploads.length) return;
+      try {
+        const token = await getToken();
+        await Promise.all(uploads.map(u => workerRequest('/v1/admin/library/uploads/cleanup', token, { uploadId: u.uploadId, objectKey: u.objectKey })));
+        addResult('Archivos temporales eliminados de R2.', 'ok');
+        uploads.length = 0;
+      } catch {
+        addResult('No se pudo confirmar la limpieza. Reintenta la prueba.', 'error');
+      }
+    };
+
     const syncToDrive = async (token: string, upload: PreparedUpload) => {
-      setSyncStage('Validando…', 'busy');
+      setSyncStage('Solicitando copia a Drive\u2026', 'busy');
       const result = await workerRequest<{ driveFileId: string; name: string; mimeType: string; size: number; syncedAt: string }>(
         '/v1/admin/library/uploads/sync-drive', token, { uploadId: upload.uploadId, objectKey: upload.objectKey }
       );
-      setSyncStage('Copiando a Drive…', 'busy');
-      // The sync-drive endpoint handles the actual copy; we just wait for the result
-      setSyncStage('Verificando…', 'busy');
-      const truncatedId = result.driveFileId.length > 20 ? result.driveFileId.slice(0, 20) + '…' : result.driveFileId;
-      addResult(`Drive sync completado · ID: ${truncatedId} · ${(result.size / 1024 / 1024).toFixed(2)} MB`, 'ok');
+      setSyncStage('Copiando a Drive\u2026', 'busy');
+      setSyncStage('Verificando\u2026', 'busy');
+      const truncatedId = result.driveFileId.length > 20 ? result.driveFileId.slice(0, 20) + '\u2026' : result.driveFileId;
+      addResult('Drive sync completado \u00b7 ID: ' + truncatedId + ' \u00b7 ' + (result.size / 1024 / 1024).toFixed(2) + ' MB', 'ok');
       setSyncStage('Completado', 'ok');
       return result;
     };
+
     const driveSyncBtn = root?.querySelector<HTMLButtonElement>('[data-r2-sync-drive]');
     const driveSyncDiv = root?.querySelector<HTMLElement>('[data-r2-drive-sync]');
+    const cleanupBtn = root?.querySelector<HTMLButtonElement>('[data-r2-cleanup]');
+
     driveSyncBtn?.addEventListener('click', async () => {
       if (submitting) return;
-      submitting = true; driveSyncBtn.disabled = true;
+      submitting = true;
+      driveSyncBtn.disabled = true;
       try {
         const token = await getToken();
         for (const pending of uploads) {
           await syncToDrive(token, pending);
         }
+        if (cleanupBtn) cleanupBtn.disabled = false;
       } catch (reason) {
         setSyncStage(reason instanceof Error ? reason.message : 'Error al copiar a Drive', 'error');
+        // Keep uploads in memory so user can retry
+        driveSyncBtn.disabled = false;
       } finally {
-        submitting = false; driveSyncBtn.disabled = false;
+        submitting = false;
       }
     });
-    cancel.addEventListener('click', () => { cancelled = true; requests.forEach(request => request.abort()); setStatus('Cancelando y limpiando archivos temporales…'); });
+
+    cleanupBtn?.addEventListener('click', async () => {
+      cleanupBtn.disabled = true;
+      driveSyncBtn?.setAttribute('disabled', 'true');
+      await runCleanup();
+      if (driveSyncDiv) driveSyncDiv.hidden = true;
+    });
+
+    cancel.addEventListener('click', () => {
+      cancelled = true;
+      requests.forEach(request => request.abort());
+      setStatus('Cancelando\u2026');
+    });
+
     form.addEventListener('submit', async event => {
-      event.preventDefault(); if (submitting) return;
-      const pdfFile = pdf.files?.[0]; const coverFile = cover.files?.[0]; if (!pdfFile) return;
-      results.replaceChildren(); cancelled = false; submitting = true; cancel.hidden = false; progress.hidden = false; progress.value = 0;
+      event.preventDefault();
+      if (submitting) return;
+      const pdfFile = pdf.files?.[0];
+      const coverFile = cover.files?.[0];
+      if (!pdfFile) return;
+
+      results.replaceChildren();
+      cancelled = false;
+      submitting = true;
+      uploads.length = 0;
+      cancel.hidden = false;
+      progress.hidden = false;
+      progress.value = 0;
+      if (driveSyncDiv) driveSyncDiv.hidden = true;
+      if (cleanupBtn) cleanupBtn.disabled = true;
+      setSyncStage('');
       [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = button !== cancel; });
+
       try {
-        validateFile(pdfFile, 'pdf'); if (coverFile) validateFile(coverFile, 'cover');
-        setStatus('Verificando sesión de administrador…'); const token = await getToken();
-        const files = [{ file: pdfFile, kind: 'pdf' as const }, ...(coverFile ? [{ file: coverFile, kind: 'cover' as const }] : [])];
+        validateFile(pdfFile, 'pdf');
+        if (coverFile) validateFile(coverFile, 'cover');
+
+        setStatus('Verificando sesi\u00f3n de administrador\u2026');
+        const token = await getToken();
+
+        const files: { file: File; kind: Kind }[] = [
+          { file: pdfFile, kind: 'pdf' as const },
+          ...(coverFile ? [{ file: coverFile, kind: 'cover' as const }] : []),
+        ];
         const weight = 100 / files.length;
+
         for (const [index, item] of files.entries()) {
           if (cancelled) throw new DOMException('Upload cancelled', 'AbortError');
-          setStatus(item.kind === 'pdf' ? 'Preparando PDF para R2…' : 'Preparando portada para R2…');
-          const prepared = await workerRequest<PreparedUpload>('/v1/admin/library/uploads/init', token, { filename: item.file.name, mimeType: item.file.type, size: item.file.size, kind: item.kind });
+
+          setStatus(item.kind === 'pdf' ? 'Preparando PDF para R2\u2026' : 'Preparando portada para R2\u2026');
+          const prepared = await workerRequest<PreparedUpload>(
+            '/v1/admin/library/uploads/init', token,
+            { filename: item.file.name, mimeType: item.file.type, size: item.file.size, kind: item.kind },
+          );
           uploads.push({ ...prepared, kind: item.kind });
-          setStatus(item.kind === 'pdf' ? 'Subiendo PDF directamente a R2…' : 'Subiendo portada directamente a R2…');
+
+          setStatus(item.kind === 'pdf' ? 'Subiendo PDF directamente a R2\u2026' : 'Subiendo portada directamente a R2\u2026');
           await putToR2(prepared, item.file, index * weight, weight);
+
           if (cancelled) throw new DOMException('Upload cancelled', 'AbortError');
-          setStatus('Validando firma y hash en el Worker…');
-          const result = await workerRequest<{ kind: Kind; size: number; sha256: string }>('/v1/admin/library/uploads/complete', token, { uploadId: prepared.uploadId, objectKey: prepared.objectKey });
-          addResult(`${result.kind === 'pdf' ? 'PDF' : 'Portada'} validada · ${(result.size / 1024 / 1024).toFixed(2)} MB · SHA-256 ${result.sha256.slice(0, 16)}…`, 'ok');
+
+          setStatus('Validando firma y hash en el Worker\u2026');
+          const result = await workerRequest<{ kind: Kind; size: number; sha256: string }>(
+            '/v1/admin/library/uploads/complete', token,
+            { uploadId: prepared.uploadId, objectKey: prepared.objectKey },
+          );
+          addResult(
+            (result.kind === 'pdf' ? 'PDF' : 'Portada') + ' validada \u00b7 ' +
+            (result.size / 1024 / 1024).toFixed(2) + ' MB \u00b7 SHA-256 ' + result.sha256.slice(0, 16) + '\u2026',
+            'ok',
+          );
         }
-        setStatus('Validación completada. Revisa los resultados abajo.');
+
+        // After validating both PDF and cover, show the Drive sync and cleanup buttons.
+        // Do NOT auto-cleanup — keep R2 objects so user can sync to Drive.
+        setStatus('Validaci\u00f3n completada. Ahora puedes copiar a Drive o limpiar los archivos temporales.');
         if (driveSyncDiv) driveSyncDiv.hidden = false;
         progress.value = 100;
+
       } catch (reason) {
         const wasCancelled = cancelled || (reason instanceof DOMException && reason.name === 'AbortError');
-        setStatus(wasCancelled ? 'Prueba cancelada. Se intentó limpiar los archivos temporales.' : reason instanceof Error ? reason.message : 'No se pudo completar la prueba.', 'error');
-      } finally {
-        // Cleanup uses a fresh session token and only accepts IDs minted by the Worker.
-        if (uploads.length) {
-          try { const token = await getToken(); await Promise.all(uploads.map(upload => workerRequest('/v1/admin/library/uploads/cleanup', token, { uploadId: upload.uploadId, objectKey: upload.objectKey }))); } catch { addResult('No se pudo confirmar la limpieza automática. Reintenta la prueba para revisar el Worker.', 'error'); }
+        setStatus(wasCancelled ? 'Prueba cancelada.' : reason instanceof Error ? reason.message : 'No se pudo completar la prueba.', 'error');
+        // On error, allow manual cleanup if uploads exist
+        if (uploads.length && driveSyncDiv) {
+          driveSyncDiv.hidden = false;
+          if (cleanupBtn) cleanupBtn.disabled = false;
+          driveSyncBtn?.setAttribute('disabled', 'true');
         }
-        submitting = false; cancel.hidden = true; [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = false; });
+      } finally {
+        submitting = false;
+        cancel.hidden = true;
+        [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = false; });
       }
     });
   };
@@ -149,5 +241,5 @@
 </script>
 
 <style>
-  .r2-test{display:grid;gap:.9rem;margin:0 0 1.5rem;padding:1rem;border:1px solid rgba(22,163,74,.25);border-radius:13px;background:linear-gradient(135deg,rgba(240,253,244,.85),rgba(248,250,252,.9))}.r2-test>div>span{color:#15803d;font-size:.72rem;font-weight:850}.r2-test h2{margin:.18rem 0;font-size:1rem}.r2-test p{margin:0;color:var(--admin-text-muted);font-size:.75rem}.r2-test form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:end;gap:.7rem}.r2-test label{display:grid;gap:.35rem;font-size:.75rem;font-weight:750}.r2-test input{width:100%;padding:.55rem;border:1px solid var(--admin-border);border-radius:8px;background:#fff;font:inherit;font-size:.7rem}.r2-test small{color:var(--admin-text-muted);font-size:.65rem;font-weight:500}.actions{display:flex;gap:.45rem}.actions button{min-height:40px;padding:.6rem .8rem;border:0;border-radius:9px;background:var(--admin-green);color:#fff;font:inherit;font-size:.72rem;font-weight:800}.actions .cancel{border:1px solid #b42318;background:#fff;color:#b42318}.r2-test progress{width:100%;height:7px;accent-color:var(--admin-green)}.status[data-state="error"],.results li[data-state="error"]{color:#b42318}.status[data-state="ok"],.results li[data-state="ok"]{color:#15803d}.results{display:grid;gap:.35rem;padding:0;margin:0;list-style:none}.results li{padding:.55rem .65rem;border-radius:8px;background:#fff;font-size:.7rem}@media(max-width:720px){.r2-test form{grid-template-columns:1fr}.actions button{flex:1}}
+  .r2-test{display:grid;gap:.9rem;margin:0 0 1.5rem;padding:1rem;border:1px solid rgba(22,163,74,.25);border-radius:13px;background:linear-gradient(135deg,rgba(240,253,244,.85),rgba(248,250,252,.9))}.r2-test>div>span{color:#15803d;font-size:.72rem;font-weight:850}.r2-test h2{margin:.18rem 0;font-size:1rem}.r2-test p{margin:0;color:var(--admin-text-muted);font-size:.75rem}.r2-test form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:end;gap:.7rem}.r2-test label{display:grid;gap:.35rem;font-size:.75rem;font-weight:750}.r2-test input{width:100%;padding:.55rem;border:1px solid var(--admin-border);border-radius:8px;background:#fff;font:inherit;font-size:.7rem}.r2-test small{color:var(--admin-text-muted);font-size:.65rem;font-weight:500}.actions{display:flex;gap:.45rem}.actions button{min-height:40px;padding:.6rem .8rem;border:0;border-radius:9px;background:var(--admin-green);color:#fff;font:inherit;font-size:.72rem;font-weight:800}.actions .cancel{border:1px solid #b42318;background:#fff;color:#b42318}.r2-test progress{width:100%;height:7px;accent-color:var(--admin-green)}.status[data-state="error"],.results li[data-state="error"]{color:#b42318}.status[data-state="ok"],.results li[data-state="ok"]{color:#15803d}.results{display:grid;gap:.35rem;padding:0;margin:0;list-style:none}.results li{padding:.55rem .65rem;border-radius:8px;background:#fff;font-size:.7rem}.drive-sync{display:flex;flex-wrap:wrap;align-items:center;gap:.7rem}.sync-btn,.cleanup-btn{min-height:36px;padding:.5rem .8rem;border:0;border-radius:9px;font:inherit;font-size:.72rem;font-weight:800;cursor:pointer}.sync-btn{background:var(--admin-green);color:#fff}.cleanup-btn{border:1px solid #b42318;background:#fff;color:#b42318}.sync-stage{font-size:.7rem;color:var(--admin-text-muted)}.sync-stage[data-state="error"]{color:#b42318}.sync-stage[data-state="ok"]{color:#15803d}.sync-stage[data-state="busy"]{color:#a16207}.drive-sync button:disabled{opacity:.5;cursor:not-allowed}@media(max-width:720px){.r2-test form{grid-template-columns:1fr}.actions button{flex:1}.drive-sync{flex-direction:column}.drive-sync button{width:100%}}
 </style>
