@@ -7,8 +7,10 @@ export type UploadManifest = UploadDescriptor & {
   ownerId: string;
   createdAt: string;
   expiresAt: string;
-  status: 'pending' | 'validated';
+  status: 'pending' | 'validated' | 'synced';
   sha256?: string;
+  driveFileId?: string;
+  syncedAt?: string;
 };
 
 const prefix = (uploadId: string) => `uploads/pending/${uploadId}/`;

@@ -10,6 +10,7 @@ interface R2Bucket {
 interface R2ObjectBody {
   size: number;
   httpMetadata?: { contentType?: string };
+  body: ReadableStream<Uint8Array>;
   text(): Promise<string>;
   arrayBuffer(): Promise<ArrayBuffer>;
 }

@@ -1,5 +1,6 @@
 import { requireAdmin } from '../auth/admin';
 import { createObjectKey, createPresignedPutUrl, deleteUploadOperation, getManifest, saveManifest, sha256, type UploadManifest } from '../services/r2-upload';
+import { syncFileToDrive } from '../services/google-drive';
 import { hasValidSignature, isUploadId, parseUploadDescriptor } from '../security/validation';
 import { json } from '../security/cors';
 import type { WorkerContext } from '../types/env';
@@ -64,5 +65,73 @@ export const uploadCleanup = async (context: WorkerContext, origin?: string) => 
     return json({ ok: true, status: 'cleaned', uploadId: owned.manifest.uploadId, operationId: context.operationId }, 200, origin);
   } catch {
     return json({ ok: false, code: 'upload_cleanup_failed', error: 'No se pudo limpiar la subida temporal.', operationId: context.operationId }, 502, origin);
+  }
+};
+
+export const syncDrive = async (context: WorkerContext, origin?: string) => {
+  const owned = await getOwnedManifest(context.request, context, origin);
+  if ('denied' in owned) return owned.denied;
+  const { manifest } = owned;
+
+  // Idempotency: if already synced, return existing result
+  if (manifest.status === 'synced' && manifest.driveFileId) {
+    return json({
+      ok: true,
+      status: 'already_synced',
+      driveFileId: manifest.driveFileId,
+      name: manifest.filename,
+      mimeType: manifest.mimeType,
+      size: manifest.size,
+      syncedAt: manifest.syncedAt,
+      operationId: context.operationId,
+    }, 200, origin);
+  }
+
+  // Only allow syncing validated files
+  if (manifest.status !== 'validated') {
+    return json({
+      ok: false,
+      code: 'sync_not_validated',
+      error: 'El archivo debe estar validado antes de copiarlo a Drive.',
+      operationId: context.operationId,
+    }, 422, origin);
+  }
+
+  try {
+    const result = await syncFileToDrive(context.env, {
+      uploadId: manifest.uploadId,
+      objectKey: manifest.objectKey,
+      kind: manifest.kind,
+      fileName: manifest.filename,
+      mimeType: manifest.mimeType,
+      size: manifest.size,
+    });
+
+    // Update manifest with sync result
+    await saveManifest(context.env, {
+      ...manifest,
+      status: 'synced',
+      driveFileId: result.driveFileId,
+      syncedAt: result.syncedAt,
+    });
+
+    return json({
+      ok: true,
+      status: 'synced',
+      driveFileId: result.driveFileId,
+      name: result.name,
+      mimeType: result.mimeType,
+      size: result.size,
+      syncedAt: result.syncedAt,
+      operationId: context.operationId,
+    }, 200, origin);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'No se pudo copiar el archivo a Google Drive.';
+    return json({
+      ok: false,
+      code: 'sync_drive_failed',
+      error: message,
+      operationId: context.operationId,
+    }, 502, origin);
   }
 };

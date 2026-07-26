@@ -1,8 +1,8 @@
 <section class="r2-test" aria-labelledby="r2-test-title" data-r2-upload-test>
   <div>
-    <span>Prueba temporal · Fase 2</span>
-    <h2 id="r2-test-title">Prueba de subida a R2</h2>
-    <p>Sube archivos de prueba directamente a R2, valida su firma y los elimina al finalizar.</p>
+    <span>Prueba temporal · Fase 3</span>
+    <h2 id="r2-test-title">Prueba de subida a R2 y copia a Drive</h2>
+    <p>Sube archivos de prueba directamente a R2, valida su firma, cópialos a Google Drive y elimínalos al finalizar.</p>
   </div>
   <form data-r2-upload-form>
     <label>PDF de prueba<input type="file" accept="application/pdf,.pdf" data-r2-pdf required /><small>PDF · máximo 100 MB</small></label>
@@ -12,6 +12,10 @@
   <progress value="0" max="100" hidden data-r2-progress></progress>
   <p class="status" aria-live="polite" data-r2-status>Selecciona un PDF pequeño para comenzar.</p>
   <ul class="results" aria-live="polite" data-r2-results></ul>
+  <div class="drive-sync" data-r2-drive-sync hidden>
+    <button type="button" class="sync-btn" data-r2-sync-drive>Probar copia a Drive</button>
+    <span class="sync-stage" data-r2-sync-stage></span>
+  </div>
 </section>
 
 <script>
@@ -35,6 +39,7 @@
     let submitting = false;
     const requests = new Set<XMLHttpRequest>();
     let cancelled = false;
+    const uploads: PreparedUpload[] = [];
     const setStatus = (value: string, state: 'error' | 'ok' | '' = '') => { status.textContent = value; status.dataset.state = state; };
     const addResult = (value: string, state: 'error' | 'ok') => { const item = document.createElement('li'); item.textContent = value; item.dataset.state = state; results.append(item); };
     const getToken = async () => {
@@ -68,11 +73,44 @@
       const types = kind === 'pdf' ? ['application/pdf'] : ['image/jpeg', 'image/png', 'image/webp'];
       if (file.size < 1 || file.size > max || !types.includes(file.type) || (kind === 'pdf' && !file.name.toLowerCase().endsWith('.pdf'))) throw new Error(kind === 'pdf' ? 'Selecciona un PDF válido de máximo 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
     };
+    const setSyncStage = (value: string, state: 'error' | 'ok' | 'busy' | '' = '') => {
+      const stage = root?.querySelector<HTMLElement>('[data-r2-sync-stage]');
+      if (stage) { stage.textContent = value; stage.dataset.state = state; }
+    };
+    const syncToDrive = async (token: string, upload: PreparedUpload) => {
+      setSyncStage('Validando…', 'busy');
+      const result = await workerRequest<{ driveFileId: string; name: string; mimeType: string; size: number; syncedAt: string }>(
+        '/v1/admin/library/uploads/sync-drive', token, { uploadId: upload.uploadId, objectKey: upload.objectKey }
+      );
+      setSyncStage('Copiando a Drive…', 'busy');
+      // The sync-drive endpoint handles the actual copy; we just wait for the result
+      setSyncStage('Verificando…', 'busy');
+      const truncatedId = result.driveFileId.length > 20 ? result.driveFileId.slice(0, 20) + '…' : result.driveFileId;
+      addResult(`Drive sync completado · ID: ${truncatedId} · ${(result.size / 1024 / 1024).toFixed(2)} MB`, 'ok');
+      setSyncStage('Completado', 'ok');
+      return result;
+    };
+    const driveSyncBtn = root?.querySelector<HTMLButtonElement>('[data-r2-sync-drive]');
+    const driveSyncDiv = root?.querySelector<HTMLElement>('[data-r2-drive-sync]');
+    driveSyncBtn?.addEventListener('click', async () => {
+      if (submitting) return;
+      submitting = true; driveSyncBtn.disabled = true;
+      try {
+        const token = await getToken();
+        for (const pending of uploads) {
+          await syncToDrive(token, pending);
+        }
+      } catch (reason) {
+        setSyncStage(reason instanceof Error ? reason.message : 'Error al copiar a Drive', 'error');
+      } finally {
+        submitting = false; driveSyncBtn.disabled = false;
+      }
+    });
     cancel.addEventListener('click', () => { cancelled = true; requests.forEach(request => request.abort()); setStatus('Cancelando y limpiando archivos temporales…'); });
     form.addEventListener('submit', async event => {
       event.preventDefault(); if (submitting) return;
       const pdfFile = pdf.files?.[0]; const coverFile = cover.files?.[0]; if (!pdfFile) return;
-      const uploads: PreparedUpload[] = []; results.replaceChildren(); cancelled = false; submitting = true; cancel.hidden = false; progress.hidden = false; progress.value = 0;
+      results.replaceChildren(); cancelled = false; submitting = true; cancel.hidden = false; progress.hidden = false; progress.value = 0;
       [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = button !== cancel; });
       try {
         validateFile(pdfFile, 'pdf'); if (coverFile) validateFile(coverFile, 'cover');
@@ -91,9 +129,9 @@
           const result = await workerRequest<{ kind: Kind; size: number; sha256: string }>('/v1/admin/library/uploads/complete', token, { uploadId: prepared.uploadId, objectKey: prepared.objectKey });
           addResult(`${result.kind === 'pdf' ? 'PDF' : 'Portada'} validada · ${(result.size / 1024 / 1024).toFixed(2)} MB · SHA-256 ${result.sha256.slice(0, 16)}…`, 'ok');
         }
-        setStatus('Validación completada. Limpiando archivos de prueba…');
-        await Promise.all(uploads.map(upload => workerRequest('/v1/admin/library/uploads/cleanup', token, { uploadId: upload.uploadId, objectKey: upload.objectKey })));
-        uploads.length = 0; progress.value = 100; setStatus('Prueba completada y archivos temporales eliminados.', 'ok');
+        setStatus('Validación completada. Revisa los resultados abajo.');
+        if (driveSyncDiv) driveSyncDiv.hidden = false;
+        progress.value = 100;
       } catch (reason) {
         const wasCancelled = cancelled || (reason instanceof DOMException && reason.name === 'AbortError');
         setStatus(wasCancelled ? 'Prueba cancelada. Se intentó limpiar los archivos temporales.' : reason instanceof Error ? reason.message : 'No se pudo completar la prueba.', 'error');
