@@ -33,7 +33,9 @@ const UPLOAD_API = 'https://www.googleapis.com/upload/drive/v3';
 const SUBFOLDER_PDF = 'PDFs';
 const SUBFOLDER_COVER = 'Portadas';
 
-// ── OAuth: get access token from refresh token ─────────────────────
+const CHUNK_SIZE = 8 * 1024 * 1024; // 8 388 608
+
+// ── OAuth ──────────────────────────────────────────────────────────
 const getAccessToken = async (env: Env): Promise<string> => {
   const clientId = env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
@@ -68,7 +70,6 @@ const getOrCreateSubfolder = async (
   parentFolderId: string,
   folderName: string,
 ): Promise<string> => {
-  // Search for existing folder
   const query = encodeURIComponent(
     `name='${folderName}' and mimeType='application/vnd.google-apps.folder' and '${parentFolderId}' in parents and trashed=false`,
   );
@@ -85,7 +86,6 @@ const getOrCreateSubfolder = async (
     }
   }
 
-  // Create folder if not found
   const createResponse = await fetch(`${DRIVE_API}/files`, {
     method: 'POST',
     headers: {
@@ -108,7 +108,46 @@ const getOrCreateSubfolder = async (
   return created.id;
 };
 
-// ── Resumable upload: R2 stream → Google Drive ─────────────────────
+// ── Chunk accumulation ─────────────────────────────────────────────
+
+const concat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
+  const result = new Uint8Array(a.length + b.length);
+  result.set(a, 0);
+  result.set(b, a.length);
+  return result;
+};
+
+/**
+ * Reads the R2 stream and yields fixed-size chunks of exactly `chunkSize` bytes,
+ * except for the final chunk which may be smaller.
+ */
+async function* readFixedChunks(
+  reader: ReadableStreamDefaultReader<Uint8Array>,
+  chunkSize: number,
+): AsyncGenerator<Uint8Array> {
+  let buffer = new Uint8Array(0);
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) {
+      if (buffer.length > 0) yield buffer;
+      return;
+    }
+
+    // R2 stream returns Uint8Array<ArrayBufferLike>, but Workers expects
+    // Uint8Array<ArrayBuffer>. The runtime types are compatible.
+    // @ts-expect-error: workers Uint8Array generic differs from R2 stream
+    buffer = concat(buffer, value);
+
+    while (buffer.length >= chunkSize) {
+      const chunk = buffer.slice(0, chunkSize);
+      buffer = buffer.slice(chunkSize);
+      yield chunk;
+    }
+  }
+}
+
+// ── Resumable upload ───────────────────────────────────────────────
 const uploadFromR2 = async (
   env: Env,
   objectKey: string,
@@ -118,10 +157,8 @@ const uploadFromR2 = async (
   parentFolderId: string,
   accessToken: string,
 ): Promise<DriveFileMetadata> => {
-  // Step 1: Initiate resumable upload session
   const sessionUrl = await initiateResumableSession(accessToken, fileName, mimeType, parentFolderId, fileSize);
 
-  // Step 2: Stream from R2 chunk by chunk
   const object = await env.LIBRARY_CACHE.get(objectKey);
   if (!object) throw new Error(`R2 object not found: ${objectKey}`);
 
@@ -132,19 +169,11 @@ const uploadFromR2 = async (
   let uploadedBytes = 0;
 
   try {
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-
-      const chunk = value;
+    for await (const chunk of readFixedChunks(reader, CHUNK_SIZE)) {
       const chunkSize = chunk.byteLength;
       const startByte = uploadedBytes;
       const endByte = uploadedBytes + chunkSize - 1;
-      const totalSize = fileSize;
-
-      const contentRange = chunkSize === 0
-        ? `bytes */${totalSize}`
-        : `bytes ${startByte}-${endByte}/${totalSize}`;
+      const contentRange = `bytes ${startByte}-${endByte}/${fileSize}`;
 
       const chunkResponse = await fetch(sessionUrl, {
         method: 'PUT',
@@ -152,44 +181,53 @@ const uploadFromR2 = async (
           'Content-Length': String(chunkSize),
           'Content-Range': contentRange,
         },
-        body: chunk as unknown as ReadableStream,
+        // @ts-expect-error: chunk is compatible at runtime
+        body: chunk,
       });
 
-      // 308 = still in progress; 200/201 = complete
+      // 200/201 → complete
       if (chunkResponse.status === 200 || chunkResponse.status === 201) {
-        const metadata = (await chunkResponse.json()) as DriveFileMetadata;
-        return metadata;
+        return (await chunkResponse.json()) as DriveFileMetadata;
       }
 
-      if (chunkResponse.status !== 308) {
-        const errorText = await chunkResponse.text().catch(() => 'unknown');
-        throw new Error(`Drive resumable upload failed at byte ${uploadedBytes}: ${chunkResponse.status} ${errorText}`);
+      // 308 → continue
+      if (chunkResponse.status === 308) {
+        uploadedBytes += chunkSize;
+        continue;
       }
 
-      uploadedBytes += chunkSize;
+      const errorText = await chunkResponse.text().catch(() => 'unknown');
+      throw new Error(
+        `Drive resumable upload failed at byte ${uploadedBytes}: ${chunkResponse.status} ${errorText}`,
+      );
     }
 
-    // Finalize with empty body after stream is exhausted
-    const finalResponse = await fetch(sessionUrl, {
-      method: 'PUT',
-      headers: {
-        'Content-Length': '0',
-        'Content-Range': `bytes */${fileSize}`,
-      },
-    });
+    if (uploadedBytes < fileSize) {
+      const finalResponse = await fetch(sessionUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Length': '0',
+          'Content-Range': `bytes */${fileSize}`,
+        },
+      });
 
-    if (finalResponse.status !== 200 && finalResponse.status !== 201) {
+      if (finalResponse.status === 200 || finalResponse.status === 201) {
+        return (await finalResponse.json()) as DriveFileMetadata;
+      }
+
       const errorText = await finalResponse.text().catch(() => 'unknown');
       throw new Error(`Drive resumable upload finalization failed: ${finalResponse.status} ${errorText}`);
     }
 
-    return (await finalResponse.json()) as DriveFileMetadata;
+    throw new Error(
+      `Drive resumable upload ended without confirmation after uploading ${uploadedBytes} of ${fileSize} bytes`,
+    );
   } finally {
     reader.releaseLock();
   }
 };
 
-// ── Initiate resumable upload session ──────────────────────────────
+// ── Initiate resumable session ─────────────────────────────────────
 const initiateResumableSession = async (
   accessToken: string,
   fileName: string,
@@ -225,7 +263,7 @@ const initiateResumableSession = async (
   return location;
 };
 
-// ── Verify uploaded file on Drive ──────────────────────────────────
+// ── Verify uploaded file ───────────────────────────────────────────
 const verifyDriveFile = async (
   accessToken: string,
   driveFileId: string,
@@ -245,21 +283,17 @@ const verifyDriveFile = async (
   const metadata = (await response.json()) as DriveFileMetadata;
 
   if (Number(metadata.size) !== expectedSize) {
-    throw new Error(
-      `Drive file size mismatch: expected ${expectedSize}, got ${metadata.size}`,
-    );
+    throw new Error(`Drive file size mismatch: expected ${expectedSize}, got ${metadata.size}`);
   }
 
   if (metadata.mimeType !== expectedMimeType) {
-    throw new Error(
-      `Drive file MIME type mismatch: expected ${expectedMimeType}, got ${metadata.mimeType}`,
-    );
+    throw new Error(`Drive file MIME type mismatch: expected ${expectedMimeType}, got ${metadata.mimeType}`);
   }
 
   return metadata;
 };
 
-// ── Main sync function ─────────────────────────────────────────────
+// ── Main sync ──────────────────────────────────────────────────────
 export type SyncDriveInput = {
   uploadId: string;
   objectKey: string;
@@ -277,11 +311,9 @@ export const syncFileToDrive = async (
   const rootFolderId = env.GOOGLE_DRIVE_FOLDER_ID?.trim();
   if (!rootFolderId) throw new Error('GOOGLE_DRIVE_FOLDER_ID is not configured.');
 
-  // Determine subfolder
   const subfolderName = input.kind === 'pdf' ? SUBFOLDER_PDF : SUBFOLDER_COVER;
   const subfolderId = await getOrCreateSubfolder(accessToken, rootFolderId, subfolderName);
 
-  // Upload from R2 to Drive using resumable session
   const uploaded = await uploadFromR2(
     env,
     input.objectKey,
@@ -292,7 +324,6 @@ export const syncFileToDrive = async (
     accessToken,
   );
 
-  // Verify the uploaded file
   const verified = await verifyDriveFile(accessToken, uploaded.id, input.size, input.mimeType);
 
   return {

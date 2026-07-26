@@ -27,3 +27,5 @@
 - [ ] npm run check (root) - skip due to Windows cmd limitations
 - [ ] npm run build (root) - not applicable for Worker project
 - [x] git diff --check (worker)
+- [x] TypeScript errors in google-drive.ts fixed (truncated content restored)
+- [x] File is now complete with all functions: readFixedChunks, uploadFromR2, initiateResumableSession, verifyDriveFile, syncFileToDrive
