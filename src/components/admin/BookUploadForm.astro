@@ -2,36 +2,15 @@
 import { Save, Upload } from '@lucide/astro';
 
 interface EditableBook {
-  id: string;
-  title: string;
-  slug: string;
-  author: string | null;
-  category: string;
-  level: string | null;
-  resource_type: string;
-  language: string;
-  pages: number | null;
-  is_published: boolean;
-  description: string | null;
-  tags: string[] | null;
-  topics: string[] | null;
-  badge: string | null;
-  accent: string | null;
-  allow_download: boolean;
-  is_featured: boolean;
-  cover_file_name: string | null;
-  drive_file_name: string | null;
-  cover_drive_file_id: string | null;
-  drive_file_id: string | null;
+  id: string; title: string; slug: string; author: string | null; category: string; level: string | null; resource_type: string; language: string; pages: number | null; is_published: boolean; description: string | null; tags: string[] | null; topics: string[] | null; badge: string | null; accent: string | null; allow_download: boolean; is_featured: boolean; cover_file_name: string | null; drive_file_name: string | null; cover_drive_file_id: string | null; drive_file_id: string | null;
 }
-
 interface Props { book?: EditableBook }
 const { book } = Astro.props;
 const editing = Boolean(book);
 const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variadores de Frecuencia', 'Motores Eléctricos', 'Instrumentación', 'Electrónica', 'Seguridad Eléctrica'];
 ---
 
-<form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} enctype="multipart/form-data" novalidate>
+<form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} novalidate>
   {book && <input type="hidden" name="id" value={book.id} />}
   <div class="form-section">
     <div class="section-head"><span>01</span><div><h2>Información editorial</h2><p>Datos visibles en la Biblioteca Técnica.</p></div></div>
@@ -53,7 +32,6 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
       <label>Color de acento<input name="accent" type="color" value={book?.accent ?? '#16a34a'} /></label>
     </div>
   </div>
-
   <div class="form-section">
     <div class="section-head"><span>02</span><div><h2>Archivos en Google Drive</h2><p>{editing ? 'Solo selecciona un archivo si deseas reemplazar el actual.' : 'El PDF es obligatorio; la portada puede usar el fallback visual.'}</p></div></div>
     <div class="grid files">
@@ -63,19 +41,19 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     <div class="preview" data-preview hidden={!book?.cover_drive_file_id}><img src={book?.cover_drive_file_id ? `/api/library/books/${book.id}/cover` : undefined} alt="Vista previa de portada" /></div>
     <p class="rights-notice">Sube únicamente material propio, de dominio público o que tengas autorización para distribuir.</p>
   </div>
-
   <div class="form-section">
     <div class="section-head"><span>03</span><div><h2>Publicación</h2><p>Controla cómo aparece este recurso dinámico.</p></div></div>
-    <div class="grid options">
-      <label class="check"><input name="allowDownload" type="checkbox" checked={book?.allow_download ?? false} /><span>Permitir descarga del PDF</span></label>
-      <label class="check"><input name="isFeatured" type="checkbox" checked={book?.is_featured ?? false} /><span>Marcar como destacado</span></label>
-    </div>
+    <div class="grid options"><label class="check"><input name="allowDownload" type="checkbox" checked={book?.allow_download ?? false} /><span>Permitir descarga del PDF</span></label><label class="check"><input name="isFeatured" type="checkbox" checked={book?.is_featured ?? false} /><span>Marcar como destacado</span></label></div>
   </div>
-
-  <div class="form-actions"><a href="/admin/biblioteca">Cancelar</a><p class="message" aria-live="polite" data-message></p><button type="submit" class="draft-button" data-intent="draft"><Save size={18}/> Guardar borrador</button><button type="submit" data-intent="publish"><Upload size={18}/> Publicar</button></div>
+  <div class="form-actions"><a href="/admin/biblioteca">Cancelar</a><p class="message" aria-live="polite" data-message></p><button type="button" class="cancel-upload" data-cancel-upload hidden>Cancelar subida</button><button type="submit" class="draft-button" data-intent="draft"><Save size={18}/> Guardar borrador</button><button type="submit" data-intent="publish"><Upload size={18}/> Publicar</button></div>
 </form>
 
 <script>
+  import { formatUploadProgress, requestGoogleDriveAccessToken, uploadFileDirectToGoogleDrive, verifyBrowserDriveAccess } from '../../lib/google-drive/browser-upload';
+
+  type UploadConfig = { pdfFolderId: string; coverFolderId: string; maxPdfBytes: number; maxCoverBytes: number; allowedPdfTypes: string[]; allowedCoverTypes: string[] };
+  type Uploaded = { id: string; asset: 'pdf' | 'cover' };
+
   const initializeBookForm = () => {
     const form = document.querySelector<HTMLFormElement>('[data-book-form]');
     if (!form || form.dataset.ready === 'true') return;
@@ -87,163 +65,71 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     const titleInput = form.querySelector<HTMLInputElement>('input[name="title"]');
     const slugInput = form.querySelector<HTMLInputElement>('[data-slug]');
     const removeCoverButton = form.querySelector<HTMLButtonElement>('[data-remove-cover]');
+    const cancelUploadButton = form.querySelector<HTMLButtonElement>('[data-cancel-upload]');
     let removeCoverRequested = false;
     let isSubmitting = false;
     let previewUrl = '';
+    let activeController: AbortController | undefined;
     const slugify = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     if (!form.dataset.resourceId) titleInput?.addEventListener('input', () => { if (slugInput && slugInput.dataset.manual !== 'true') slugInput.value = slugify(titleInput.value); });
     slugInput?.addEventListener('input', () => { slugInput.dataset.manual = 'true'; slugInput.setCustomValidity(''); });
-    const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => {
-      const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`);
-      const name = state?.querySelector<HTMLElement>('[data-file-name]');
-      const size = state?.querySelector<HTMLElement>('[data-file-size]');
-      if (file && name && size) { name.textContent = file.name; size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · ${status ?? 'Listo para subir'}`; }
-      else if (status && size) size.textContent = status;
+    const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => { const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`); const name = state?.querySelector<HTMLElement>('[data-file-name]'); const size = state?.querySelector<HTMLElement>('[data-file-size]'); if (file && name && size) { name.textContent = file.name; size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · ${status ?? 'Listo para subir'}`; } else if (status && size) size.textContent = status; };
+    const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => { if (message) { message.textContent = text; message.dataset.state = state === 'working' ? '' : state; } form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; }); if (asset) { const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`); if (progress) progress.hidden = false; } };
+    const applyFieldError = (result: { field?: string; error?: string }) => { if (result.field === 'slug' && slugInput) { slugInput.setCustomValidity(result.error ?? 'Slug inválido.'); slugInput.reportValidity(); slugInput.focus(); } };
+    const getConfig = async (): Promise<UploadConfig> => { const response = await fetch('/api/admin/library/upload-config'); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo preparar Google Drive.'); return result as UploadConfig; };
+    const metadataFrom = (data: FormData, intent: 'draft' | 'publish') => ({ title: String(data.get('title') ?? ''), slug: String(data.get('slug') ?? ''), author: String(data.get('author') ?? ''), description: String(data.get('description') ?? ''), category: String(data.get('category') ?? ''), bookType: String(data.get('bookType') ?? ''), level: String(data.get('level') ?? ''), language: String(data.get('language') ?? ''), pages: Number(data.get('pages')), tags: String(data.get('tags') ?? ''), topics: String(data.get('topics') ?? ''), badge: String(data.get('badge') ?? '') || null, accent: String(data.get('accent') ?? ''), allowDownload: data.get('allowDownload') === 'on', isFeatured: data.get('isFeatured') === 'on', status: intent === 'publish' ? 'published' : 'draft' });
+    const cleanup = async (uploads: Uploaded[]) => { if (!uploads.length) return; await fetch('/api/admin/library/cleanup-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: uploads }) }).catch(() => undefined); };
+    const upload = async (file: File, asset: 'pdf' | 'cover', config: UploadConfig, token: string, renew: () => Promise<string>, uploads: Uploaded[]) => {
+      const valid = asset === 'pdf' ? config.allowedPdfTypes.includes(file.type) && file.size <= config.maxPdfBytes : config.allowedCoverTypes.includes(file.type) && file.size <= config.maxCoverBytes;
+      if (!valid) throw new Error(asset === 'pdf' ? 'El PDF debe ser válido y no superar 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
+      setStage(asset === 'pdf' ? 'Subiendo PDF…' : 'Subiendo portada…', asset);
+      const result = await uploadFileDirectToGoogleDrive({ file, parentId: asset === 'pdf' ? config.pdfFolderId : config.coverFolderId, accessToken: token, renewAccessToken: renew, signal: activeController?.signal, onProgress: progress => { updateFileState(asset, file, formatUploadProgress(progress)); } });
+      uploads.push({ id: result.id, asset });
+      updateFileState(asset, file, 'Subida completada');
+      return result;
     };
-    const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => {
-      if (message) { message.textContent = text; message.dataset.state = state === 'working' ? '' : state; }
-      form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; });
-      if (asset) { const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`); if (progress) progress.hidden = false; }
-    };
-    const applyFieldError = (result: { field?: string; error?: string }) => {
-      if (result.field === 'slug' && slugInput) { slugInput.setCustomValidity(result.error ?? 'Slug inválido.'); slugInput.reportValidity(); slugInput.focus(); }
-    };
-    cover?.addEventListener('change', () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      const file = cover.files?.[0];
-      const image = preview?.querySelector('img');
-      if (file && image && preview) {
-        removeCoverRequested = false;
-        if (removeCoverButton) { removeCoverButton.textContent = 'Eliminar portada'; removeCoverButton.dataset.active = 'false'; }
-        previewUrl = URL.createObjectURL(file);
-        image.src = previewUrl;
-        preview.hidden = false;
-        updateFileState('cover', file);
-      } else if (preview) preview.hidden = true;
-    });
+    cover?.addEventListener('change', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); const file = cover.files?.[0]; const image = preview?.querySelector('img'); if (file && image && preview) { removeCoverRequested = false; if (removeCoverButton) { removeCoverButton.textContent = 'Eliminar portada'; removeCoverButton.dataset.active = 'false'; } previewUrl = URL.createObjectURL(file); image.src = previewUrl; preview.hidden = false; updateFileState('cover', file); } else if (preview) preview.hidden = true; });
     pdf?.addEventListener('change', () => updateFileState('pdf', pdf.files?.[0]));
-    removeCoverButton?.addEventListener('click', () => {
-      removeCoverRequested = !removeCoverRequested;
-      removeCoverButton.dataset.active = String(removeCoverRequested);
-      removeCoverButton.textContent = removeCoverRequested ? 'Conservar portada' : 'Eliminar portada';
-      if (removeCoverRequested) {
-        if (cover) cover.value = '';
-        if (preview) preview.hidden = true;
-        updateFileState('cover', undefined, 'Se eliminará al guardar');
-      }
-    });
+    removeCoverButton?.addEventListener('click', () => { removeCoverRequested = !removeCoverRequested; removeCoverButton.dataset.active = String(removeCoverRequested); removeCoverButton.textContent = removeCoverRequested ? 'Conservar portada' : 'Eliminar portada'; if (removeCoverRequested) { if (cover) cover.value = ''; if (preview) preview.hidden = true; updateFileState('cover', undefined, 'Se eliminará al guardar'); } });
+    cancelUploadButton?.addEventListener('click', () => activeController?.abort());
     form.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (isSubmitting) return;
-      if (!form.checkValidity()) { form.reportValidity(); return; }
-      isSubmitting = true;
-      const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null;
-      const intent = submitter?.dataset.intent === 'publish' ? 'publish' : 'draft';
-      const buttons = [...form.querySelectorAll<HTMLButtonElement>('button')];
-      buttons.forEach(button => { button.disabled = true; });
-      setStage('Validando información…');
-      const temporaryUploads: Array<{ id: string; uploadNonce: string; asset: 'cover' | 'pdf' }> = [];
-      const cleanupTemporaryUploads = async () => {
-        await Promise.allSettled(temporaryUploads.map(upload => fetch('/api/admin/library/upload', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(upload),
-        })));
-      };
+      event.preventDefault(); if (isSubmitting) return; if (!form.checkValidity()) { form.reportValidity(); return; }
+      isSubmitting = true; activeController = new AbortController();
+      const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null; const intent = submitter?.dataset.intent === 'publish' ? 'publish' : 'draft'; const buttons = [...form.querySelectorAll<HTMLButtonElement>('button')]; buttons.forEach(button => { button.disabled = true; }); if (cancelUploadButton) { cancelUploadButton.hidden = false; cancelUploadButton.disabled = false; }
+      const uploads: Uploaded[] = [];
       try {
-        const data = new FormData(form);
-        data.set('status', intent === 'publish' ? 'published' : 'draft');
-        const title = String(data.get('title') ?? 'recurso');
-        const uploadToDrive = async (field: 'cover' | 'pdf', asset: 'cover' | 'pdf') => {
-          const entry = data.get(field);
-          data.delete(field);
-          if (!(entry instanceof File) || entry.size === 0) return;
-          setStage(asset === 'cover' ? 'Subiendo portada…' : 'Subiendo PDF…', asset);
-          const sessionResponse = await fetch('/api/admin/library/upload', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ asset, title, originalName: entry.name, mimeType: entry.type, size: entry.size }),
-          });
-          const session = await sessionResponse.json() as { uploadUrl?: string; uploadNonce?: string; error?: string };
-          if (!sessionResponse.ok || !session.uploadUrl || !session.uploadNonce) throw new Error(session.error ?? 'No se pudo iniciar la subida a Drive.');
-          const uploadResponse = await fetch(session.uploadUrl, { method: 'PUT', headers: { 'Content-Type': entry.type }, body: entry });
-          const driveFile = await uploadResponse.json() as { id?: string };
-          if (!uploadResponse.ok || !driveFile.id) throw new Error(`Google Drive no confirmó la subida de ${asset === 'cover' ? 'la portada' : 'el PDF'}.`);
-          const reference = { id: driveFile.id, uploadNonce: session.uploadNonce, asset };
-          temporaryUploads.push(reference);
-          data.set(`${asset}DriveUpload`, JSON.stringify({ ...reference, originalName: entry.name }));
-          updateFileState(asset, entry, 'Subida completada');
-        };
-        await uploadToDrive('pdf', 'pdf');
-        await uploadToDrive('cover', 'cover');
-        setStage('Guardando datos…');
-        const resourceId = form.dataset.resourceId;
+        const data = new FormData(form); const pdfFile = pdf?.files?.[0]; const coverFile = cover?.files?.[0]; const resourceId = form.dataset.resourceId;
+        setStage('Validando archivos…');
+        let config: UploadConfig | undefined; let accessToken = '';
+        const prepareDrive = async () => { if (config) return; config = await getConfig(); setStage('Conectando con Google Drive…'); accessToken = await requestGoogleDriveAccessToken(''); await verifyBrowserDriveAccess([config.pdfFolderId, config.coverFolderId], accessToken, activeController?.signal); setStage('Acceso concedido'); };
+        const renew = async () => { setStage('Renovando acceso a Google Drive…'); accessToken = await requestGoogleDriveAccessToken(''); return accessToken; };
         if (!resourceId) {
-          const response = await fetch('/api/admin/library', { method: 'POST', body: data });
-          const result = await response.json();
-          if (!response.ok) applyFieldError(result);
-          if (result.resource) temporaryUploads.length = 0;
-          if (!response.ok && result.resource) {
-            if (message) { message.textContent = result.error ?? 'El recurso se conservó como borrador.'; message.dataset.state = 'error'; }
-            window.location.assign('/admin/biblioteca');
-            return;
-          }
-          if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el recurso.');
+          if (!pdfFile) throw new Error('Selecciona un PDF válido.');
+          await prepareDrive();
+          const pdfUpload = await upload(pdfFile, 'pdf', config!, accessToken, renew, uploads);
+          const coverUpload = coverFile ? await upload(coverFile, 'cover', config!, accessToken, renew, uploads) : undefined;
+          setStage(intent === 'publish' ? 'Publicando…' : 'Guardando información…');
+          const response = await fetch('/api/admin/library/complete-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...metadataFrom(data, intent), driveFileId: pdfUpload.id, ...(coverUpload ? { coverDriveFileId: coverUpload.id } : {}) }) });
+          const result = await response.json(); if (!response.ok) applyFieldError(result); if (!response.ok && result.resource) { uploads.length = 0; throw new Error(result.error ?? 'El recurso se conservó como borrador.'); } if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el recurso.'); uploads.length = 0;
         } else {
-          const desiredPublished = data.get('status') === 'published';
-          const wasPublished = form.dataset.published === 'true';
-          const callAction = async (action: 'publish' | 'unpublish') => {
-            setStage(action === 'publish' ? 'Publicando recurso…' : 'Despublicando recurso…');
-            const response = await fetch(`/api/admin/library/${resourceId}/${action}`, { method: 'POST' });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error ?? `No se pudo ${action === 'publish' ? 'publicar' : 'despublicar'} el recurso.`);
-          };
+          const wasPublished = form.dataset.published === 'true'; const desiredPublished = intent === 'publish';
+          const callAction = async (action: 'publish' | 'unpublish') => { setStage(action === 'publish' ? 'Publicando…' : 'Despublicando…'); const response = await fetch(`/api/admin/library/${resourceId}/${action}`, { method: 'POST' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo actualizar la publicación.'); };
           if (wasPublished && !desiredPublished) await callAction('unpublish');
-          if (removeCoverRequested) {
-            const response = await fetch(`/api/admin/library/${resourceId}/replace-cover`, { method: 'DELETE' });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error ?? 'No se pudo eliminar la portada.');
-          }
-          for (const asset of ['cover', 'pdf'] as const) {
-            const ticket = data.get(`${asset}DriveUpload`);
-            if (typeof ticket !== 'string' || !ticket) continue;
-            const replacement = new FormData();
-            replacement.set('driveUpload', ticket);
-            const response = await fetch(`/api/admin/library/${resourceId}/replace-${asset}`, { method: 'POST', body: replacement });
-            const result = await response.json();
-            if (!response.ok) throw new Error(result.error ?? `No se pudo reemplazar ${asset === 'pdf' ? 'el PDF' : 'la portada'}.`);
-            const parsed = JSON.parse(ticket) as { id?: string };
-            const index = temporaryUploads.findIndex(upload => upload.id === parsed.id);
-            if (index >= 0) temporaryUploads.splice(index, 1);
-          }
-          const list = (name: string) => String(data.get(name) ?? '').split(',').map(value => value.trim()).filter(Boolean);
-          const metadata = {
-            title: String(data.get('title') ?? ''), slug: String(data.get('slug') ?? ''), author: String(data.get('author') ?? ''), description: String(data.get('description') ?? ''),
-            category: String(data.get('category') ?? ''), resourceType: String(data.get('bookType') ?? ''), level: String(data.get('level') ?? ''),
-            language: String(data.get('language') ?? ''), pages: Number(data.get('pages')), tags: list('tags'), topics: list('topics'),
-            badge: String(data.get('badge') ?? '') || null, accent: String(data.get('accent') ?? ''), allowDownload: data.get('allowDownload') === 'on', isFeatured: data.get('isFeatured') === 'on',
-          };
-          const patchResponse = await fetch(`/api/admin/library/${resourceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(metadata) });
-          const patchResult = await patchResponse.json();
-          if (!patchResponse.ok) applyFieldError(patchResult);
-          if (!patchResponse.ok) throw new Error(patchResult.error ?? 'No se pudieron guardar los metadatos.');
+          const patchResponse = await fetch(`/api/admin/library/${resourceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(metadataFrom(data, intent)) }); const patchResult = await patchResponse.json(); if (!patchResponse.ok) { applyFieldError(patchResult); throw new Error(patchResult.error ?? 'No se pudieron guardar los metadatos.'); }
+          if (removeCoverRequested) { const response = await fetch(`/api/admin/library/${resourceId}/replace-cover`, { method: 'DELETE' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo eliminar la portada.'); }
+          if (pdfFile || coverFile) { await prepareDrive(); }
+          for (const item of [{ file: pdfFile, asset: 'pdf' as const }, { file: coverFile, asset: 'cover' as const }]) { if (!item.file) continue; const uploaded = await upload(item.file, item.asset, config!, accessToken, renew, uploads); const response = await fetch(`/api/admin/library/${resourceId}/replace-${item.asset}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driveFileId: uploaded.id }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo reemplazar el archivo.'); const index = uploads.findIndex(value => value.id === uploaded.id); if (index >= 0) uploads.splice(index, 1); }
           if (!wasPublished && desiredPublished) await callAction('publish');
         }
-        temporaryUploads.length = 0;
-        setStage('Completado.', undefined, 'ok');
-        window.location.assign('/admin/biblioteca');
+        setStage('Completado.', undefined, 'ok'); window.location.assign('/admin/biblioteca');
       } catch (error) {
-        await cleanupTemporaryUploads();
-        setStage(error instanceof Error ? error.message : 'No se pudo guardar el recurso.', undefined, 'error');
-        isSubmitting = false;
-        buttons.forEach(button => { button.disabled = false; });
-      }
+        await cleanup(uploads); const cancelled = activeController?.signal.aborted || (error instanceof DOMException && error.name === 'AbortError'); setStage(cancelled ? 'Se canceló la subida.' : error instanceof Error ? error.message : 'No se pudo guardar el recurso.', undefined, 'error'); isSubmitting = false; buttons.forEach(button => { button.disabled = false; });
+      } finally { if (cancelUploadButton) cancelUploadButton.hidden = true; activeController = undefined; }
     });
   };
-  initializeBookForm();
-  document.addEventListener('astro:page-load', initializeBookForm);
+  initializeBookForm(); document.addEventListener('astro:page-load', initializeBookForm);
 </script>
 
 <style>
-  .book-form{display:grid;gap:1.2rem}.form-section{display:grid;gap:1.2rem;padding:clamp(1.1rem,3vw,1.6rem);border:1px solid var(--admin-border);border-radius:16px;background:var(--admin-surface-raised);box-shadow:0 8px 24px rgba(15,23,42,.04)}.section-head{display:flex;align-items:flex-start;gap:.8rem}.section-head>span{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:10px;background:var(--admin-green-soft);color:var(--admin-green);font-size:.72rem;font-weight:900}.section-head h2{margin:0;font-size:1.08rem}.section-head p{margin:.15rem 0 0;color:var(--admin-text-muted);font-size:.78rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;align-content:start;gap:.42rem;color:var(--admin-text);font-size:.8rem;font-weight:750}label small{color:var(--admin-text-muted);font-size:.68rem;font-weight:500}input,select,textarea{width:100%;min-width:0;padding:.72rem .78rem;border:1px solid #cbd8cf;border-radius:10px;background:#fff;color:#14231b;font:inherit;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease}input:focus,select:focus,textarea:focus{border-color:#22a757;box-shadow:0 0 0 3px rgba(34,165,87,.13)}textarea{resize:vertical}.options{align-items:end}.check{display:flex;min-height:44px;align-items:center;gap:.55rem;padding:.7rem;border:1px solid var(--admin-border);border-radius:10px}.check input{width:auto;accent-color:var(--admin-green)}.file-control{display:grid;align-content:start;gap:.6rem;padding:.8rem;border:1px solid var(--admin-border);border-radius:12px;background:#f8faf9}.file-state{display:grid;gap:.15rem;padding:.65rem;border-radius:9px;background:#fff}.file-state strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}.file-state span{color:var(--admin-text-muted);font-size:.66rem}.file-state progress{width:100%;height:5px;accent-color:var(--admin-green)}.remove-cover{justify-self:start;border:0;background:transparent;color:#b42318;font:inherit;font-size:.7rem;font-weight:750}.remove-cover[data-active="true"]{color:var(--admin-green)}.preview img{display:block;width:180px;max-width:100%;height:180px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14)}.rights-notice{margin:0;padding:.8rem 1rem;border-left:3px solid #d97706;border-radius:7px;background:#fffbeb;color:#854d0e;font-size:.74rem;line-height:1.5}.form-actions{display:flex;align-items:center;gap:.8rem}.form-actions>a,.form-actions>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.75rem 1rem;border-radius:10px;font:inherit;font-size:.8rem;font-weight:800}.form-actions>a{border:1px solid var(--admin-border);background:#fff;color:var(--admin-text)}.form-actions>button{border:0;background:var(--admin-green);color:#fff}.form-actions .draft-button{border:1px solid var(--admin-green);background:#fff;color:var(--admin-green)}.form-actions>button:disabled{cursor:wait;opacity:.65}.message{flex:1;margin:0;color:var(--admin-text-muted);font-size:.78rem;text-align:right}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}@media(max-width:650px){.grid{grid-template-columns:1fr}.form-actions{flex-wrap:wrap}.message{order:-1;flex-basis:100%;text-align:left}.form-actions>a,.form-actions>button{flex:1}}@media(prefers-reduced-motion:reduce){input,select,textarea{transition:none}}
+  .book-form{display:grid;gap:1.2rem}.form-section{display:grid;gap:1.2rem;padding:clamp(1.1rem,3vw,1.6rem);border:1px solid var(--admin-border);border-radius:16px;background:var(--admin-surface-raised);box-shadow:0 8px 24px rgba(15,23,42,.04)}.section-head{display:flex;align-items:flex-start;gap:.8rem}.section-head>span{display:grid;width:34px;height:34px;flex:none;place-items:center;border-radius:10px;background:var(--admin-green-soft);color:var(--admin-green);font-size:.72rem;font-weight:900}.section-head h2{margin:0;font-size:1.08rem}.section-head p{margin:.15rem 0 0;color:var(--admin-text-muted);font-size:.78rem}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem}label{display:grid;align-content:start;gap:.42rem;color:var(--admin-text);font-size:.8rem;font-weight:750}label small{color:var(--admin-text-muted);font-size:.68rem;font-weight:500}input,select,textarea{width:100%;min-width:0;padding:.72rem .78rem;border:1px solid #cbd8cf;border-radius:10px;background:#fff;color:#14231b;font:inherit;outline:none;transition:border-color 160ms ease,box-shadow 160ms ease}input:focus,select:focus,textarea:focus{border-color:#22a757;box-shadow:0 0 0 3px rgba(34,165,87,.13)}textarea{resize:vertical}.options{align-items:end}.check{display:flex;min-height:44px;align-items:center;gap:.55rem;padding:.7rem;border:1px solid var(--admin-border);border-radius:10px}.check input{width:auto;accent-color:var(--admin-green)}.file-control{display:grid;align-content:start;gap:.6rem;padding:.8rem;border:1px solid var(--admin-border);border-radius:12px;background:#f8faf9}.file-state{display:grid;gap:.15rem;padding:.65rem;border-radius:9px;background:#fff}.file-state strong{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.72rem}.file-state span{color:var(--admin-text-muted);font-size:.66rem}.file-state progress{width:100%;height:5px;accent-color:var(--admin-green)}.remove-cover{justify-self:start;border:0;background:transparent;color:#b42318;font:inherit;font-size:.7rem;font-weight:750}.remove-cover[data-active="true"]{color:var(--admin-green)}.preview img{display:block;width:180px;max-width:100%;height:180px;object-fit:cover;border-radius:12px;box-shadow:0 8px 24px rgba(15,23,42,.14)}.rights-notice{margin:0;padding:.8rem 1rem;border-left:3px solid #d97706;border-radius:7px;background:#fffbeb;color:#854d0e;font-size:.74rem;line-height:1.5}.form-actions{display:flex;align-items:center;gap:.8rem}.form-actions>a,.form-actions>button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.75rem 1rem;border-radius:10px;font:inherit;font-size:.8rem;font-weight:800}.form-actions>a{border:1px solid var(--admin-border);background:#fff;color:var(--admin-text)}.form-actions>button{border:0;background:var(--admin-green);color:#fff}.form-actions .draft-button{border:1px solid var(--admin-green);background:#fff;color:var(--admin-green)}.form-actions .cancel-upload{border:1px solid #b42318;background:#fff;color:#b42318}.form-actions>button:disabled{cursor:wait;opacity:.65}.message{flex:1;margin:0;color:var(--admin-text-muted);font-size:.78rem;text-align:right}.message[data-state="error"]{color:#b42318}.message[data-state="ok"]{color:#166534}@media(max-width:650px){.grid{grid-template-columns:1fr}.form-actions{flex-wrap:wrap}.message{order:-1;flex-basis:100%;text-align:left}.form-actions>a,.form-actions>button{flex:1}}@media(prefers-reduced-motion:reduce){input,select,textarea{transition:none}}
 </style>

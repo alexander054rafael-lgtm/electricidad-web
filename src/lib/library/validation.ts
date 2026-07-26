@@ -13,13 +13,6 @@ export const LIBRARY_FILE_LIMITS = {
 } as const;
 
 export type LibraryAsset = keyof typeof LIBRARY_FILE_LIMITS;
-export type LibraryUploadTicket = {
-  id: string;
-  uploadNonce: string;
-  originalName: string;
-  asset: LibraryAsset;
-};
-
 export type LibraryResourceInput = {
   title: string;
   slug: string;
@@ -51,7 +44,6 @@ export class LibraryValidationError extends Error {
   }
 }
 
-const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]{10,200}$/;
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const COVER_MIME_EXTENSIONS: Record<string, readonly string[]> = {
@@ -211,23 +203,5 @@ export const validateLibraryUploadDescriptor = (asset: LibraryAsset, originalNam
 export const validateManagedDriveFileMetadata = (asset: LibraryAsset, file: { name: string; mimeType: string; size?: number }) =>
   validateLibraryUploadDescriptor(asset, file.name, file.mimeType, file.size ?? 0);
 
-export const parseLibraryUploadTicket = (value: FormDataEntryValue | null, expectedAsset: LibraryAsset): LibraryUploadTicket | null => {
-  if (typeof value !== 'string' || !value) return null;
-  let parsed: unknown;
-  try { parsed = JSON.parse(value); } catch { throw new LibraryValidationError('Referencia de subida inválida.'); }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new LibraryValidationError('Referencia de subida inválida.');
-  const ticket = parsed as Record<string, unknown>;
-  if (typeof ticket.id !== 'string' || !DRIVE_ID_PATTERN.test(ticket.id) || typeof ticket.uploadNonce !== 'string' || !UUID_PATTERN.test(ticket.uploadNonce) || ticket.asset !== expectedAsset || typeof ticket.originalName !== 'string') {
-    throw new LibraryValidationError('Referencia de subida inválida.');
-  }
-  return {
-    id: ticket.id,
-    uploadNonce: ticket.uploadNonce,
-    asset: expectedAsset,
-    originalName: sanitizeLibraryFileName(ticket.originalName, expectedAsset === 'pdf' ? 'documento.pdf' : 'portada'),
-  };
-};
-
 export const isLibraryUuid = (value: string) => UUID_PATTERN.test(value);
-export const isManagedDriveId = (value: string) => DRIVE_ID_PATTERN.test(value);
 export const isSameOriginRequest = (request: Request, url: URL) => !request.headers.get('origin') || request.headers.get('origin') === url.origin;

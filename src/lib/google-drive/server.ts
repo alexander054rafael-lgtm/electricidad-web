@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import { getSecret } from 'astro:env/server';
 import { google } from 'googleapis';
-import { validateManagedDriveFileMetadata } from '../library/validation';
+import { LIBRARY_FILE_LIMITS, validateManagedDriveFileMetadata } from '../library/validation';
 
 const DRIVE_FOLDER_MIME_TYPE = 'application/vnd.google-apps.folder';
 const TEST_FILE_NAME = 'indutech-drive-test.txt';
@@ -10,8 +10,6 @@ const LIBRARY_PDF_FOLDER_NAME = 'PDFs';
 const LIBRARY_COVER_FOLDER_NAME = 'Portadas';
 const PDF_MIME_TYPE = 'application/pdf';
 const COVER_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
-const MAX_LIBRARY_PDF_SIZE = 100 * 1024 * 1024;
-const MAX_LIBRARY_COVER_SIZE = 8 * 1024 * 1024;
 
 export type LibraryAssetKind = 'pdf' | 'cover';
 
@@ -47,11 +45,6 @@ export type DriveStreamResult = {
   stream: ReadableStream<Uint8Array>;
   contentType: string;
   contentLength?: string;
-};
-
-export type DriveResumableUploadSession = {
-  uploadUrl: string;
-  uploadNonce: string;
 };
 
 export type LibraryDriveFolders = {
@@ -180,10 +173,10 @@ const hasValidLibrarySignature = (bytes: Uint8Array, mimeType: string) => {
 
 const validateLibraryFile = async (file: File, asset: LibraryAssetKind) => {
   if (asset === 'pdf') {
-    if (file.type !== PDF_MIME_TYPE || !/\.pdf$/i.test(file.name) || file.size > MAX_LIBRARY_PDF_SIZE) {
+    if (file.type !== PDF_MIME_TYPE || !/\.pdf$/i.test(file.name) || file.size > LIBRARY_FILE_LIMITS.pdf) {
       throw new Error('El PDF debe usar application/pdf, extensión .pdf y pesar máximo 100 MB.');
     }
-  } else if (!COVER_MIME_TYPES.has(file.type) || file.size > MAX_LIBRARY_COVER_SIZE) {
+  } else if (!COVER_MIME_TYPES.has(file.type) || file.size > LIBRARY_FILE_LIMITS.cover) {
     throw new Error('La portada debe ser JPG, PNG o WebP y pesar máximo 8 MB.');
   }
   const prefix = new Uint8Array(await file.slice(0, 1024).arrayBuffer());
@@ -214,7 +207,7 @@ const uploadLibraryFile = async (file: File, asset: LibraryAssetKind): Promise<D
   const { data } = await drive.files.create({
     supportsAllDrives: true,
     requestBody: { name: `${stem}-${crypto.randomUUID()}.${extension}`, mimeType: file.type, parents: [parentId] },
-    media: { mimeType: file.type, body: Readable.from([Buffer.from(await file.arrayBuffer())]) },
+    media: { mimeType: file.type, body: Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]) },
     fields: 'id,name,mimeType,parents,webViewLink,webContentLink,driveId,size',
   });
   const uploaded = toDriveUploadResult(data);
@@ -288,10 +281,7 @@ export const uploadDriveFile = async (file: File, name: string): Promise<DriveUp
       mimeType: file.type,
       parents: [folderId],
     },
-    media: {
-      mimeType: file.type,
-      body: Readable.from([Buffer.from(await file.arrayBuffer())]),
-    },
+    media: { mimeType: file.type, body: Readable.fromWeb(file.stream() as Parameters<typeof Readable.fromWeb>[0]) },
     fields: 'id,name,mimeType,parents,webViewLink,webContentLink,driveId,size',
   });
 
@@ -311,63 +301,6 @@ export const uploadDriveFile = async (file: File, name: string): Promise<DriveUp
     ...(data.driveId ? { driveId: data.driveId } : {}),
     ...(data.size ? { size: Number(data.size) } : {}),
   };
-};
-
-export const createDriveResumableUploadSession = async (
-  name: string,
-  mimeType: string,
-  size: number,
-  asset?: LibraryAssetKind,
-): Promise<DriveResumableUploadSession> => {
-  const { auth, folderId } = getDriveContext();
-  const parentId = asset ? await getLibraryFolderId(asset) : folderId;
-  const uploadNonce = crypto.randomUUID();
-  const response = await auth.request({
-    url: 'https://www.googleapis.com/upload/drive/v3/files',
-    method: 'POST',
-    params: {
-      uploadType: 'resumable',
-      supportsAllDrives: 'true',
-      fields: 'id,name,mimeType,parents,webViewLink,driveId,size',
-    },
-    headers: {
-      'Content-Type': 'application/json; charset=UTF-8',
-      'X-Upload-Content-Type': mimeType,
-      'X-Upload-Content-Length': String(size),
-    },
-    data: {
-      name,
-      mimeType,
-      parents: [parentId],
-      appProperties: { indutechUpload: uploadNonce },
-    },
-  });
-  const headers = response.headers as unknown as { get?: (name: string) => string | null; location?: string };
-  const uploadUrl = headers.get?.('location') ?? headers.location;
-  if (!uploadUrl) throw new Error('Google Drive no devolvió la sesión de subida reanudable.');
-  return { uploadUrl, uploadNonce };
-};
-
-export const verifyDriveManagedUpload = async (fileId: string, uploadNonce: string, asset: LibraryAssetKind): Promise<DriveUploadResult> => {
-  const { drive, folderId } = getDriveContext();
-  const parentId = asset ? await getLibraryFolderId(asset) : folderId;
-  const { data } = await drive.files.get({
-    fileId,
-    supportsAllDrives: true,
-    fields: 'id,name,mimeType,parents,webViewLink,webContentLink,driveId,size,createdTime,appProperties',
-  });
-  const parents = data.parents ?? [];
-  if (!parents.includes(parentId) || data.appProperties?.indutechUpload !== uploadNonce) {
-    throw new Error('El archivo no pertenece a una sesión administrada por Biblioteca.');
-  }
-  const createdAt = data.createdTime ? Date.parse(data.createdTime) : 0;
-  if (!createdAt || Date.now() - createdAt > 60 * 60 * 1000) {
-    throw new Error('La sesión administrada de subida ha expirado.');
-  }
-  const uploaded = toDriveUploadResult({ ...data, parents });
-  validateManagedDriveFileMetadata(asset, uploaded);
-  await verifyDriveFileSignature(uploaded.id, uploaded.mimeType);
-  return uploaded;
 };
 
 export const getDriveFileMetadata = async (fileId: string): Promise<DriveUploadResult> => {
@@ -392,6 +325,23 @@ export const verifyFileBelongsToLibraryFolder = async (fileId: string, expectedA
     throw new Error('El archivo no pertenece a las subcarpetas administradas de Biblioteca.');
   }
   return metadata;
+};
+
+export const verifyBrowserLibraryUpload = async (fileId: string, asset: LibraryAssetKind): Promise<DriveUploadResult> => {
+  const { drive } = getDriveContext();
+  const { data } = await drive.files.get({
+    fileId,
+    supportsAllDrives: true,
+    fields: 'id,name,mimeType,parents,webViewLink,webContentLink,driveId,size,appProperties',
+  });
+  if (data.appProperties?.indutechLibraryUpload !== 'browser') {
+    throw new Error('El archivo no fue creado por el flujo autorizado de Biblioteca.');
+  }
+  const metadata = toDriveUploadResult(data);
+  const verifiedParent = await verifyFileBelongsToLibraryFolder(metadata.id, asset);
+  validateManagedDriveFileMetadata(asset, verifiedParent);
+  await verifyDriveFileSignature(verifiedParent.id, verifiedParent.mimeType);
+  return verifiedParent;
 };
 
 export const getLibraryPublicLinks = (fileId: string) => ({

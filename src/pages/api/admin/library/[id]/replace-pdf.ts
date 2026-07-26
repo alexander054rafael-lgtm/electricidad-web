@@ -1,10 +1,11 @@
 import type { APIRoute } from 'astro';
 import { json, requireApiAdmin } from '../../../../../lib/api';
-import { deleteDriveFile, uploadLibraryPdf, verifyDriveManagedUpload, type DriveUploadResult } from '../../../../../lib/google-drive/server';
+import { deleteDriveFile, verifyBrowserLibraryUpload, type DriveUploadResult } from '../../../../../lib/google-drive/server';
 import { replaceLibraryAsset } from '../../../../../lib/library/admin';
-import { isSameOriginRequest, isLibraryUuid, parseLibraryUploadTicket, validateLibraryUploadDescriptor, sanitizeLibraryFileName, LibraryValidationError } from '../../../../../lib/library/validation';
+import { isSameOriginRequest, isLibraryUuid, sanitizeLibraryFileName, LibraryValidationError } from '../../../../../lib/library/validation';
 
 export const prerender = false;
+const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]{10,200}$/;
 
 export const POST: APIRoute = async (context) => {
   const auth = requireApiAdmin(context);
@@ -14,21 +15,11 @@ export const POST: APIRoute = async (context) => {
   if (!isLibraryUuid(id)) return json({ ok: false, error: 'Identificador inválido.' }, 422);
   let uploaded: DriveUploadResult | undefined;
   try {
-    const form = await context.request.formData();
-    const file = form.get('pdf');
-    const ticketValue = form.get('driveUpload') ?? form.get('pdfDriveUpload');
-    let originalName = '';
-    if (typeof ticketValue === 'string' && ticketValue) {
-      const ticket = parseLibraryUploadTicket(ticketValue, 'pdf');
-      if (!ticket) throw new LibraryValidationError('Referencia inválida.');
-      uploaded = await verifyDriveManagedUpload(ticket.id, ticket.uploadNonce, 'pdf');
-      originalName = ticket.originalName;
-    } else if (file instanceof File && file.size) {
-      validateLibraryUploadDescriptor('pdf', file.name, file.type, file.size);
-      uploaded = await uploadLibraryPdf(file);
-      originalName = sanitizeLibraryFileName(file.name, 'documento.pdf');
-    } else return json({ ok: false, error: 'Selecciona un PDF válido.' }, 422);
-    const result = await replaceLibraryAsset(auth.supabase, id, 'pdf', uploaded, originalName);
+    const body = await context.request.json() as { driveFileId?: unknown };
+    const fileId = typeof body.driveFileId === 'string' ? body.driveFileId : '';
+    if (!DRIVE_ID_PATTERN.test(fileId)) throw new LibraryValidationError('El archivo subido no es válido.');
+    uploaded = await verifyBrowserLibraryUpload(fileId, 'pdf');
+    const result = await replaceLibraryAsset(auth.supabase, id, 'pdf', uploaded, sanitizeLibraryFileName(uploaded.name, 'documento.pdf'));
     uploaded = undefined;
     return json({ ok: true, ...result });
   } catch (error) {
