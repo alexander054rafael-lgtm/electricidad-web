@@ -1,0 +1,16 @@
+name = "indutech-library-file-worker"
+main = "src/index.ts"
+compatibility_date = "2026-07-25"
+
+[[r2_buckets]]
+binding = "LIBRARY_CACHE"
+bucket_name = "indutech-library-cache"
+
+# Public operational configuration only. Set all secrets with `wrangler secret put`.
+[vars]
+ALLOWED_ORIGINS = "https://electricidad-web-omega.vercel.app,http://localhost:4321"
+MAX_PDF_BYTES = "104857600"
+MAX_COVER_BYTES = "8388608"
+CACHE_TARGET_BYTES = "7516192768"
+CACHE_LOW_WATERMARK_BYTES = "6442450944"
+CACHE_MAX_AGE_DAYS = "14"

@@ -1,0 +1,15 @@
+{
+  "name": "indutech-library-file-worker",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "npm run typecheck",
+    "deploy:dry-run": "wrangler deploy --dry-run"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "wrangler": "^4.0.0"
+  }
+}
