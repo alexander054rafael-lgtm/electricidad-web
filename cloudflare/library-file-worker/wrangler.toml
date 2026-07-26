@@ -14,3 +14,6 @@ MAX_COVER_BYTES = "8388608"
 CACHE_TARGET_BYTES = "7516192768"
 CACHE_LOW_WATERMARK_BYTES = "6442450944"
 CACHE_MAX_AGE_DAYS = "14"
+
+# Phase 2 R2 S3 signing credentials must be set with `wrangler secret put`.
+# Never add R2_ACCOUNT_ID, R2_ACCESS_KEY_ID or R2_SECRET_ACCESS_KEY here.

@@ -4,6 +4,7 @@ import { BookOpen, CirclePlus, Eye, EyeOff, Search, SquarePen, Star, Trash2, Tri
 import AdminLayout from '../../../layouts/AdminLayout.astro';
 import { categories as publicCategories } from '../../../data/books';
 import { staticResources } from '../../../lib/library/books';
+import R2UploadTest from '../../../components/admin/R2UploadTest.astro';
 
 const client = Astro.locals.supabase;
 const q = Astro.url.searchParams.get('q')?.trim() ?? '';
@@ -52,6 +53,8 @@ const pageUrl = (nextPage: number) => { const params = new URLSearchParams(Astro
     </ul>
     <p class="worker-test-error" role="alert" hidden data-worker-test-error></p>
   </section>
+
+  <R2UploadTest />
 
   <form class="filters" method="get" action="/admin/biblioteca">
     <label class="search"><Search size={17}/><span class="sr-only">Buscar</span><input name="q" value={q} placeholder="Buscar por título o autor" /></label>

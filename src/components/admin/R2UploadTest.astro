@@ -1,0 +1,115 @@
+<section class="r2-test" aria-labelledby="r2-test-title" data-r2-upload-test>
+  <div>
+    <span>Prueba temporal · Fase 2</span>
+    <h2 id="r2-test-title">Prueba de subida a R2</h2>
+    <p>Sube archivos de prueba directamente a R2, valida su firma y los elimina al finalizar.</p>
+  </div>
+  <form data-r2-upload-form>
+    <label>PDF de prueba<input type="file" accept="application/pdf,.pdf" data-r2-pdf required /><small>PDF · máximo 100 MB</small></label>
+    <label>Portada opcional<input type="file" accept="image/jpeg,image/png,image/webp" data-r2-cover /><small>JPG, PNG o WebP · máximo 8 MB</small></label>
+    <div class="actions"><button type="submit">Probar subida</button><button type="button" class="cancel" data-r2-cancel hidden>Cancelar</button></div>
+  </form>
+  <progress value="0" max="100" hidden data-r2-progress></progress>
+  <p class="status" aria-live="polite" data-r2-status>Selecciona un PDF pequeño para comenzar.</p>
+  <ul class="results" aria-live="polite" data-r2-results></ul>
+</section>
+
+<script>
+  import { createBrowserClient } from '@supabase/ssr';
+
+  const WORKER_BASE_URL = 'https://indutech-library-file-worker.alexander054rafael.workers.dev';
+  type Kind = 'pdf' | 'cover';
+  type PreparedUpload = { uploadId: string; objectKey: string; uploadUrl: string; headers: Record<string, string>; expiresAt: string; kind: Kind };
+
+  const initializeR2UploadTest = () => {
+    const root = document.querySelector<HTMLElement>('[data-r2-upload-test]');
+    const form = root?.querySelector<HTMLFormElement>('[data-r2-upload-form]');
+    const pdf = root?.querySelector<HTMLInputElement>('[data-r2-pdf]');
+    const cover = root?.querySelector<HTMLInputElement>('[data-r2-cover]');
+    const cancel = root?.querySelector<HTMLButtonElement>('[data-r2-cancel]');
+    const progress = root?.querySelector<HTMLProgressElement>('[data-r2-progress]');
+    const status = root?.querySelector<HTMLElement>('[data-r2-status]');
+    const results = root?.querySelector<HTMLElement>('[data-r2-results]');
+    if (!root || !form || !pdf || !cover || !cancel || !progress || !status || !results || root.dataset.ready === 'true') return;
+    root.dataset.ready = 'true';
+    let submitting = false;
+    const requests = new Set<XMLHttpRequest>();
+    let cancelled = false;
+    const setStatus = (value: string, state: 'error' | 'ok' | '' = '') => { status.textContent = value; status.dataset.state = state; };
+    const addResult = (value: string, state: 'error' | 'ok') => { const item = document.createElement('li'); item.textContent = value; item.dataset.state = state; results.append(item); };
+    const getToken = async () => {
+      const url = import.meta.env.PUBLIC_SUPABASE_URL;
+      const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+      if (!url || !key) throw new Error('Supabase no está configurado en el navegador.');
+      const supabase = createBrowserClient(url, key);
+      const { data, error } = await supabase.auth.getSession();
+      if (error || !data.session?.access_token) throw new Error('No se encontró una sesión activa de Supabase.');
+      return data.session.access_token;
+    };
+    const workerRequest = async <T,>(path: string, token: string, body: Record<string, unknown>): Promise<T> => {
+      const response = await fetch(`${WORKER_BASE_URL}${path}`, { method: 'POST', headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      const result = await response.json().catch(() => ({})) as T & { error?: string };
+      if (!response.ok) throw new Error(result.error ?? 'El Worker rechazó la operación.');
+      return result;
+    };
+    const putToR2 = (prepared: PreparedUpload, file: File, percentStart: number, percentWeight: number) => new Promise<void>((resolve, reject) => {
+      const xhr = new XMLHttpRequest(); requests.add(xhr);
+      xhr.open('PUT', prepared.uploadUrl);
+      Object.entries(prepared.headers).forEach(([name, value]) => xhr.setRequestHeader(name, value));
+      xhr.upload.onprogress = event => { if (event.lengthComputable) { progress.hidden = false; progress.value = percentStart + ((event.loaded / event.total) * percentWeight); } };
+      xhr.onerror = () => reject(new Error('No se pudo subir directamente a R2. Comprueba el CORS del bucket.'));
+      xhr.onabort = () => reject(new DOMException('Upload cancelled', 'AbortError'));
+      xhr.onload = () => xhr.status >= 200 && xhr.status < 300 ? resolve() : reject(new Error('R2 rechazó la subida temporal.'));
+      xhr.onloadend = () => requests.delete(xhr);
+      xhr.send(file);
+    });
+    const validateFile = (file: File, kind: Kind) => {
+      const max = kind === 'pdf' ? 100 * 1024 * 1024 : 8 * 1024 * 1024;
+      const types = kind === 'pdf' ? ['application/pdf'] : ['image/jpeg', 'image/png', 'image/webp'];
+      if (file.size < 1 || file.size > max || !types.includes(file.type) || (kind === 'pdf' && !file.name.toLowerCase().endsWith('.pdf'))) throw new Error(kind === 'pdf' ? 'Selecciona un PDF válido de máximo 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
+    };
+    cancel.addEventListener('click', () => { cancelled = true; requests.forEach(request => request.abort()); setStatus('Cancelando y limpiando archivos temporales…'); });
+    form.addEventListener('submit', async event => {
+      event.preventDefault(); if (submitting) return;
+      const pdfFile = pdf.files?.[0]; const coverFile = cover.files?.[0]; if (!pdfFile) return;
+      const uploads: PreparedUpload[] = []; results.replaceChildren(); cancelled = false; submitting = true; cancel.hidden = false; progress.hidden = false; progress.value = 0;
+      [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = button !== cancel; });
+      try {
+        validateFile(pdfFile, 'pdf'); if (coverFile) validateFile(coverFile, 'cover');
+        setStatus('Verificando sesión de administrador…'); const token = await getToken();
+        const files = [{ file: pdfFile, kind: 'pdf' as const }, ...(coverFile ? [{ file: coverFile, kind: 'cover' as const }] : [])];
+        const weight = 100 / files.length;
+        for (const [index, item] of files.entries()) {
+          if (cancelled) throw new DOMException('Upload cancelled', 'AbortError');
+          setStatus(item.kind === 'pdf' ? 'Preparando PDF para R2…' : 'Preparando portada para R2…');
+          const prepared = await workerRequest<PreparedUpload>('/v1/admin/library/uploads/init', token, { filename: item.file.name, mimeType: item.file.type, size: item.file.size, kind: item.kind });
+          uploads.push({ ...prepared, kind: item.kind });
+          setStatus(item.kind === 'pdf' ? 'Subiendo PDF directamente a R2…' : 'Subiendo portada directamente a R2…');
+          await putToR2(prepared, item.file, index * weight, weight);
+          if (cancelled) throw new DOMException('Upload cancelled', 'AbortError');
+          setStatus('Validando firma y hash en el Worker…');
+          const result = await workerRequest<{ kind: Kind; size: number; sha256: string }>('/v1/admin/library/uploads/complete', token, { uploadId: prepared.uploadId, objectKey: prepared.objectKey });
+          addResult(`${result.kind === 'pdf' ? 'PDF' : 'Portada'} validada · ${(result.size / 1024 / 1024).toFixed(2)} MB · SHA-256 ${result.sha256.slice(0, 16)}…`, 'ok');
+        }
+        setStatus('Validación completada. Limpiando archivos de prueba…');
+        await Promise.all(uploads.map(upload => workerRequest('/v1/admin/library/uploads/cleanup', token, { uploadId: upload.uploadId, objectKey: upload.objectKey })));
+        uploads.length = 0; progress.value = 100; setStatus('Prueba completada y archivos temporales eliminados.', 'ok');
+      } catch (reason) {
+        const wasCancelled = cancelled || (reason instanceof DOMException && reason.name === 'AbortError');
+        setStatus(wasCancelled ? 'Prueba cancelada. Se intentó limpiar los archivos temporales.' : reason instanceof Error ? reason.message : 'No se pudo completar la prueba.', 'error');
+      } finally {
+        // Cleanup uses a fresh session token and only accepts IDs minted by the Worker.
+        if (uploads.length) {
+          try { const token = await getToken(); await Promise.all(uploads.map(upload => workerRequest('/v1/admin/library/uploads/cleanup', token, { uploadId: upload.uploadId, objectKey: upload.objectKey }))); } catch { addResult('No se pudo confirmar la limpieza automática. Reintenta la prueba para revisar el Worker.', 'error'); }
+        }
+        submitting = false; cancel.hidden = true; [...form.querySelectorAll<HTMLButtonElement>('button')].forEach(button => { button.disabled = false; });
+      }
+    });
+  };
+  initializeR2UploadTest();
+  document.addEventListener('astro:page-load', initializeR2UploadTest);
+</script>
+
+<style>
+  .r2-test{display:grid;gap:.9rem;margin:0 0 1.5rem;padding:1rem;border:1px solid rgba(22,163,74,.25);border-radius:13px;background:linear-gradient(135deg,rgba(240,253,244,.85),rgba(248,250,252,.9))}.r2-test>div>span{color:#15803d;font-size:.72rem;font-weight:850}.r2-test h2{margin:.18rem 0;font-size:1rem}.r2-test p{margin:0;color:var(--admin-text-muted);font-size:.75rem}.r2-test form{display:grid;grid-template-columns:repeat(2,minmax(0,1fr)) auto;align-items:end;gap:.7rem}.r2-test label{display:grid;gap:.35rem;font-size:.75rem;font-weight:750}.r2-test input{width:100%;padding:.55rem;border:1px solid var(--admin-border);border-radius:8px;background:#fff;font:inherit;font-size:.7rem}.r2-test small{color:var(--admin-text-muted);font-size:.65rem;font-weight:500}.actions{display:flex;gap:.45rem}.actions button{min-height:40px;padding:.6rem .8rem;border:0;border-radius:9px;background:var(--admin-green);color:#fff;font:inherit;font-size:.72rem;font-weight:800}.actions .cancel{border:1px solid #b42318;background:#fff;color:#b42318}.r2-test progress{width:100%;height:7px;accent-color:var(--admin-green)}.status[data-state="error"],.results li[data-state="error"]{color:#b42318}.status[data-state="ok"],.results li[data-state="ok"]{color:#15803d}.results{display:grid;gap:.35rem;padding:0;margin:0;list-style:none}.results li{padding:.55rem .65rem;border-radius:8px;background:#fff;font-size:.7rem}@media(max-width:720px){.r2-test form{grid-template-columns:1fr}.actions button{flex:1}}
+</style>

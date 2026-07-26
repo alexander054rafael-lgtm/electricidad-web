@@ -16,5 +16,11 @@ CACHE_TARGET_BYTES = "7516192768"
 CACHE_LOW_WATERMARK_BYTES = "6442450944"
 CACHE_MAX_AGE_DAYS = "14"
 
+# Fase 2: configure these as Worker secrets, never as [vars]. They permit
+# creating a short-lived presigned PUT for exactly one R2 object.
+# R2_ACCOUNT_ID
+# R2_ACCESS_KEY_ID
+# R2_SECRET_ACCESS_KEY
+
 # Phase 1 intentionally has no cron trigger. Add it in Phase 5 after cache
 # cleanup and retry operations are implemented and tested.

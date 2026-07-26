@@ -1,5 +1,6 @@
 import { adminStatus } from './routes/admin-status';
 import { health } from './routes/health';
+import { uploadCleanup, uploadComplete, uploadInit } from './routes/uploads';
 import { corsHeaders, getAllowedOrigin, json } from './security/cors';
 import type { Env, WorkerContext } from './types/env';
 
@@ -15,6 +16,9 @@ export default {
     const path = new URL(request.url).pathname;
     if (request.method === 'GET' && path === '/v1/health') return health(context, origin);
     if (request.method === 'GET' && path === '/v1/admin/library/status') return adminStatus(context, origin);
+    if (request.method === 'POST' && path === '/v1/admin/library/uploads/init') return await uploadInit(context, origin);
+    if (request.method === 'POST' && path === '/v1/admin/library/uploads/complete') return await uploadComplete(context, origin);
+    if (request.method === 'POST' && path === '/v1/admin/library/uploads/cleanup') return await uploadCleanup(context, origin);
     return json({ ok: false, error: 'Ruta no encontrada.', operationId: context.operationId }, 404, origin);
   },
 };

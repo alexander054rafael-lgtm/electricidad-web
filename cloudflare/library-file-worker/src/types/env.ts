@@ -9,6 +9,9 @@ export interface Env {
   CACHE_TARGET_BYTES: string;
   CACHE_LOW_WATERMARK_BYTES: string;
   CACHE_MAX_AGE_DAYS: string;
+  R2_ACCOUNT_ID?: string;
+  R2_ACCESS_KEY_ID?: string;
+  R2_SECRET_ACCESS_KEY?: string;
   // Phase 3 secrets: configure in Cloudflare only; they are not consumed yet.
   GOOGLE_OAUTH_CLIENT_ID?: string;
   GOOGLE_OAUTH_CLIENT_SECRET?: string;
