@@ -7,7 +7,7 @@ export type UploadManifest = UploadDescriptor & {
   ownerId: string;
   createdAt: string;
   expiresAt: string;
-  status: 'pending' | 'validated' | 'synced';
+  status: 'pending' | 'validated' | 'synced' | 'failed';
   sha256?: string;
   driveFileId?: string;
   syncedAt?: string;

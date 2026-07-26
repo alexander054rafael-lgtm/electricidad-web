@@ -49,10 +49,14 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 </form>
 
 <script>
+  import { createBrowserClient } from '@supabase/ssr';
   import { formatUploadProgress, requestGoogleDriveAccessToken, uploadFileDirectToGoogleDrive, verifyBrowserDriveAccess } from '../../lib/google-drive/browser-upload';
+  import { createR2DriveAdapter, type EditorialMetadata } from '../../lib/library/r2-drive-adapter';
 
   type UploadConfig = { pdfFolderId: string; coverFolderId: string; maxPdfBytes: number; maxCoverBytes: number; allowedPdfTypes: string[]; allowedCoverTypes: string[] };
   type Uploaded = { id: string; asset: 'pdf' | 'cover' };
+
+  const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-browser';
 
   const initializeBookForm = () => {
     const form = document.querySelector<HTMLFormElement>('[data-book-form]');
@@ -70,15 +74,96 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
     let isSubmitting = false;
     let previewUrl = '';
     let activeController: AbortController | undefined;
+
     const slugify = (value: string) => value.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
     if (!form.dataset.resourceId) titleInput?.addEventListener('input', () => { if (slugInput && slugInput.dataset.manual !== 'true') slugInput.value = slugify(titleInput.value); });
     slugInput?.addEventListener('input', () => { slugInput.dataset.manual = 'true'; slugInput.setCustomValidity(''); });
-    const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => { const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`); const name = state?.querySelector<HTMLElement>('[data-file-name]'); const size = state?.querySelector<HTMLElement>('[data-file-size]'); if (file && name && size) { name.textContent = file.name; size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · ${status ?? 'Listo para subir'}`; } else if (status && size) size.textContent = status; };
-    const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => { if (message) { message.textContent = text; message.dataset.state = state === 'working' ? '' : state; } form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; }); if (asset) { const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`); if (progress) progress.hidden = false; } };
-    const applyFieldError = (result: { field?: string; error?: string }) => { if (result.field === 'slug' && slugInput) { slugInput.setCustomValidity(result.error ?? 'Slug inválido.'); slugInput.reportValidity(); slugInput.focus(); } };
-    const getConfig = async (): Promise<UploadConfig> => { const response = await fetch('/api/admin/library/upload-config'); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo preparar Google Drive.'); return result as UploadConfig; };
-    const metadataFrom = (data: FormData, intent: 'draft' | 'publish') => ({ title: String(data.get('title') ?? ''), slug: String(data.get('slug') ?? ''), author: String(data.get('author') ?? ''), description: String(data.get('description') ?? ''), category: String(data.get('category') ?? ''), bookType: String(data.get('bookType') ?? ''), level: String(data.get('level') ?? ''), language: String(data.get('language') ?? ''), pages: Number(data.get('pages')), tags: String(data.get('tags') ?? ''), topics: String(data.get('topics') ?? ''), badge: String(data.get('badge') ?? '') || null, accent: String(data.get('accent') ?? ''), allowDownload: data.get('allowDownload') === 'on', isFeatured: data.get('isFeatured') === 'on', status: intent === 'publish' ? 'published' : 'draft' });
-    const cleanup = async (uploads: Uploaded[]) => { if (!uploads.length) return; await fetch('/api/admin/library/cleanup-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ files: uploads }) }).catch(() => undefined); };
+
+    const updateFileState = (asset: 'cover' | 'pdf', file?: File, status?: string) => {
+      const state = form.querySelector<HTMLElement>(`[data-file-state="${asset}"]`);
+      const name = state?.querySelector<HTMLElement>('[data-file-name]');
+      const size = state?.querySelector<HTMLElement>('[data-file-size]');
+      if (file && name && size) {
+        name.textContent = file.name;
+        size.textContent = `${(file.size / 1024 / 1024).toFixed(2)} MB · ${status ?? 'Listo para subir'}`;
+      } else if (status && size) {
+        size.textContent = status;
+      }
+    };
+
+    const setStage = (text: string, asset?: 'cover' | 'pdf', state: 'working' | 'ok' | 'error' = 'working') => {
+      if (message) {
+        message.textContent = text;
+        message.dataset.state = state === 'working' ? '' : state;
+      }
+      form.querySelectorAll<HTMLProgressElement>('.file-state progress').forEach(progress => { progress.hidden = true; });
+      if (asset) {
+        const progress = form.querySelector<HTMLProgressElement>(`[data-file-state="${asset}"] progress`);
+        if (progress) progress.hidden = false;
+      }
+    };
+
+    const applyFieldError = (result: { field?: string; error?: string }) => {
+      if (result.field === 'slug' && slugInput) {
+        slugInput.setCustomValidity(result.error ?? 'Slug inválido.');
+        slugInput.reportValidity();
+        slugInput.focus();
+      }
+    };
+
+    const getConfig = async (): Promise<UploadConfig> => {
+      const response = await fetch('/api/admin/library/upload-config');
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? 'No se pudo preparar Google Drive.');
+      return result as UploadConfig;
+    };
+
+    const metadataFrom = (data: FormData, intent: 'draft' | 'publish') => ({
+      title: String(data.get('title') ?? ''),
+      slug: String(data.get('slug') ?? ''),
+      author: String(data.get('author') ?? ''),
+      description: String(data.get('description') ?? ''),
+      category: String(data.get('category') ?? ''),
+      bookType: String(data.get('bookType') ?? ''),
+      level: String(data.get('level') ?? ''),
+      language: String(data.get('language') ?? ''),
+      pages: Number(data.get('pages')),
+      tags: String(data.get('tags') ?? ''),
+      topics: String(data.get('topics') ?? ''),
+      badge: String(data.get('badge') ?? '') || null,
+      accent: String(data.get('accent') ?? ''),
+      allowDownload: data.get('allowDownload') === 'on',
+      isFeatured: data.get('isFeatured') === 'on',
+      status: intent === 'publish' ? 'published' : 'draft',
+    });
+
+    const toEditorialMetadata = (data: FormData): EditorialMetadata => ({
+      title: String(data.get('title') ?? '').trim(),
+      slug: String(data.get('slug') ?? '').trim(),
+      author: String(data.get('author') ?? '').trim() || null,
+      description: String(data.get('description') ?? '').trim() || null,
+      category: String(data.get('category') ?? '').trim(),
+      resourceType: String(data.get('bookType') ?? '').trim(),
+      level: String(data.get('level') ?? '').trim() || null,
+      language: String(data.get('language') ?? 'Español').trim(),
+      pages: data.get('pages') ? Number(data.get('pages')) : null,
+      tags: String(data.get('tags') ?? '').split(',').map(t => t.trim()).filter(Boolean),
+      topics: String(data.get('topics') ?? '').split(',').map(t => t.trim()).filter(Boolean),
+      badge: String(data.get('badge') ?? '').trim() || null,
+      accent: String(data.get('accent') ?? '#16a34a').trim(),
+      allowDownload: data.get('allowDownload') === 'on',
+      isFeatured: data.get('isFeatured') === 'on',
+    });
+
+    const cleanup = async (uploads: Uploaded[]) => {
+      if (!uploads.length) return;
+      await fetch('/api/admin/library/cleanup-upload', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files: uploads }),
+      }).catch(() => undefined);
+    };
+
     const upload = async (file: File, asset: 'pdf' | 'cover', config: UploadConfig, token: string, renew: () => Promise<string>, uploads: Uploaded[]) => {
       const valid = asset === 'pdf' ? config.allowedPdfTypes.includes(file.type) && file.size <= config.maxPdfBytes : config.allowedCoverTypes.includes(file.type) && file.size <= config.maxCoverBytes;
       if (!valid) throw new Error(asset === 'pdf' ? 'El PDF debe ser válido y no superar 100 MB.' : 'La portada debe ser JPG, PNG o WebP y no superar 8 MB.');
@@ -88,46 +173,192 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
       updateFileState(asset, file, 'Subida completada');
       return result;
     };
-    cover?.addEventListener('change', () => { if (previewUrl) URL.revokeObjectURL(previewUrl); const file = cover.files?.[0]; const image = preview?.querySelector('img'); if (file && image && preview) { removeCoverRequested = false; if (removeCoverButton) { removeCoverButton.textContent = 'Eliminar portada'; removeCoverButton.dataset.active = 'false'; } previewUrl = URL.createObjectURL(file); image.src = previewUrl; preview.hidden = false; updateFileState('cover', file); } else if (preview) preview.hidden = true; });
-    pdf?.addEventListener('change', () => updateFileState('pdf', pdf.files?.[0]));
-    removeCoverButton?.addEventListener('click', () => { removeCoverRequested = !removeCoverRequested; removeCoverButton.dataset.active = String(removeCoverRequested); removeCoverButton.textContent = removeCoverRequested ? 'Conservar portada' : 'Eliminar portada'; if (removeCoverRequested) { if (cover) cover.value = ''; if (preview) preview.hidden = true; updateFileState('cover', undefined, 'Se eliminará al guardar'); } });
-    cancelUploadButton?.addEventListener('click', () => activeController?.abort());
-    form.addEventListener('submit', async (event) => {
-      event.preventDefault(); if (isSubmitting) return; if (!form.checkValidity()) { form.reportValidity(); return; }
-      isSubmitting = true; activeController = new AbortController();
-      const submitter = (event as SubmitEvent).submitter as HTMLButtonElement | null; const intent = submitter?.dataset.intent === 'publish' ? 'publish' : 'draft'; const buttons = [...form.querySelectorAll<HTMLButtonElement>('button')]; buttons.forEach(button => { button.disabled = true; }); if (cancelUploadButton) { cancelUploadButton.hidden = false; cancelUploadButton.disabled = false; }
-      const uploads: Uploaded[] = [];
-      try {
-        const data = new FormData(form); const pdfFile = pdf?.files?.[0]; const coverFile = cover?.files?.[0]; const resourceId = form.dataset.resourceId;
-        setStage('Validando archivos…');
-        let config: UploadConfig | undefined; let accessToken = '';
-        const prepareDrive = async () => { if (config) return; config = await getConfig(); setStage('Conectando con Google Drive…'); accessToken = await requestGoogleDriveAccessToken(''); await verifyBrowserDriveAccess([config.pdfFolderId, config.coverFolderId], accessToken, activeController?.signal); setStage('Acceso concedido'); };
-        const renew = async () => { setStage('Renovando acceso a Google Drive…'); accessToken = await requestGoogleDriveAccessToken(''); return accessToken; };
-        if (!resourceId) {
-          if (!pdfFile) throw new Error('Selecciona un PDF válido.');
-          await prepareDrive();
-          const pdfUpload = await upload(pdfFile, 'pdf', config!, accessToken, renew, uploads);
-          const coverUpload = coverFile ? await upload(coverFile, 'cover', config!, accessToken, renew, uploads) : undefined;
-          setStage(intent === 'publish' ? 'Publicando…' : 'Guardando información…');
-          const response = await fetch('/api/admin/library/complete-upload', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...metadataFrom(data, intent), driveFileId: pdfUpload.id, ...(coverUpload ? { coverDriveFileId: coverUpload.id } : {}) }) });
-          const result = await response.json(); if (!response.ok) applyFieldError(result); if (!response.ok && result.resource) { uploads.length = 0; throw new Error(result.error ?? 'El recurso se conservó como borrador.'); } if (!response.ok) throw new Error(result.error ?? 'No se pudo guardar el recurso.'); uploads.length = 0;
-        } else {
-          const wasPublished = form.dataset.published === 'true'; const desiredPublished = intent === 'publish';
-          const callAction = async (action: 'publish' | 'unpublish') => { setStage(action === 'publish' ? 'Publicando…' : 'Despublicando…'); const response = await fetch(`/api/admin/library/${resourceId}/${action}`, { method: 'POST' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo actualizar la publicación.'); };
-          if (wasPublished && !desiredPublished) await callAction('unpublish');
-          const patchResponse = await fetch(`/api/admin/library/${resourceId}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(metadataFrom(data, intent)) }); const patchResult = await patchResponse.json(); if (!patchResponse.ok) { applyFieldError(patchResult); throw new Error(patchResult.error ?? 'No se pudieron guardar los metadatos.'); }
-          if (removeCoverRequested) { const response = await fetch(`/api/admin/library/${resourceId}/replace-cover`, { method: 'DELETE' }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo eliminar la portada.'); }
-          if (pdfFile || coverFile) { await prepareDrive(); }
-          for (const item of [{ file: pdfFile, asset: 'pdf' as const }, { file: coverFile, asset: 'cover' as const }]) { if (!item.file) continue; const uploaded = await upload(item.file, item.asset, config!, accessToken, renew, uploads); const response = await fetch(`/api/admin/library/${resourceId}/replace-${item.asset}`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ driveFileId: uploaded.id }) }); const result = await response.json(); if (!response.ok) throw new Error(result.error ?? 'No se pudo reemplazar el archivo.'); const index = uploads.findIndex(value => value.id === uploaded.id); if (index >= 0) uploads.splice(index, 1); }
-          if (!wasPublished && desiredPublished) await callAction('publish');
+
+    cover?.addEventListener('change', () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+      const file = cover.files?.[0];
+      const image = preview?.querySelector('img');
+      if (file && image && preview) {
+        removeCoverRequested = false;
+        if (removeCoverButton) {
+          removeCoverButton.textContent = 'Eliminar portada';
+          removeCoverButton.dataset.active = 'false';
         }
-        setStage('Completado.', undefined, 'ok'); window.location.assign('/admin/biblioteca');
+        previewUrl = URL.createObjectURL(file);
+        image.src = previewUrl;
+        preview.hidden = false;
+        updateFileState('cover', file);
+      } else if (preview) {
+        preview.hidden = true;
+      }
+    });
+
+    pdf?.addEventListener('change', () => updateFileState('pdf', pdf.files?.[0]));
+
+    removeCoverButton?.addEventListener('click', () => {
+      removeCoverRequested = !removeCoverRequested;
+      removeCoverButton.textContent = removeCoverRequested ? 'Portada marcada para eliminar' : 'Eliminar portada';
+      removeCoverButton.dataset.active = removeCoverRequested ? 'true' : 'false';
+      if (removeCoverRequested && cover) cover.value = '';
+      if (removeCoverRequested && preview) preview.hidden = true;
+    });
+
+    cancelUploadButton?.addEventListener('click', () => {
+      if (activeController) {
+        activeController.abort();
+        setStage('Cancelando subida…', undefined, 'error');
+      }
+    });
+
+    form.addEventListener('submit', async event => {
+      event.preventDefault();
+      if (isSubmitting) return;
+
+      slugInput?.setCustomValidity('');
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      const submitter = event.submitter as HTMLButtonElement | null;
+      const intent = (submitter?.dataset.intent as 'draft' | 'publish') || 'publish';
+      const resourceId = form.dataset.resourceId;
+      const formData = new FormData(form);
+      const coverFile = cover?.files?.[0];
+      const pdfFile = pdf?.files?.[0];
+
+      // ── Branch 1: R2 + Drive Worker flow (Phase 4, new resources) ──
+      if (FILE_BACKEND === 'r2-drive' && !resourceId) {
+        if (!pdfFile) {
+          setStage('El documento PDF es obligatorio para nuevos recursos.', undefined, 'error');
+          return;
+        }
+
+        isSubmitting = true;
+        activeController = new AbortController();
+        if (cancelUploadButton) cancelUploadButton.hidden = false;
+        form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = true; });
+
+        try {
+          const url = import.meta.env.PUBLIC_SUPABASE_URL;
+          const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+          if (!url || !key) throw new Error('Supabase no está configurado en el navegador.');
+          const supabase = createBrowserClient(url, key);
+          const adapter = createR2DriveAdapter(supabase);
+          const metadata = toEditorialMetadata(formData);
+
+          const result = await adapter.uploadAndSave(
+            { pdf: pdfFile, cover: coverFile },
+            metadata,
+            intent,
+            (stageText, percent) => setStage(`${stageText} (${percent}%)`),
+            activeController.signal,
+          );
+
+          setStage(result.message || 'Recurso creado exitosamente.', undefined, 'ok');
+          window.location.href = '/admin/biblioteca';
+        } catch (error) {
+          if (activeController?.signal.aborted) {
+            setStage('Subida cancelada.', undefined, 'error');
+          } else {
+            const err = error as { field?: string; error?: string; message?: string };
+            if (err.field) applyFieldError(err);
+            setStage(err.message ?? 'Error al subir el recurso.', undefined, 'error');
+          }
+        } finally {
+          isSubmitting = false;
+          if (cancelUploadButton) cancelUploadButton.hidden = true;
+          form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = false; });
+        }
+        return;
+      }
+
+      // ── Branch 2: Browser Google Drive direct flow / Edition flow ──
+      isSubmitting = true;
+      activeController = new AbortController();
+      if (cancelUploadButton) cancelUploadButton.hidden = false;
+      form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = true; });
+      const uploads: Uploaded[] = [];
+
+      try {
+        setStage('Verificando acceso a Google Drive…');
+        const config = await getConfig();
+        let token = await requestGoogleDriveAccessToken();
+        await verifyBrowserDriveAccess([config.pdfFolderId, config.coverFolderId], token, activeController?.signal);
+        const renewToken = async () => { token = await requestGoogleDriveAccessToken('consent'); return token; };
+
+        let pdfResult: Uploaded | undefined;
+        let coverResult: Uploaded | undefined;
+
+        if (pdfFile) {
+          const res = await upload(pdfFile, 'pdf', config, token, renewToken, uploads);
+          pdfResult = { id: res.id, asset: 'pdf' };
+        }
+        if (coverFile) {
+          const res = await upload(coverFile, 'cover', config, token, renewToken, uploads);
+          coverResult = { id: res.id, asset: 'cover' };
+        }
+
+        if (resourceId) {
+          setStage('Guardando cambios…');
+          const body = {
+            ...metadataFrom(formData, intent),
+            ...(pdfResult ? { driveFileId: pdfResult.id } : {}),
+            ...(coverResult ? { coverDriveFileId: coverResult.id } : {}),
+            ...(removeCoverRequested ? { removeCover: true } : {}),
+          };
+          const response = await fetch(`/api/admin/library/books/${resourceId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: activeController.signal,
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            applyFieldError(result);
+            throw new Error(result.error ?? 'No se pudieron guardar los cambios.');
+          }
+          setStage('Recurso actualizado con éxito.', undefined, 'ok');
+          window.location.href = '/admin/biblioteca';
+        } else {
+          setStage('Registrando recurso en la biblioteca…');
+          if (!pdfResult) throw new Error('El PDF es obligatorio para crear un recurso.');
+          const body = {
+            ...metadataFrom(formData, intent),
+            driveFileId: pdfResult.id,
+            ...(coverResult ? { coverDriveFileId: coverResult.id } : {}),
+          };
+          const response = await fetch('/api/admin/library/complete-upload', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: activeController.signal,
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            applyFieldError(result);
+            throw new Error(result.error ?? 'No se pudo completar la creación del recurso.');
+          }
+          setStage('Recurso creado con éxito.', undefined, 'ok');
+          window.location.href = '/admin/biblioteca';
+        }
       } catch (error) {
-        await cleanup(uploads); const cancelled = activeController?.signal.aborted || (error instanceof DOMException && error.name === 'AbortError'); setStage(cancelled ? 'Se canceló la subida.' : error instanceof Error ? error.message : 'No se pudo guardar el recurso.', undefined, 'error'); isSubmitting = false; buttons.forEach(button => { button.disabled = false; });
-      } finally { if (cancelUploadButton) cancelUploadButton.hidden = true; activeController = undefined; }
+        if (activeController?.signal.aborted) {
+          setStage('Subida cancelada.', undefined, 'error');
+        } else {
+          setStage(error instanceof Error ? error.message : 'Ocurrió un error inesperado al subir.', undefined, 'error');
+        }
+        await cleanup(uploads);
+      } finally {
+        isSubmitting = false;
+        if (cancelUploadButton) cancelUploadButton.hidden = true;
+        form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = false; });
+      }
     });
   };
-  initializeBookForm(); document.addEventListener('astro:page-load', initializeBookForm);
+
+  initializeBookForm();
+  document.addEventListener('astro:page-load', initializeBookForm);
 </script>
 
 <style>
