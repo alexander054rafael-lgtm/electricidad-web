@@ -110,44 +110,15 @@ const getOrCreateSubfolder = async (
 
 // ── Chunk accumulation ─────────────────────────────────────────────
 
-const concat = (a: Uint8Array, b: Uint8Array): Uint8Array => {
-  const result = new Uint8Array(a.length + b.length);
-  result.set(a, 0);
-  result.set(b, a.length);
-  return result;
-};
+// Removed concat and readFixedChunks utilities to avoid unnecessary copying.
+// The uploadFromR2 function now streams chunks directly from the R2 object.
 
-/**
- * Reads the R2 stream and yields fixed-size chunks of exactly `chunkSize` bytes,
- * except for the final chunk which may be smaller.
- */
-async function* readFixedChunks(
-  reader: ReadableStreamDefaultReader<Uint8Array>,
-  chunkSize: number,
-): AsyncGenerator<Uint8Array> {
-  let buffer = new Uint8Array(0);
+// Note: The CHUNK_SIZE constant remains for potential future use, but we now
+// send each chunk as received from the R2 stream.
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      if (buffer.length > 0) yield buffer;
-      return;
-    }
-
-    // R2 stream returns Uint8Array<ArrayBufferLike>, but Workers expects
-    // Uint8Array<ArrayBuffer>. The runtime types are compatible.
-    // @ts-expect-error: workers Uint8Array generic differs from R2 stream
-    buffer = concat(buffer, value);
-
-    while (buffer.length >= chunkSize) {
-      const chunk = buffer.slice(0, chunkSize);
-      buffer = buffer.slice(chunkSize);
-      yield chunk;
-    }
-  }
-}
 
 // ── Resumable upload ───────────────────────────────────────────────
+// Updated uploadFromR2 to stream chunks directly without concat
 const uploadFromR2 = async (
   env: Env,
   objectKey: string,
@@ -166,62 +137,119 @@ const uploadFromR2 = async (
   if (!body) throw new Error(`R2 object has no readable body: ${objectKey}`);
 
   const reader = body.getReader();
+
+  // Counters for bytes read from R2 and bytes confirmed by Drive
+  let totalReadBytes = 0;
   let uploadedBytes = 0;
 
+  // Pre‑allocated buffer for full‑size chunks (8 MiB). Reused to keep memory low.
+  const chunkBuffer = new Uint8Array(CHUNK_SIZE);
+  let bufferOffset = 0; // bytes currently stored in chunkBuffer
+  let chunkIndex = 0;
+  const startTime = Date.now();
   try {
-    for await (const chunk of readFixedChunks(reader, CHUNK_SIZE)) {
-      const chunkSize = chunk.byteLength;
-      const startByte = uploadedBytes;
-      const endByte = uploadedBytes + chunkSize - 1;
-      const contentRange = `bytes ${startByte}-${endByte}/${fileSize}`;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      const fragment = value as Uint8Array;
+      totalReadBytes += fragment.byteLength;
 
-      const chunkResponse = await fetch(sessionUrl, {
-        method: 'PUT',
-        headers: {
-          'Content-Length': String(chunkSize),
-          'Content-Range': contentRange,
-        },
-        // @ts-expect-error: chunk is compatible at runtime
-        body: chunk,
-      });
-
-      // 200/201 → complete
-      if (chunkResponse.status === 200 || chunkResponse.status === 201) {
-        return (await chunkResponse.json()) as DriveFileMetadata;
+      if (totalReadBytes > fileSize) {
+        throw new Error(
+          `R2 stream exceeded declared size: read ${totalReadBytes} bytes, expected ${fileSize}`,
+        );
       }
 
-      // 308 → continue
-      if (chunkResponse.status === 308) {
-        uploadedBytes += chunkSize;
-        continue;
-      }
+      // Copy fragment into reusable buffer, uploading full chunks when ready.
+      let srcPos = 0;
+      while (srcPos < fragment.byteLength) {
+        const space = CHUNK_SIZE - bufferOffset;
+        const copyLen = Math.min(space, fragment.byteLength - srcPos);
+        chunkBuffer.set(fragment.subarray(srcPos, srcPos + copyLen), bufferOffset);
+        bufferOffset += copyLen;
+        srcPos += copyLen;
 
-      const errorText = await chunkResponse.text().catch(() => 'unknown');
+        if (bufferOffset === CHUNK_SIZE) {
+          const startByte = uploadedBytes;
+          const endByte = uploadedBytes + CHUNK_SIZE - 1;
+          const contentRange = `bytes ${startByte}-${endByte}/${fileSize}`;
+          const chunkStart = Date.now();
+          const resp = await fetch(sessionUrl, {
+            method: 'PUT',
+            headers: {
+              'Content-Length': String(CHUNK_SIZE),
+              'Content-Range': contentRange,
+            },
+            body: chunkBuffer,
+          });
+          const duration = Date.now() - chunkStart;
+          console.debug(
+            `Chunk #${chunkIndex} sent ${startByte}-${endByte} (${CHUNK_SIZE} B) -> ${resp.status} in ${duration}ms`,
+          );
+
+          if (resp.status === 308) {
+            const rangeHeader = resp.headers.get('Range');
+            const expectedEnd = endByte;
+            if (rangeHeader) {
+              const match = rangeHeader.match(/bytes=0-(\d+)/);
+              const lastByte = match ? parseInt(match[1], 10) : null;
+              if (lastByte !== expectedEnd) {
+                throw new Error(
+                  `Drive 308 Range mismatch: got ${rangeHeader}, expected bytes=0-${expectedEnd}`,
+                );
+              }
+            }
+            uploadedBytes += CHUNK_SIZE;
+          } else if (resp.status === 200 || resp.status === 201) {
+            uploadedBytes += CHUNK_SIZE;
+            if (uploadedBytes === fileSize && totalReadBytes === fileSize) {
+              return (await resp.json()) as DriveFileMetadata;
+            }
+            if (uploadedBytes === fileSize && totalReadBytes !== fileSize) {
+              throw new Error(
+                `Drive completed prematurely after ${uploadedBytes} of ${fileSize} bytes`,
+              );
+            }
+          } else {
+            const txt = await resp.text().catch(() => 'unknown');
+            throw new Error(
+              `Drive resumable upload failed at byte ${uploadedBytes}: ${resp.status} ${txt}`,
+            );
+          }
+          // Reset for next chunk
+          bufferOffset = 0;
+          chunkIndex++;
+        }
+      }
+    }
+
+    // Validate total bytes read after stream ends
+    if (totalReadBytes < fileSize) {
       throw new Error(
-        `Drive resumable upload failed at byte ${uploadedBytes}: ${chunkResponse.status} ${errorText}`,
+        `R2 stream ended early: read ${totalReadBytes} bytes, expected ${fileSize}`,
       );
     }
 
-    if (uploadedBytes < fileSize) {
-      const finalResponse = await fetch(sessionUrl, {
+    // Send final partial chunk if any
+    if (bufferOffset > 0) {
+      const startByte = uploadedBytes;
+      const endByte = uploadedBytes + bufferOffset - 1;
+      const contentRange = `bytes ${startByte}-${endByte}/${fileSize}`;
+      const resp = await fetch(sessionUrl, {
         method: 'PUT',
         headers: {
-          'Content-Length': '0',
-          'Content-Range': `bytes */${fileSize}`,
+          'Content-Length': String(bufferOffset),
+          'Content-Range': contentRange,
         },
+        body: chunkBuffer.subarray(0, bufferOffset),
       });
-
-      if (finalResponse.status === 200 || finalResponse.status === 201) {
-        return (await finalResponse.json()) as DriveFileMetadata;
+      if (resp.status === 200 || resp.status === 201) {
+        return (await resp.json()) as DriveFileMetadata;
       }
-
-      const errorText = await finalResponse.text().catch(() => 'unknown');
-      throw new Error(`Drive resumable upload finalization failed: ${finalResponse.status} ${errorText}`);
+      const errorText = await resp.text().catch(() => 'unknown');
+      throw new Error(`Drive resumable upload finalization failed: ${resp.status} ${errorText}`);
     }
-
-    throw new Error(
-      `Drive resumable upload ended without confirmation after uploading ${uploadedBytes} of ${fileSize} bytes`,
-    );
+    throw new Error(`Drive resumable upload ended without confirmation after uploading ${uploadedBytes} of ${fileSize} bytes`);
   } finally {
     reader.releaseLock();
   }
