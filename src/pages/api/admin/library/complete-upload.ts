@@ -3,7 +3,7 @@ import { json, requireApiAdmin } from '../../../../lib/api';
 import { books as staticBooks } from '../../../../data/books';
 import { deleteDriveFile, verifyBrowserLibraryUpload, type DriveUploadResult } from '../../../../lib/google-drive/server';
 import { LIBRARY_ADMIN_SELECT, LibraryOperationError, publishLibraryResource } from '../../../../lib/library/admin';
-import { isSameOriginRequest, sanitizeLibraryFileName, validateLibraryResourceForm, LibraryValidationError } from '../../../../lib/library/validation';
+import { isSameOriginRequest, sanitizeLibraryFileName, slugifyLibraryTitle, validateLibraryResourceForm, LibraryValidationError } from '../../../../lib/library/validation';
 
 export const prerender = false;
 const DRIVE_ID_PATTERN = /^[a-zA-Z0-9_-]{10,200}$/;
@@ -40,10 +40,15 @@ export const POST: APIRoute = async (context) => {
     pdf = await verifyBrowserLibraryUpload(pdfId, 'pdf');
     cover = coverId ? await verifyBrowserLibraryUpload(coverId, 'cover') : undefined;
     const id = crypto.randomUUID();
+    const displaySlug = slugifyLibraryTitle(metadata.title);
+    const suffix = crypto.randomUUID().replace(/-/g, '').slice(0, 6);
+    const internalSlug = `${displaySlug}-${suffix}`;
+
     const insert = await auth.supabase.from('library_resources').insert({
       id,
       title: metadata.title,
-      slug: metadata.slug,
+      display_slug: displaySlug,
+      slug: internalSlug,
       author: metadata.author,
       description: metadata.description,
       category: metadata.category,

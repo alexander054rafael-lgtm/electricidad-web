@@ -17,7 +17,7 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
     <div class="section-head"><span>01</span><div><h2>Información editorial</h2><p>Datos visibles en la Biblioteca Técnica.</p></div></div>
     <div class="grid">
       <label>Título*<input name="title" required minlength="3" value={book?.title ?? ''} /></label>
-      <label>Slug*<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="180" value={book?.slug ?? ''} data-slug /><small>Se genera desde el título y puedes editarlo.</small></label>
+      <label>Slug*<input name="slug" required pattern="[a-z0-9]+(?:-[a-z0-9]+)*" maxlength="180" value={book?.slug ?? ''} data-slug /><small>Se genera desde el título. Se añadirá automáticamente un identificador interno para evitar duplicados.</small></label>
       <label>Autor<input name="author" minlength="2" value={book?.author ?? ''} /></label>
       <label>Categoría*<select name="category" required><option value="">Selecciona</option>{categories.map(category => <option selected={book?.category === category}>{category}</option>)}</select></label>
       <label>Tipo*<select name="bookType" required><option selected={!book || book.resource_type === 'Libro'}>Libro</option><option selected={book?.resource_type === 'Manual'}>Manual</option><option selected={book?.resource_type === 'Guía'}>Guía</option><option selected={book?.resource_type === 'Catálogo'}>Catálogo</option><option selected={book?.resource_type === 'Ficha técnica'}>Ficha técnica</option><option selected={book?.resource_type === 'Norma'}>Norma</option><option selected={book?.resource_type === 'Documento'}>Documento</option></select></label>

@@ -3,7 +3,7 @@ import { json, requireApiAdmin } from '../../../../../lib/api';
 import { books as staticBooks } from '../../../../../data/books';
 import { deleteDriveFile, verifyFileBelongsToLibraryFolder } from '../../../../../lib/google-drive/server';
 import { getAdminLibraryResource, LIBRARY_ADMIN_SELECT, LibraryOperationError } from '../../../../../lib/library/admin';
-import { isLibraryUuid, isSameOriginRequest, validateLibraryResourcePatch, LibraryValidationError } from '../../../../../lib/library/validation';
+import { isLibraryUuid, isSameOriginRequest, slugifyLibraryTitle, validateLibraryResourcePatch, LibraryValidationError } from '../../../../../lib/library/validation';
 
 export const prerender = false;
 const isDriveMissing = (error: unknown) => {
@@ -33,6 +33,9 @@ export const PATCH: APIRoute = async (context) => {
   try {
     const body = await context.request.json() as Record<string, unknown>;
     const updates = validateLibraryResourcePatch(body);
+    if (typeof updates.title === 'string' && updates.title.trim()) {
+      (updates as Record<string, unknown>).display_slug = slugifyLibraryTitle(updates.title);
+    }
     if (typeof updates.slug === 'string') {
       const slug = updates.slug;
       if (staticBooks.some((book) => book.slug === slug)) return json({ ok: false, field: 'slug', error: 'Ese slug pertenece a un recurso de muestra protegido.' }, 409);

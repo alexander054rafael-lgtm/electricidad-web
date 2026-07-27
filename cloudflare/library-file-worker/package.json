@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "typecheck": "tsc --noEmit",
-    "test": "npm run typecheck",
+    "test": "npm run typecheck && node --test test/slug.test.ts",
     "deploy:dry-run": "wrangler deploy --dry-run"
   },
   "devDependencies": {

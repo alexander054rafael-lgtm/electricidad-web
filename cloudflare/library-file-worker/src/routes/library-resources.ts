@@ -45,7 +45,23 @@ const supabaseAdminHeaders = (env: Env) => ({
   apikey: env.SUPABASE_SERVICE_ROLE_KEY,
   Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
   'X-Client-Info': 'indutech-library-worker/1.0',
+  Prefer: 'return=representation',
 });
+
+const safeParseJson = <T = unknown>(text: string): T | null => {
+  if (!text || !text.trim()) return null;
+  try {
+    return JSON.parse(text) as T;
+  } catch {
+    return null;
+  }
+};
+
+const generateRandomSuffix = (): string => {
+  const bytes = new Uint8Array(3);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+};
 
 const cleanSlug = (slug: string) =>
   slug.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
@@ -68,54 +84,69 @@ const buildInsertPayload = (
   coverManifest: UploadManifest | undefined,
   pdfDriveFileId: string,
   coverDriveFileId: string | undefined,
-  pdfDriveWebViewLink: string | undefined,
   pdfDriveName: string | undefined,
   userId: string,
-  action: 'draft' | 'publish',
-): SupabaseInsertPayload => ({
-  title: metadata.title.trim(),
-  slug: cleanSlug(metadata.slug),
-  author: metadata.author?.trim() || null,
-  description: metadata.description?.trim() || null,
-  category: metadata.category,
-  resource_type: metadata.resourceType,
-  level: metadata.level || null,
-  language: metadata.language,
-  pages: metadata.pages || null,
-  tags: metadata.tags,
-  topics: metadata.topics,
-  badge: metadata.badge || null,
-  accent: metadata.accent || '#16a34a',
-  allow_download: metadata.allowDownload,
-  is_featured: metadata.isFeatured,
-  is_published: false,
-  created_by: userId,
+): { insertPayload: SupabaseInsertPayload; internalSlug: string; displaySlug: string } => {
+  const displaySlug = cleanSlug(metadata.title || metadata.slug);
+  const suffix = generateRandomSuffix();
+  const internalSlug = `${displaySlug}-${suffix}`;
 
-  // Drive fields (populated after sync)
-  drive_file_id: pdfDriveFileId,
-  drive_file_name: pdfDriveName || pdfManifest.filename,
-  drive_mime_type: 'application/pdf',
-  drive_file_size: pdfManifest.size,
-  drive_view_link: pdfDriveWebViewLink || null,
+  const insertPayload: SupabaseInsertPayload = {
+    title: metadata.title.trim(),
+    display_slug: displaySlug,
+    slug: internalSlug,
+    author: metadata.author?.trim() || null,
+    description: metadata.description?.trim() || null,
+    category: metadata.category,
+    resource_type: metadata.resourceType,
+    level: metadata.level || null,
+    language: metadata.language,
+    pages: metadata.pages || null,
+    tags: metadata.tags,
+    topics: metadata.topics,
+    badge: metadata.badge || null,
+    accent: metadata.accent || '#16a34a',
+    allow_download: metadata.allowDownload,
+    is_featured: metadata.isFeatured,
+    created_by: userId,
 
-  // Cover Drive fields
-  cover_drive_file_id: coverDriveFileId || null,
-  cover_file_name: coverManifest?.filename || null,
-  cover_mime_type: coverManifest?.mimeType || null,
-  cover_file_size: coverManifest?.size || null,
+    // Publication state fields (strict draft state for Phase 4)
+    is_published: false,
 
-  // R2 sync columns
-  storage_backend: 'r2-drive',
-  r2_pdf_key: null, // cleared after cleanup
-  r2_cover_key: null, // cleared after cleanup
-  file_size_bytes: pdfManifest.size,
-  cover_size_bytes: coverManifest?.size || null,
-  file_sha256: pdfManifest.sha256 || null,
-  cover_sha256: coverManifest?.sha256 || null,
-  sync_status: 'ready',
-  synced_at: new Date().toISOString(),
-  file_error: null,
-});
+    // Public links and permissions (forbidden in draft state by Supabase constraint)
+    drive_view_link: null,
+    drive_download_link: null,
+    drive_public_permission_id: null,
+    cover_url: null,
+    cover_public_permission_id: null,
+
+    // Drive private fields
+    drive_file_id: pdfDriveFileId,
+    drive_file_name: pdfDriveName || pdfManifest.filename,
+    drive_mime_type: 'application/pdf',
+    drive_file_size: pdfManifest.size,
+
+    // Cover Drive fields
+    cover_drive_file_id: coverDriveFileId || null,
+    cover_file_name: coverManifest?.filename || null,
+    cover_mime_type: coverManifest?.mimeType || null,
+    cover_file_size: coverManifest?.size || null,
+
+    // R2 sync columns
+    storage_backend: 'r2-drive',
+    r2_pdf_key: null, // cleared after cleanup
+    r2_cover_key: null, // cleared after cleanup
+    file_size_bytes: pdfManifest.size,
+    cover_size_bytes: coverManifest?.size || null,
+    file_sha256: pdfManifest.sha256 || null,
+    cover_sha256: coverManifest?.sha256 || null,
+    sync_status: 'ready',
+    synced_at: new Date().toISOString(),
+    file_error: null,
+  };
+
+  return { insertPayload, internalSlug, displaySlug };
+};
 
 const deleteDriveFiles = async (
   env: Env,
@@ -229,8 +260,9 @@ export const libraryResourcesComplete = async (
     const existingUrl = `${supabaseUrl(env)}/rest/v1/library_resources?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id,slug,title`;
     const existingResp = await fetch(existingUrl, { headers: supabaseAdminHeaders(env) });
     if (existingResp.ok) {
-      const existing = await existingResp.json() as { id: string; slug: string; title: string }[];
-      if (existing.length > 0) {
+      const existingText = await existingResp.text().catch(() => '');
+      const existing = safeParseJson<{ id: string; slug: string; title: string }[]>(existingText);
+      if (existing && existing.length > 0) {
         return json(
           { ok: true, resourceId: existing[0].id, slug: existing[0].slug, title: existing[0].title, idempotent: true, operationId },
           200,
@@ -375,24 +407,25 @@ export const libraryResourcesComplete = async (
       if (tokenResp.ok) {
         const { access_token } = await tokenResp.json() as { access_token: string };
         const verifyResp = await fetch(
-          `https://www.googleapis.com/drive/v3/files/${pdfSyncResult.driveFileId}?fields=id,name,mimeType,size,parents,webViewLink`,
+          `https://www.googleapis.com/drive/v3/files/${pdfSyncResult.driveFileId}?fields=id,name,mimeType,size`,
           { headers: { Authorization: `Bearer ${access_token}` } },
         );
         if (verifyResp.ok) {
-          const verified = await verifyResp.json() as { id: string; name: string; mimeType: string; size: string; parents?: string[]; webViewLink?: string };
+          const verified = await verifyResp.json() as { id: string; name: string; mimeType: string; size: string };
           if (Number(verified.size) !== pdfManifest.size) {
             throw new Error(`Drive PDF size mismatch: expected ${pdfManifest.size}, got ${verified.size}`);
           }
           if (verified.mimeType !== 'application/pdf') {
             throw new Error(`Drive PDF MIME mismatch: expected application/pdf, got ${verified.mimeType}`);
           }
-          pdfSyncResult.webViewLink = verified.webViewLink;
           pdfSyncResult.name = verified.name;
         }
       }
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo verificar el PDF en Drive.';
+    await saveManifest(env, { ...pdfManifest, status: 'failed' });
+    if (coverManifest) await saveManifest(env, { ...coverManifest, status: 'failed' });
     await deleteDriveFiles(env, [pdfSyncResult.driveFileId, coverSyncResult?.driveFileId].filter(Boolean) as string[]);
     return json(
       { ok: false, code: 'pdf_verification_failed', error: message, syncStatus: 'failed', operationId },
@@ -433,6 +466,8 @@ export const libraryResourcesComplete = async (
       }
     } catch (error) {
       const message = error instanceof Error ? error.message : 'No se pudo verificar la portada en Drive.';
+      await saveManifest(env, { ...pdfManifest, status: 'failed' });
+      if (coverManifest) await saveManifest(env, { ...coverManifest, status: 'failed' });
       await deleteDriveFiles(env, [pdfSyncResult.driveFileId, coverSyncResult.driveFileId]);
       return json(
         { ok: false, code: 'cover_verification_failed', error: message, syncStatus: 'failed', operationId },
@@ -447,8 +482,9 @@ export const libraryResourcesComplete = async (
     const slugUrl = `${supabaseUrl(env)}/rest/v1/library_resources?slug=eq.${encodeURIComponent(metadata.slug)}&select=id`;
     const slugResp = await fetch(slugUrl, { headers: supabaseAdminHeaders(env) });
     if (slugResp.ok) {
-      const slugResult = await slugResp.json() as { id: string }[];
-      if (slugResult.length > 0 && slugResult[0].id !== idempotencyKey) {
+      const slugText = await slugResp.text().catch(() => '');
+      const slugResult = safeParseJson<{ id: string }[]>(slugText);
+      if (slugResult && slugResult.length > 0 && slugResult[0].id !== idempotencyKey) {
         return json(
           { ok: false, code: 'slug_taken', error: 'El slug ya está en uso por otro recurso.', field: 'slug', operationId },
           409,
@@ -461,23 +497,21 @@ export const libraryResourcesComplete = async (
   }
 
   // ── Build insert payload (all values from Worker, none from browser) ─
-  const insertPayload = buildInsertPayload(
+  const { insertPayload, internalSlug, displaySlug } = buildInsertPayload(
     metadata,
     pdfManifest,
     coverManifest,
     pdfSyncResult.driveFileId,
     coverSyncResult?.driveFileId,
-    pdfSyncResult.webViewLink,
     pdfSyncResult.name,
     auth.userId,
-    action,
   );
 
   // Add idempotency key
   insertPayload.idempotency_key = idempotencyKey;
 
   // ── Insert into Supabase ─────────────────────────────────────────
-  let resourceId: string;
+  let resourceId = '';
   try {
     const insertResp = await fetch(`${supabaseUrl(env)}/rest/v1/library_resources`, {
       method: 'POST',
@@ -485,24 +519,103 @@ export const libraryResourcesComplete = async (
       body: JSON.stringify(insertPayload),
     });
 
+    const responseText = await insertResp.text().catch(() => '');
+
     if (!insertResp.ok) {
-      const insertError = await insertResp.text().catch(() => 'unknown');
-      throw new Error(`Supabase insert failed (${insertResp.status}): ${insertError}`);
+      const isPublicationError =
+        responseText.includes('23514') ||
+        responseText.includes('check constraint') ||
+        responseText.includes('library_resources_publication_check') ||
+        responseText.includes('is_published');
+
+      if (isPublicationError) {
+        console.error(`[${operationId}] Supabase insert failed: publication_state_invalid`);
+        return json(
+          {
+            ok: false,
+            code: 'publication_state_invalid',
+            error: 'El estado de publicación del recurso no cumple las restricciones del sistema.',
+            operationId,
+          },
+          400,
+          origin,
+        );
+      }
+
+      console.error(`[${operationId}] Supabase insert failed: status ${insertResp.status}`);
+      return json(
+        {
+          ok: false,
+          code: 'supabase_insert_failed',
+          error: 'No se pudo guardar el recurso en la base de datos.',
+          syncStatus: 'ready',
+          operationId,
+        },
+        502,
+        origin,
+      );
     }
 
-    const inserted = await insertResp.json() as { id: string }[];
-    if (!inserted || !inserted.length || !inserted[0].id) {
-      throw new Error('Supabase insert returned no resource ID.');
+    // Success response handling (do not assume JSON body)
+    const inserted = safeParseJson<{ id: string }[]>(responseText);
+    if (inserted && Array.isArray(inserted) && inserted.length > 0 && inserted[0]?.id) {
+      resourceId = inserted[0].id;
+    } else {
+      // Fallback: If body was empty or didn't return resourceId (e.g., 201 Created without body), query by idempotency_key
+      try {
+        const queryUrl = `${supabaseUrl(env)}/rest/v1/library_resources?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id`;
+        const queryResp = await fetch(queryUrl, { headers: supabaseAdminHeaders(env) });
+        if (queryResp.ok) {
+          const queryText = await queryResp.text().catch(() => '');
+          const queryData = safeParseJson<{ id: string }[]>(queryText);
+          if (queryData && Array.isArray(queryData) && queryData.length > 0 && queryData[0]?.id) {
+            resourceId = queryData[0].id;
+          }
+        }
+      } catch {
+        // Fallback query error
+      }
     }
-    resourceId = inserted[0].id;
+
+    if (!resourceId) {
+      if (!responseText.trim()) {
+        console.error(`[${operationId}] Supabase insert succeeded but returned empty body and idempotency lookup failed.`);
+        return json(
+          {
+            ok: false,
+            code: 'supabase_empty_success_response',
+            error: 'El recurso fue guardado pero no se pudo obtener el identificador asignado.',
+            syncStatus: 'ready',
+            operationId,
+          },
+          502,
+          origin,
+        );
+      } else {
+        console.error(`[${operationId}] Supabase insert succeeded but returned invalid JSON body.`);
+        return json(
+          {
+            ok: false,
+            code: 'supabase_invalid_json_response',
+            error: 'La respuesta de la base de datos no es JSON válido.',
+            syncStatus: 'ready',
+            operationId,
+          },
+          502,
+          origin,
+        );
+      }
+    }
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'No se pudo guardar el recurso en Supabase.';
-    // Rollback: delete Drive files created by this operation
-    const driveFilesToDelete = [pdfSyncResult.driveFileId];
-    if (coverSyncResult?.driveFileId) driveFilesToDelete.push(coverSyncResult.driveFileId);
-    await deleteDriveFiles(env, driveFilesToDelete);
+    console.error(`[${operationId}] Supabase insert unexpected error:`, error);
     return json(
-      { ok: false, code: 'supabase_insert_failed', error: message, syncStatus: 'failed', operationId },
+      {
+        ok: false,
+        code: 'supabase_insert_failed',
+        error: 'Error de conexión al guardar el recurso.',
+        syncStatus: 'ready',
+        operationId,
+      },
       502,
       origin,
     );
@@ -518,7 +631,8 @@ export const libraryResourcesComplete = async (
     {
       ok: true,
       resourceId,
-      slug: metadata.slug,
+      slug: internalSlug,
+      displaySlug,
       title: metadata.title,
       storageBackend: 'r2-drive',
       syncStatus: 'ready',

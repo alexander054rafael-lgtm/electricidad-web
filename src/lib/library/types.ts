@@ -20,6 +20,7 @@ type LibraryResourcePresentation = {
   id: string;
   source: LibraryResourceSource;
   slug: string;
+  displaySlug?: string;
   title: string;
   author: string;
   description: string;
@@ -57,6 +58,7 @@ export type DatabaseLibraryResourceRow = {
   id: string;
   title: string;
   slug: string;
+  display_slug?: string | null;
   author: string | null;
   description: string | null;
   category: string;

@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { books as sampleBooks } from '../../data/books';
 import type { DatabaseLibraryResource, DatabaseLibraryResourceRow, LibraryResource, StaticLibraryResource } from './types';
 
-export const DATABASE_BOOK_SELECT = 'id,title,slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,tags,topics,badge,accent,allow_download,is_featured,is_published,created_at,updated_at';
+export const DATABASE_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,tags,topics,badge,accent,allow_download,is_featured,is_published,created_at,updated_at';
 
 export type DatabaseBookRow = DatabaseLibraryResourceRow;
 
@@ -31,6 +31,7 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
   id: row.id,
   source: 'database',
   slug: row.slug,
+  displaySlug: row.display_slug || row.slug,
   title: row.title,
   author: row.author || 'InduTech Academy',
   description: row.description || '',
