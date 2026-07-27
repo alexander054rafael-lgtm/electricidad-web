@@ -1,9 +1,9 @@
-import { requireAdmin } from '../auth/admin';
-import { deleteUploadOperation, getManifest, saveManifest, type UploadManifest } from '../services/r2-upload';
-import { syncFileToDrive } from '../services/google-drive';
-import { json } from '../security/cors';
-import type { Env, WorkerContext } from '../types/env';
-import { generateInternalSlug, ensureUniqueSlug } from './slug-utils';
+import { requireAdmin } from '../auth/admin.js';
+import { deleteUploadOperation, getManifest, saveManifest, type UploadManifest } from '../services/r2-upload.js';
+import { syncFileToDrive } from '../services/google-drive.js';
+import { json } from '../security/cors.js';
+import type { Env, WorkerContext } from '../types/env.js';
+import { generateInternalSlug, ensureUniqueSlug } from './slug-utils.js';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -222,15 +222,15 @@ const syncManifestToDrive = async (
 // ── Main endpoint ──────────────────────────────────────────────────
 
 export const libraryResourcesComplete = async (
-  { request, env, operationId }: WorkerContext,
-  origin?: string,
+  context: WorkerContext,
 ): Promise<Response> => {
+  const { request, env, operationId } = context;
   const auth = await requireAdmin(request, env);
   if (!auth.ok) {
     return json(
       { ok: false, code: auth.code, error: auth.error, operationId },
       auth.status,
-      origin,
+      context,
     );
   }
 
@@ -241,7 +241,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'invalid_json', error: 'El cuerpo de la solicitud no es JSON válido.', operationId },
       422,
-      origin,
+      context,
     );
   }
 
@@ -252,7 +252,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'invalid_idempotency_key', error: 'La clave de idempotencia no es válida.', operationId },
       422,
-      origin,
+      context,
     );
   }
 
@@ -267,7 +267,7 @@ export const libraryResourcesComplete = async (
         return json(
           { ok: true, resourceId: existing[0].id, slug: existing[0].slug, title: existing[0].title, idempotent: true, operationId },
           200,
-          origin,
+          context,
         );
       }
     }
@@ -280,7 +280,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'missing_metadata', error: 'Los metadatos editoriales son obligatorios.', operationId },
       422,
-      origin,
+      context,
     );
   }
   const metaError = validateMetadata(metadata);
@@ -288,7 +288,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'invalid_metadata', error: metaError, operationId },
       422,
-      origin,
+      context,
     );
   }
 
@@ -297,7 +297,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'invalid_action', error: 'La acción debe ser draft o publish.', operationId },
       422,
-      origin,
+      context,
     );
   }
 
@@ -306,7 +306,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'missing_pdf_upload', error: 'El identificador del PDF es obligatorio.', operationId },
       422,
-      origin,
+      context,
     );
   }
   const pdfManifest = await getManifest(env, pdfUploadId);
@@ -314,21 +314,21 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'pdf_manifest_not_found', error: 'La operación del PDF no está disponible.', operationId },
       404,
-      origin,
+      context,
     );
   }
   if (pdfManifest.kind !== 'pdf') {
     return json(
       { ok: false, code: 'pdf_kind_mismatch', error: 'El uploadId proporcionado no corresponde a un PDF.', operationId },
       422,
-      origin,
+      context,
     );
   }
   if (pdfManifest.status !== 'validated' && pdfManifest.status !== 'synced') {
     return json(
       { ok: false, code: 'pdf_not_validated', error: 'El PDF debe estar validado antes de completar el recurso.', operationId },
       422,
-      origin,
+      context,
     );
   }
 
@@ -340,21 +340,21 @@ export const libraryResourcesComplete = async (
       return json(
         { ok: false, code: 'cover_manifest_not_found', error: 'La operación de la portada no está disponible.', operationId },
         404,
-        origin,
+        context,
       );
     }
     if (coverManifest.kind !== 'cover') {
       return json(
         { ok: false, code: 'cover_kind_mismatch', error: 'El uploadId proporcionado no corresponde a una portada.', operationId },
         422,
-        origin,
+        context,
       );
     }
     if (coverManifest.status !== 'validated' && coverManifest.status !== 'synced') {
       return json(
         { ok: false, code: 'cover_not_validated', error: 'La portada debe estar validada antes de completar el recurso.', operationId },
         422,
-        origin,
+        context,
       );
     }
   }
@@ -369,7 +369,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'pdf_sync_failed', error: message, syncStatus: 'failed', operationId },
       502,
-      origin,
+      context,
     );
   }
 
@@ -386,7 +386,7 @@ export const libraryResourcesComplete = async (
       return json(
         { ok: false, code: 'cover_sync_failed', error: message, syncStatus: 'failed', operationId },
         502,
-        origin,
+        context,
       );
     }
   }
@@ -431,7 +431,7 @@ export const libraryResourcesComplete = async (
     return json(
       { ok: false, code: 'pdf_verification_failed', error: message, syncStatus: 'failed', operationId },
       502,
-      origin,
+      context,
     );
   }
 
@@ -473,7 +473,7 @@ export const libraryResourcesComplete = async (
       return json(
         { ok: false, code: 'cover_verification_failed', error: message, syncStatus: 'failed', operationId },
         502,
-        origin,
+        context,
       );
     }
   }
@@ -489,7 +489,7 @@ export const libraryResourcesComplete = async (
         return json(
           { ok: false, code: 'slug_taken', error: 'El slug ya está en uso por otro recurso.', field: 'slug', operationId },
           409,
-          origin,
+          context,
         );
       }
     }
@@ -567,7 +567,7 @@ export const libraryResourcesComplete = async (
             operationId,
           },
           500,
-          origin,
+          context,
         );
       }
       insertPayload.slug = internalSlug;
@@ -590,7 +590,7 @@ export const libraryResourcesComplete = async (
           operationId,
         },
         400,
-        origin,
+        context,
       );
     }
 
@@ -605,7 +605,7 @@ export const libraryResourcesComplete = async (
         operationId,
       },
       502,
-      origin,
+      context,
     );
   }
 
@@ -619,7 +619,7 @@ export const libraryResourcesComplete = async (
         operationId,
       },
       500,
-      origin,
+      context,
     );
   }
 
@@ -646,6 +646,6 @@ export const libraryResourcesComplete = async (
       operationId,
     },
     201,
-    origin,
+    context,
   );
 };

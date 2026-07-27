@@ -1,5 +1,5 @@
-import { getAuthenticatedUserId, getBearerToken, getUserRole } from './supabase';
-import type { Env } from '../types/env';
+import { getAuthenticatedUserId, getBearerToken, getUserRole } from './supabase.js';
+import type { Env } from '../types/env.js';
 
 export type AdminAuth = { ok: true; userId: string } | {
   ok: false;

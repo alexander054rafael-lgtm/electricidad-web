@@ -1,5 +1,5 @@
-import { coverExtension, isUploadId, type UploadDescriptor } from '../security/validation';
-import type { Env } from '../types/env';
+import { coverExtension, isUploadId, type UploadDescriptor } from '../security/validation.js';
+import type { Env } from '../types/env.js';
 
 export type UploadManifest = UploadDescriptor & {
   uploadId: string;

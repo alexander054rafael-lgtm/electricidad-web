@@ -8,68 +8,70 @@ import type { WorkerContext } from '../types/env';
 const parseJson = async (request: Request) => {
   try { return await request.json() as Record<string, unknown>; } catch { return undefined; }
 };
-export const uploadInit = async ({ request, env, operationId }: WorkerContext, origin?: string) => {
+export const uploadInit = async (context: WorkerContext) => {
+  const { request, env, operationId } = context;
   const auth = await requireAdmin(request, env);
-  if (!auth.ok) return json({ ok: false, code: auth.code, error: auth.error, operationId }, auth.status, origin);
+  if (!auth.ok) return json({ ok: false, code: auth.code, error: auth.error, operationId }, auth.status, context);
   const descriptor = parseUploadDescriptor(await parseJson(request), { pdf: env.MAX_PDF_BYTES, cover: env.MAX_COVER_BYTES });
-  if (!descriptor) return json({ ok: false, code: 'invalid_upload_descriptor', error: 'El archivo no cumple los requisitos permitidos.', operationId }, 422, origin);
+  if (!descriptor) return json({ ok: false, code: 'invalid_upload_descriptor', error: 'El archivo no cumple los requisitos permitidos.', operationId }, 422, context);
   const uploadId = crypto.randomUUID();
   const objectKey = createObjectKey(uploadId, descriptor);
   try {
     const signed = await createPresignedPutUrl(env, objectKey, descriptor.mimeType);
     const manifest: UploadManifest = { ...descriptor, uploadId, objectKey, ownerId: auth.userId, createdAt: new Date().toISOString(), expiresAt: signed.expiresAt, status: 'pending' };
     await saveManifest(env, manifest);
-    return json({ ok: true, uploadId, objectKey, uploadUrl: signed.uploadUrl, headers: signed.headers, expiresAt: signed.expiresAt, operationId }, 201, origin);
+    return json({ ok: true, uploadId, objectKey, uploadUrl: signed.uploadUrl, headers: signed.headers, expiresAt: signed.expiresAt, operationId }, 201, context);
   } catch {
-    return json({ ok: false, code: 'r2_presign_unavailable', error: 'No se pudo preparar la subida temporal a R2.', operationId }, 503, origin);
+    return json({ ok: false, code: 'r2_presign_unavailable', error: 'No se pudo preparar la subida temporal a R2.', operationId }, 503, context);
   }
 };
 
 type OwnedManifest = { userId: string; manifest: UploadManifest } | { denied: Response };
 
-const getOwnedManifest = async (request: Request, context: WorkerContext, origin?: string): Promise<OwnedManifest> => {
-  const auth = await requireAdmin(request, context.env);
-  if (!auth.ok) return { denied: json({ ok: false, code: auth.code, error: auth.error, operationId: context.operationId }, auth.status, origin) };
+const getOwnedManifest = async (context: WorkerContext): Promise<OwnedManifest> => {
+  const { request, env, operationId } = context;
+  const auth = await requireAdmin(request, env);
+  if (!auth.ok) return { denied: json({ ok: false, code: auth.code, error: auth.error, operationId }, auth.status, context) };
   const body = await parseJson(request);
   const uploadId = typeof body?.uploadId === 'string' ? body.uploadId : '';
   const objectKey = typeof body?.objectKey === 'string' ? body.objectKey : '';
-  if (!isUploadId(uploadId)) return { denied: json({ ok: false, code: 'invalid_upload_operation', error: 'Operación de subida no válida.', operationId: context.operationId }, 422, origin) };
-  const manifest = await getManifest(context.env, uploadId);
-  if (!manifest || manifest.objectKey !== objectKey || manifest.ownerId !== auth.userId) return { denied: json({ ok: false, code: 'upload_operation_not_found', error: 'La operación temporal no está disponible.', operationId: context.operationId }, 404, origin) };
+  if (!isUploadId(uploadId)) return { denied: json({ ok: false, code: 'invalid_upload_operation', error: 'Operación de subida no válida.', operationId: context.operationId }, 422, context) };
+  const manifest = await getManifest(env, uploadId);
+  if (!manifest || manifest.objectKey !== objectKey || manifest.ownerId !== auth.userId) return { denied: json({ ok: false, code: 'upload_operation_not_found', error: 'La operación temporal no está disponible.', operationId: context.operationId }, 404, context) };
   return { userId: auth.userId, manifest };
 };
 
-export const uploadComplete = async (context: WorkerContext, origin?: string) => {
-  const owned = await getOwnedManifest(context.request, context, origin);
+export const uploadComplete = async (context: WorkerContext) => {
+  const owned = await getOwnedManifest(context);
   if ('denied' in owned) return owned.denied;
   const { manifest } = owned;
   try {
     const object = await context.env.LIBRARY_CACHE.get(manifest.objectKey);
-    if (!object) return json({ ok: false, code: 'upload_object_not_found', error: 'El archivo temporal no se encontró en R2.', operationId: context.operationId }, 404, origin);
-    if (object.size !== manifest.size || object.httpMetadata?.contentType !== manifest.mimeType) return json({ ok: false, code: 'upload_metadata_invalid', error: 'El archivo temporal no coincide con la operación autorizada.', operationId: context.operationId }, 422, origin);
+    if (!object) return json({ ok: false, code: 'upload_object_not_found', error: 'El archivo temporal no se encontró en R2.', operationId: context.operationId }, 404, context);
+    if (object.size !== manifest.size || object.httpMetadata?.contentType !== manifest.mimeType) return json({ ok: false, code: 'upload_metadata_invalid', error: 'El archivo temporal no coincide con la operación autorizada.', operationId: context.operationId }, 422, context);
     const bytes = await object.arrayBuffer();
-    if (!hasValidSignature(new Uint8Array(bytes), manifest.kind, manifest.mimeType)) return json({ ok: false, code: 'upload_signature_invalid', error: 'La firma binaria del archivo no es válida.', operationId: context.operationId }, 422, origin);
+    if (!hasValidSignature(new Uint8Array(bytes), manifest.kind, manifest.mimeType)) return json({ ok: false, code: 'upload_signature_invalid', error: 'La firma binaria del archivo no es válida.', operationId: context.operationId }, 422, context);
     const hash = await sha256(bytes);
     await saveManifest(context.env, { ...manifest, status: 'validated', sha256: hash });
-    return json({ ok: true, status: 'validated', uploadId: manifest.uploadId, kind: manifest.kind, size: manifest.size, sha256: hash, operationId: context.operationId }, 200, origin);
+    return json({ ok: true, status: 'validated', uploadId: manifest.uploadId, kind: manifest.kind, size: manifest.size, sha256: hash, operationId: context.operationId }, 200, context);
   } catch {
-    return json({ ok: false, code: 'upload_validation_failed', error: 'No se pudo validar el archivo temporal.', operationId: context.operationId }, 502, origin);
+    return json({ ok: false, code: 'upload_validation_failed', error: 'No se pudo validar el archivo temporal.', operationId: context.operationId }, 502, context);
   }
 };
 
-export const uploadCleanup = async (context: WorkerContext, origin?: string) => {
-  const owned = await getOwnedManifest(context.request, context, origin);
+export const uploadCleanup = async (context: WorkerContext) => {
+  const owned = await getOwnedManifest(context);
   if ('denied' in owned) return owned.denied;
   try {
     await deleteUploadOperation(context.env, owned.manifest);
-    return json({ ok: true, status: 'cleaned', uploadId: owned.manifest.uploadId, operationId: context.operationId }, 200, origin);
+    return json({ ok: true, status: 'cleaned', uploadId: owned.manifest.uploadId, operationId: context.operationId }, 200, context);
   } catch {
-    return json({ ok: false, code: 'upload_cleanup_failed', error: 'No se pudo limpiar la subida temporal.', operationId: context.operationId }, 502, origin);
+    return json({ ok: false, code: 'upload_cleanup_failed', error: 'No se pudo limpiar la subida temporal.', operationId: context.operationId }, 502, context);
   }
 };
 
-export const syncDrive = async (context: WorkerContext, origin?: string) => {
-  const owned = await getOwnedManifest(context.request, context, origin);
+export const syncDrive = async (context: WorkerContext) => {
+  const owned = await getOwnedManifest(context);
   if ('denied' in owned) return owned.denied;
   const { manifest } = owned;
 
@@ -84,7 +86,7 @@ export const syncDrive = async (context: WorkerContext, origin?: string) => {
       size: manifest.size,
       syncedAt: manifest.syncedAt,
       operationId: context.operationId,
-    }, 200, origin);
+    }, 200, context);
   }
 
   // Only allow syncing validated files
@@ -94,7 +96,7 @@ export const syncDrive = async (context: WorkerContext, origin?: string) => {
       code: 'sync_not_validated',
       error: 'El archivo debe estar validado antes de copiarlo a Drive.',
       operationId: context.operationId,
-    }, 422, origin);
+    }, 422, context);
   }
 
   try {
@@ -124,7 +126,7 @@ export const syncDrive = async (context: WorkerContext, origin?: string) => {
       size: result.size,
       syncedAt: result.syncedAt,
       operationId: context.operationId,
-    }, 200, origin);
+    }, 200, context);
   } catch (error) {
     const message = error instanceof Error ? error.message : 'No se pudo copiar el archivo a Google Drive.';
     return json({
@@ -132,6 +134,6 @@ export const syncDrive = async (context: WorkerContext, origin?: string) => {
       code: 'sync_drive_failed',
       error: message,
       operationId: context.operationId,
-    }, 502, origin);
+    }, 502, context);
   }
 };

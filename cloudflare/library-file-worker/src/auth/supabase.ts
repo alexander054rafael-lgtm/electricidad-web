@@ -1,4 +1,4 @@
-import type { Env } from '../types/env';
+import type { Env } from '../types/env.js';
 
 type SupabaseUser = { id?: unknown };
 type Profile = { id?: unknown; role?: unknown };

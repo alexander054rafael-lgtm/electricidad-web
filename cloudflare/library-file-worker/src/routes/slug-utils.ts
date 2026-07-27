@@ -1,5 +1,5 @@
-import { supabaseUrl, supabaseAdminHeaders } from '../auth/supabase';
-import type { Env } from '../types/env';
+import { supabaseUrl, supabaseAdminHeaders } from '../auth/supabase.js';
+import type { Env } from '../types/env.js';
 
 /** Helper to safely parse JSON, returns null on failure */
 const safeParseJson = <T>(text: string): T | null => {
