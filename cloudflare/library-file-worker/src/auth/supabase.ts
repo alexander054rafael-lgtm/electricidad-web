@@ -17,7 +17,10 @@ const configured = (env: Env) => Boolean(
   && env.SUPABASE_SERVICE_ROLE_KEY,
 );
 
-const supabaseUrl = (env: Env) => env.SUPABASE_URL.replace(/\/$/, '');
+export const supabaseUrl = (env: Env) => env.SUPABASE_URL.replace(/\/$/, '');
+export const supabaseAdminHeaders = (env: Env) => ({
+  apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+});
 
 export const getBearerToken = (request: Request) => {
   const authorization = request.headers.get('authorization') ?? '';

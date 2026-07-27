@@ -3,6 +3,7 @@ import { deleteUploadOperation, getManifest, saveManifest, type UploadManifest }
 import { syncFileToDrive } from '../services/google-drive';
 import { json } from '../security/cors';
 import type { Env, WorkerContext } from '../types/env';
+import { generateInternalSlug, ensureUniqueSlug } from './slug-utils';
 
 // ── Types ──────────────────────────────────────────────────────────
 
@@ -497,7 +498,7 @@ export const libraryResourcesComplete = async (
   }
 
   // ── Build insert payload (all values from Worker, none from browser) ─
-  const { insertPayload, internalSlug, displaySlug } = buildInsertPayload(
+  let { insertPayload, internalSlug, displaySlug } = buildInsertPayload(
     metadata,
     pdfManifest,
     coverManifest,
@@ -512,7 +513,9 @@ export const libraryResourcesComplete = async (
 
   // ── Insert into Supabase ─────────────────────────────────────────
   let resourceId = '';
-  try {
+  const maxAttempts = 10;
+  let attempt = 0;
+  while (attempt < maxAttempts) {
     const insertResp = await fetch(`${supabaseUrl(env)}/rest/v1/library_resources`, {
       method: 'POST',
       headers: supabaseAdminHeaders(env),
@@ -521,102 +524,101 @@ export const libraryResourcesComplete = async (
 
     const responseText = await insertResp.text().catch(() => '');
 
-    if (!insertResp.ok) {
-      const isPublicationError =
-        responseText.includes('23514') ||
-        responseText.includes('check constraint') ||
-        responseText.includes('library_resources_publication_check') ||
-        responseText.includes('is_published');
+    if (insertResp.ok) {
+      // Success handling (same as before)
+      const inserted = safeParseJson<{ id: string }[]>(responseText);
+      if (inserted && Array.isArray(inserted) && inserted.length > 0 && inserted[0]?.id) {
+        resourceId = inserted[0].id;
+      } else {
+        try {
+          const queryUrl = `${supabaseUrl(env)}/rest/v1/library_resources?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id`;
+          const queryResp = await fetch(queryUrl, { headers: supabaseAdminHeaders(env) });
+          if (queryResp.ok) {
+            const queryText = await queryResp.text().catch(() => '');
+            const queryData = safeParseJson<{ id: string }[]>(queryText);
+            if (queryData && Array.isArray(queryData) && queryData.length > 0 && queryData[0]?.id) {
+              resourceId = queryData[0].id;
+            }
+          }
+        } catch {}
+      }
+      if (resourceId) break; // successful insert
+    }
 
-      if (isPublicationError) {
-        console.error(`[${operationId}] Supabase insert failed: publication_state_invalid`);
+    // Not ok or no resourceId – inspect error
+    const isDuplicateSlug = responseText.includes('23505') && responseText.toLowerCase().includes('slug');
+    if (isDuplicateSlug) {
+      attempt++;
+      // Generate a new slug and ensure uniqueness before retrying
+      try {
+        internalSlug = await ensureUniqueSlug(
+          generateInternalSlug(displaySlug),
+          displaySlug,
+          env,
+          maxAttempts - attempt,
+        );
+      } catch {
+        // Could not obtain unique slug after retries
         return json(
           {
             ok: false,
-            code: 'publication_state_invalid',
-            error: 'El estado de publicación del recurso no cumple las restricciones del sistema.',
+            code: 'slug_generation_failed',
+            error: 'No fue posible generar un identificador único.',
             operationId,
           },
-          400,
+          500,
           origin,
         );
       }
+      insertPayload.slug = internalSlug;
+      continue; // retry insertion
+    }
 
-      console.error(`[${operationId}] Supabase insert failed: status ${insertResp.status}`);
+    // Handle publication errors
+    const isPublicationError =
+      responseText.includes('23514') ||
+      responseText.includes('check constraint') ||
+      responseText.includes('library_resources_publication_check') ||
+      responseText.includes('is_published');
+    if (isPublicationError) {
+      console.error(`[${operationId}] Supabase insert failed: publication_state_invalid`);
       return json(
         {
           ok: false,
-          code: 'supabase_insert_failed',
-          error: 'No se pudo guardar el recurso en la base de datos.',
-          syncStatus: 'ready',
+          code: 'publication_state_invalid',
+          error: 'El estado de publicación del recurso no cumple las restricciones del sistema.',
           operationId,
         },
-        502,
+        400,
         origin,
       );
     }
 
-    // Success response handling (do not assume JSON body)
-    const inserted = safeParseJson<{ id: string }[]>(responseText);
-    if (inserted && Array.isArray(inserted) && inserted.length > 0 && inserted[0]?.id) {
-      resourceId = inserted[0].id;
-    } else {
-      // Fallback: If body was empty or didn't return resourceId (e.g., 201 Created without body), query by idempotency_key
-      try {
-        const queryUrl = `${supabaseUrl(env)}/rest/v1/library_resources?idempotency_key=eq.${encodeURIComponent(idempotencyKey)}&select=id`;
-        const queryResp = await fetch(queryUrl, { headers: supabaseAdminHeaders(env) });
-        if (queryResp.ok) {
-          const queryText = await queryResp.text().catch(() => '');
-          const queryData = safeParseJson<{ id: string }[]>(queryText);
-          if (queryData && Array.isArray(queryData) && queryData.length > 0 && queryData[0]?.id) {
-            resourceId = queryData[0].id;
-          }
-        }
-      } catch {
-        // Fallback query error
-      }
-    }
-
-    if (!resourceId) {
-      if (!responseText.trim()) {
-        console.error(`[${operationId}] Supabase insert succeeded but returned empty body and idempotency lookup failed.`);
-        return json(
-          {
-            ok: false,
-            code: 'supabase_empty_success_response',
-            error: 'El recurso fue guardado pero no se pudo obtener el identificador asignado.',
-            syncStatus: 'ready',
-            operationId,
-          },
-          502,
-          origin,
-        );
-      } else {
-        console.error(`[${operationId}] Supabase insert succeeded but returned invalid JSON body.`);
-        return json(
-          {
-            ok: false,
-            code: 'supabase_invalid_json_response',
-            error: 'La respuesta de la base de datos no es JSON válido.',
-            syncStatus: 'ready',
-            operationId,
-          },
-          502,
-          origin,
-        );
-      }
-    }
-  } catch (error) {
-    console.error(`[${operationId}] Supabase insert unexpected error:`, error);
+    // Other errors
+    console.error(`[${operationId}] Supabase insert failed: status ${insertResp.status}`);
     return json(
       {
         ok: false,
         code: 'supabase_insert_failed',
-        error: 'Error de conexión al guardar el recurso.',
+        error: 'No se pudo guardar el recurso en la base de datos.',
         syncStatus: 'ready',
         operationId,
       },
       502,
+      origin,
+    );
+  }
+
+  if (!resourceId) {
+    // Exhausted attempts without success
+    return json(
+      {
+        ok: false,
+        code: 'slug_generation_failed',
+        error: 'No fue posible generar un identificador único.',
+        operationId,
+      },
+      500,
       origin,
     );
   }
