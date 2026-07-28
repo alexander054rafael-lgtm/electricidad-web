@@ -68,7 +68,12 @@ export const mergeLibraryResources = (dynamicResources: LibraryResource[]): Libr
     if (book.id) usedIds.add(book.id);
     return true;
   });
-  return [...staticResources, ...uniqueDynamic];
+
+  const totalVisible = Math.max(uniqueDynamic.length, staticResources.length);
+  return Array.from(
+    { length: totalVisible },
+    (_, index) => uniqueDynamic[index] ?? staticResources[index]
+  );
 };
 
 export const getPublishedDatabaseBooks = async (supabase: SupabaseClient | null) => {
