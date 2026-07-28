@@ -42,25 +42,47 @@ const safePublicationFailure = async (supabase: SupabaseClient, id: string, mess
 };
 
 export const publishLibraryResource = async (supabase: SupabaseClient, id: string) => {
+  const operationId = crypto.randomUUID();
+  console.info('publish start', { operationId, resourceId: id });
+
   const resource = await getAdminLibraryResource(supabase, id);
-  if (resource.is_published) return resource;
+
+  // If already published, attempt repair of missing links/permissions
+  if (resource.is_published) {
+    console.info('resource already published, attempting repair', { operationId, resourceId: id });
+    return await repairPublication(resource, supabase, operationId);
+  }
+
   if (!resource.drive_file_id) throw new LibraryOperationError('El recurso no tiene PDF.', resource);
 
   let pdfPermissionId: string | undefined;
   let coverPermissionId: string | undefined;
+  const warnings: string[] = [];
+
   try {
+    // Clean any existing permissions
     if (resource.drive_public_permission_id) await removeDrivePublicPermission(resource.drive_file_id, resource.drive_public_permission_id);
     if (resource.cover_drive_file_id && resource.cover_public_permission_id) await removeDrivePublicPermission(resource.cover_drive_file_id, resource.cover_public_permission_id);
+
     const pdf = await verifyFileBelongsToLibraryFolder(resource.drive_file_id, 'pdf');
-    const cover = resource.cover_drive_file_id
-      ? await verifyFileBelongsToLibraryFolder(resource.cover_drive_file_id, 'cover')
-      : null;
+    const cover = resource.cover_drive_file_id ? await verifyFileBelongsToLibraryFolder(resource.cover_drive_file_id, 'cover') : null;
+
     pdfPermissionId = await makeDriveFilePublic(pdf.id);
-    if (cover) coverPermissionId = await makeDriveFilePublic(cover.id);
+    if (cover) {
+      try {
+        coverPermissionId = await makeDriveFilePublic(cover.id);
+      } catch (e) {
+        const msg = e instanceof Error ? e.message : String(e);
+        console.warn('cover permission failed, proceeding without public cover', { operationId, resourceId: id, error: msg });
+        warnings.push('Cover permission failed; publication will continue without public cover.');
+        coverPermissionId = undefined;
+      }
+    }
 
     const pdfMetadata = await getDriveFileMetadata(pdf.id);
     const pdfLinks = getLibraryPublicLinks(pdf.id);
     const coverLinks = cover ? getLibraryPublicLinks(cover.id) : null;
+
     const update = await supabase.from('library_resources').update({
       is_published: true,
       drive_view_link: pdfMetadata.webViewLink ?? pdfLinks.viewLink,
@@ -70,21 +92,28 @@ export const publishLibraryResource = async (supabase: SupabaseClient, id: strin
       cover_public_permission_id: coverPermissionId ?? null,
       file_error: null,
     }).eq('id', id).eq('is_published', false).select(LIBRARY_ADMIN_SELECT).single();
+
     if (update.error) throw update.error;
+    console.info('publish succeeded', { operationId, resourceId: id });
+    // Return the updated resource (warnings are logged, not added to type)
     return update.data as AdminLibraryResource;
-  } catch {
-    const coverCleanup = coverPermissionId && resource.cover_drive_file_id ? await Promise.allSettled([removeDrivePublicPermission(resource.cover_drive_file_id, coverPermissionId)]) : [];
-    const pdfCleanup = pdfPermissionId ? await Promise.allSettled([removeDrivePublicPermission(resource.drive_file_id, pdfPermissionId)]) : [];
-    const residualCoverPermission = coverCleanup[0]?.status === 'rejected' ? coverPermissionId : undefined;
-    const residualPdfPermission = pdfCleanup[0]?.status === 'rejected' ? pdfPermissionId : undefined;
+  } catch (err) {
+    // Cleanup any permissions that may have been created
+    if (coverPermissionId && resource.cover_drive_file_id) {
+      await Promise.allSettled([removeDrivePublicPermission(resource.cover_drive_file_id, coverPermissionId)]);
+    }
+    if (pdfPermissionId) {
+      await Promise.allSettled([removeDrivePublicPermission(resource.drive_file_id, pdfPermissionId)]);
+    }
     await safePublicationFailure(
       supabase,
       id,
       'No se pudo completar la publicación en Google Drive.',
-      residualPdfPermission ?? resource.drive_public_permission_id ?? undefined,
-      residualCoverPermission ?? resource.cover_public_permission_id ?? undefined,
+      pdfPermissionId ?? resource.drive_public_permission_id ?? undefined,
+      coverPermissionId ?? resource.cover_public_permission_id ?? undefined,
     );
     const draft = await getAdminLibraryResource(supabase, id).catch(() => resource);
+    console.error('publish failed', { operationId, resourceId: id, error: err instanceof Error ? err.message : String(err) });
     throw new LibraryOperationError('La publicación falló; el recurso se conservó como borrador.', draft);
   }
 };
@@ -135,6 +164,67 @@ export const unpublishLibraryResource = async (supabase: SupabaseClient, id: str
     }).eq('id', id);
     throw new LibraryOperationError('No se pudo despublicar el recurso de forma segura.', resource);
   }
+};
+
+/**
+ * Repair a published resource that is missing required links or permissions.
+ * Returns the refreshed AdminLibraryResource.
+ */
+const repairPublication = async (
+  resource: AdminLibraryResource,
+  supabase: SupabaseClient,
+  operationId: string,
+): Promise<AdminLibraryResource> => {
+  console.info('repairPublication start', { operationId, resourceId: resource.id });
+
+  // Ensure PDF public permission
+  if (!resource.drive_public_permission_id) {
+    const pdf = await verifyFileBelongsToLibraryFolder(resource.drive_file_id, 'pdf');
+    const perm = await makeDriveFilePublic(pdf.id);
+    await supabase.from('library_resources').update({ drive_public_permission_id: perm }).eq('id', resource.id);
+    resource.drive_public_permission_id = perm;
+  }
+
+  // Ensure PDF view & download links
+  if (!resource.drive_view_link || !resource.drive_download_link) {
+    const pdfMeta = await getDriveFileMetadata(resource.drive_file_id);
+    const pdfLinks = getLibraryPublicLinks(resource.drive_file_id);
+    await supabase.from('library_resources').update({
+      drive_view_link: pdfMeta.webViewLink ?? pdfLinks.viewLink,
+      drive_download_link: pdfLinks.downloadLink,
+    }).eq('id', resource.id);
+    resource.drive_view_link = pdfMeta.webViewLink ?? pdfLinks.viewLink;
+    resource.drive_download_link = pdfLinks.downloadLink;
+  }
+
+  // Optional cover handling
+  if (resource.cover_drive_file_id) {
+    if (!resource.cover_public_permission_id) {
+      try {
+        const cover = await verifyFileBelongsToLibraryFolder(resource.cover_drive_file_id, 'cover');
+        const perm = await makeDriveFilePublic(cover.id);
+        await supabase.from('library_resources').update({ cover_public_permission_id: perm }).eq('id', resource.id);
+        resource.cover_public_permission_id = perm;
+      } catch (e) {
+        console.warn('repair cover permission failed', { operationId, resourceId: resource.id });
+      }
+    }
+    if (!resource.cover_url) {
+      try {
+        const coverLinks = getLibraryPublicLinks(resource.cover_drive_file_id);
+        await supabase.from('library_resources').update({ cover_url: coverLinks.contentLink }).eq('id', resource.id);
+        resource.cover_url = coverLinks.contentLink;
+      } catch (e) {
+        console.warn('repair cover URL failed', { operationId, resourceId: resource.id });
+      }
+    }
+  }
+
+  // Finally ensure is_published flag is true
+  await supabase.from('library_resources').update({ is_published: true }).eq('id', resource.id);
+  const refreshed = await getAdminLibraryResource(supabase, resource.id);
+  console.info('repairPublication completed', { operationId, resourceId: resource.id });
+  return refreshed;
 };
 
 export const replaceLibraryAsset = async (
