@@ -1,5 +1,7 @@
 import { createServerClient } from '@supabase/ssr';
+import { createClient } from '@supabase/supabase-js';
 import type { APIContext } from 'astro';
+import { getSecret } from 'astro:env/server';
 import { getSupabaseConfig } from './config';
 
 type ServerContext = Pick<APIContext, 'cookies' | 'request'>;
@@ -33,3 +35,14 @@ export const createSupabaseServerClient = ({ cookies, request }: ServerContext) 
 
 export const safeRedirectPath = (value: string | null, fallback = '/mi-aprendizaje') =>
   value?.startsWith('/') && !value.startsWith('//') ? value : fallback;
+
+export const createSupabaseAdminClient = () => {
+  const { supabaseUrl } = getSupabaseConfig();
+  const serviceRoleKey = getSecret('SUPABASE_SERVICE_ROLE_KEY')?.trim();
+  if (!supabaseUrl || !serviceRoleKey) {
+    throw new Error('Supabase Service Role Key o URL no están configuradas en el servidor.');
+  }
+  return createClient(supabaseUrl, serviceRoleKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+};

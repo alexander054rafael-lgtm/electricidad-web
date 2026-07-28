@@ -3,6 +3,7 @@ import { json, requireApiAdmin } from '../../../../../lib/api';
 import { books as staticBooks } from '../../../../../data/books';
 import { deleteDriveFile, verifyFileBelongsToLibraryFolder } from '../../../../../lib/google-drive/server';
 import { getAdminLibraryResource, LIBRARY_ADMIN_SELECT, LibraryOperationError } from '../../../../../lib/library/admin';
+import { createSupabaseAdminClient } from '../../../../../lib/supabase/server';
 import { isLibraryUuid, isSameOriginRequest, slugifyLibraryTitle, validateLibraryResourcePatch, LibraryValidationError } from '../../../../../lib/library/validation';
 
 export const prerender = false;
@@ -59,10 +60,18 @@ export const PATCH: APIRoute = async (context) => {
 export const DELETE: APIRoute = async (context) => {
   const auth = authorize(context);
   if (!auth.ok) return auth.response;
+
+  const adminDb = createSupabaseAdminClient();
+  const resourceId = auth.id;
+
   try {
-    const resource = await getAdminLibraryResource(auth.supabase, auth.id);
-    const files = [{ id: resource.drive_file_id, asset: 'pdf' as const }, ...(resource.cover_drive_file_id ? [{ id: resource.cover_drive_file_id, asset: 'cover' as const }] : [])];
+    const resource = await getAdminLibraryResource(adminDb, resourceId);
+    const files = [
+      { id: resource.drive_file_id, asset: 'pdf' as const },
+      ...(resource.cover_drive_file_id ? [{ id: resource.cover_drive_file_id, asset: 'cover' as const }] : []),
+    ];
     const incidents: string[] = [];
+
     for (const file of files) {
       try {
         await verifyFileBelongsToLibraryFolder(file.id, file.asset);
@@ -72,17 +81,33 @@ export const DELETE: APIRoute = async (context) => {
         else incidents.push(`${file.asset}:delete-failed`);
       }
     }
+
     if (incidents.some((incident) => incident.endsWith('delete-failed'))) {
-      await auth.supabase.from('library_resources').update({ file_error: `Eliminación parcial: ${incidents.join(', ')}` }).eq('id', auth.id);
+      await adminDb.from('library_resources').update({ file_error: `Eliminación parcial: ${incidents.join(', ')}` }).eq('id', resourceId);
       return json({ ok: false, error: 'No se eliminaron todos los archivos de Drive.', incidents }, 502);
     }
-    const deleted = await auth.supabase.from('library_resources').delete().eq('id', auth.id);
-    if (deleted.error) {
-      await auth.supabase.from('library_resources').update({ file_error: 'Los archivos se eliminaron de Drive, pero el registro no pudo eliminarse.' }).eq('id', auth.id);
+
+    const deleted = await adminDb.from('library_resources').delete().eq('id', resourceId).select('id');
+    const deletedRowCount = deleted.data?.length ?? 0;
+
+    if (deleted.error || deletedRowCount === 0) {
+      console.error('[admin-library-delete] database delete failed', {
+        resourceId,
+        code: deleted.error?.code,
+        message: deleted.error?.message,
+        details: deleted.error?.details,
+        hint: deleted.error?.hint,
+        deletedRowCount,
+      });
+
+      await adminDb.from('library_resources').update({ file_error: 'Los archivos se eliminaron de Drive, pero el registro no pudo eliminarse.' }).eq('id', resourceId);
       return json({ ok: false, error: 'Los archivos se eliminaron, pero no se pudo limpiar el registro.', incidents }, 500);
     }
+
+    console.info('[admin-library-delete] resource deleted successfully', { resourceId, deletedRowCount });
     return json({ ok: true, incidents });
   } catch (error) {
+    console.error('[admin-library-delete] error during resource deletion', { resourceId, error: error instanceof Error ? error.message : String(error) });
     return json({ ok: false, error: error instanceof LibraryOperationError ? error.message : 'No se pudo eliminar el recurso.' }, error instanceof LibraryOperationError ? 404 : 422);
   }
 };

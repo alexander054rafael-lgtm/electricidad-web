@@ -19,10 +19,10 @@ const ALLOWED_IMAGE_MIME_TYPES = new Set([
 
 const supabaseUrl = (env: Env) => env.SUPABASE_URL.replace(/\/$/, '');
 
-const supabaseAnonHeaders = (env: Env) => ({
+const supabaseAdminHeaders = (env: Env) => ({
   'Content-Type': 'application/json',
-  apikey: env.SUPABASE_ANON_KEY,
-  Authorization: `Bearer ${env.SUPABASE_ANON_KEY}`,
+  apikey: env.SUPABASE_SERVICE_ROLE_KEY,
+  Authorization: `Bearer ${env.SUPABASE_SERVICE_ROLE_KEY}`,
   'X-Client-Info': 'indutech-library-worker/1.0',
 });
 
@@ -60,17 +60,46 @@ export const libraryCoverServe = async (
   // 2 & 3. Fetch resource from Supabase & verify is_published
   let resource: LibraryResourceRow | null = null;
   let fetchFailed = false;
+  const queryUrl = `${supabaseUrl(env)}/rest/v1/library_resources?id=eq.${encodeURIComponent(resourceId)}&select=id,cover_drive_file_id,cover_mime_type,is_published`;
+  const sanitizedHost = new URL(supabaseUrl(env)).hostname;
+
   try {
-    const queryUrl = `${supabaseUrl(env)}/rest/v1/library_resources?id=eq.${encodeURIComponent(resourceId)}&select=id,cover_drive_file_id,cover_mime_type,is_published`;
-    const resp = await fetch(queryUrl, { headers: supabaseAnonHeaders(env) });
+    const resp = await fetch(queryUrl, { headers: supabaseAdminHeaders(env) });
+    const text = await resp.text().catch(() => '');
+
     if (resp.ok) {
-      const text = await resp.text().catch(() => '');
       const rows = safeParseJson<LibraryResourceRow[]>(text);
+      const rowCount = rows ? rows.length : 0;
+      console.info(JSON.stringify({
+        operationId,
+        resourceId,
+        supabaseHost: sanitizedHost,
+        queryUrl,
+        status: resp.status,
+        rowCount,
+      }));
       if (rows && rows.length > 0) {
         resource = rows[0];
       }
+    } else {
+      console.error(JSON.stringify({
+        operationId,
+        resourceId,
+        supabaseHost: sanitizedHost,
+        queryUrl,
+        status: resp.status,
+        response: text,
+      }));
+      fetchFailed = true;
     }
-  } catch {
+  } catch (err) {
+    console.error(JSON.stringify({
+      operationId,
+      resourceId,
+      supabaseHost: sanitizedHost,
+      queryUrl,
+      error: String(err),
+    }));
     fetchFailed = true;
   }
 
