@@ -84,8 +84,9 @@ export const POST: APIRoute = async (context) => {
       resource: updateResult.data,
     });
   } catch (error) {
-    const errObj = error as { code?: string; message?: string; details?: unknown; hint?: unknown };
+    const errObj = error as { code?: string; message?: string; details?: unknown; hint?: unknown; stack?: string };
     const message = error instanceof Error ? error.message : String(error);
+    const stack = error instanceof Error ? error.stack : undefined;
 
     console.error('[admin-library-unpublish] unexpected error', {
       resourceId,
@@ -93,6 +94,7 @@ export const POST: APIRoute = async (context) => {
       message,
       details: errObj.details ?? null,
       hint: errObj.hint ?? null,
+      stack,
     });
 
     return json(
