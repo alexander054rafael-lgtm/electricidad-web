@@ -498,12 +498,30 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
           setStage('Guardando cambios…');
           updateDiagnostic('actualizando metadatos');
 
-          let initialBook: Record<string, unknown> = {};
+          let rawInitial: Record<string, any> = {};
           if (form.dataset.initialBook) {
-            try { initialBook = JSON.parse(form.dataset.initialBook); } catch {}
+            try { rawInitial = JSON.parse(form.dataset.initialBook); } catch {}
           }
 
-          const currentValues: Record<string, unknown> = {
+          const initial: Record<string, unknown> = {
+            title: String(rawInitial.title ?? '').trim(),
+            slug: String(rawInitial.slug ?? '').trim(),
+            author: String(rawInitial.author ?? '').trim(),
+            description: String(rawInitial.description ?? '').trim(),
+            category: String(rawInitial.category ?? '').trim(),
+            bookType: String(rawInitial.bookType ?? rawInitial.resource_type ?? '').trim(),
+            level: String(rawInitial.level ?? 'Básico').trim(),
+            language: String(rawInitial.language ?? 'Español').trim(),
+            pages: rawInitial.pages ? Number(rawInitial.pages) : 0,
+            tags: Array.isArray(rawInitial.tags) ? rawInitial.tags.join(', ') : String(rawInitial.tags ?? '').trim(),
+            topics: Array.isArray(rawInitial.topics) ? rawInitial.topics.join(', ') : String(rawInitial.topics ?? '').trim(),
+            badge: (rawInitial.badge ?? '') ? String(rawInitial.badge).trim() : null,
+            accent: String(rawInitial.accent ?? '#16a34a').trim(),
+            allowDownload: Boolean(rawInitial.allowDownload ?? rawInitial.allow_download ?? false),
+            isFeatured: Boolean(rawInitial.isFeatured ?? rawInitial.is_featured ?? false),
+          };
+
+          const current: Record<string, unknown> = {
             title: String(formData.get('title') ?? '').trim(),
             slug: String(formData.get('slug') ?? '').trim(),
             author: String(formData.get('author') ?? '').trim(),
@@ -522,9 +540,9 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
           };
 
           const patchPayload: Record<string, unknown> = {};
-          for (const key of Object.keys(currentValues)) {
-            if (currentValues[key] !== initialBook[key]) {
-              patchPayload[key] = currentValues[key];
+          for (const key of Object.keys(current)) {
+            if (current[key] !== initial[key]) {
+              patchPayload[key] = current[key];
             }
           }
 
@@ -532,7 +550,6 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
             patchPayload.removeCover = true;
           }
 
-          console.log('[library-patch-payload]', patchPayload);
 
           if (Object.keys(patchPayload).length === 0) {
             setStage('No hay cambios que guardar.', undefined, 'ok');
