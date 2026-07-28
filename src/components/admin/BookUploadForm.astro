@@ -11,7 +11,23 @@ const categories = ['Electricidad Industrial', 'Automatización', 'PLC', 'Variad
 const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-browser';
 ---
 
-<form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} novalidate>
+<form class="book-form" data-book-form data-resource-id={book?.id} data-published={String(book?.is_published ?? false)} data-initial-book={book ? JSON.stringify({
+  title: book.title,
+  slug: book.slug,
+  author: book.author ?? '',
+  description: book.description ?? '',
+  category: book.category,
+  bookType: book.resource_type,
+  level: book.level ?? 'Básico',
+  language: book.language ?? 'Español',
+  pages: book.pages ?? 1,
+  tags: book.tags?.join(', ') ?? '',
+  topics: book.topics?.join(', ') ?? '',
+  badge: book.badge ?? '',
+  accent: book.accent ?? '#16a34a',
+  allowDownload: book.allow_download,
+  isFeatured: book.is_featured,
+}) : undefined} novalidate>
   {book && <input type="hidden" name="id" value={book.id} />}
   <div class="form-section">
     <div class="section-head"><span>01</span><div><h2>Información editorial</h2><p>Datos visibles en la Biblioteca Técnica.</p></div></div>
@@ -481,14 +497,54 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
         try {
           setStage('Guardando cambios…');
           updateDiagnostic('actualizando metadatos');
-          const body = {
-            ...metadataFrom(formData, intent),
-            ...(removeCoverRequested ? { removeCover: true } : {}),
+
+          let initialBook: Record<string, unknown> = {};
+          if (form.dataset.initialBook) {
+            try { initialBook = JSON.parse(form.dataset.initialBook); } catch {}
+          }
+
+          const currentValues: Record<string, unknown> = {
+            title: String(formData.get('title') ?? '').trim(),
+            slug: String(formData.get('slug') ?? '').trim(),
+            author: String(formData.get('author') ?? '').trim(),
+            description: String(formData.get('description') ?? '').trim(),
+            category: String(formData.get('category') ?? '').trim(),
+            bookType: String(formData.get('bookType') ?? '').trim(),
+            level: String(formData.get('level') ?? '').trim(),
+            language: String(formData.get('language') ?? '').trim(),
+            pages: Number(formData.get('pages')),
+            tags: String(formData.get('tags') ?? '').trim(),
+            topics: String(formData.get('topics') ?? '').trim(),
+            badge: String(formData.get('badge') ?? '').trim() || null,
+            accent: String(formData.get('accent') ?? '').trim(),
+            allowDownload: formData.get('allowDownload') === 'on',
+            isFeatured: formData.get('isFeatured') === 'on',
           };
+
+          const patchPayload: Record<string, unknown> = {};
+          for (const key of Object.keys(currentValues)) {
+            if (currentValues[key] !== initialBook[key]) {
+              patchPayload[key] = currentValues[key];
+            }
+          }
+
+          if (removeCoverRequested) {
+            patchPayload.removeCover = true;
+          }
+
+          console.log('[library-patch-payload]', patchPayload);
+
+          if (Object.keys(patchPayload).length === 0) {
+            setStage('No hay cambios que guardar.', undefined, 'ok');
+            updateDiagnostic('completado');
+            window.location.href = '/admin/biblioteca';
+            return;
+          }
+
           const response = await fetch(`/api/admin/library/${resourceId}`, {
             method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(body),
+            body: JSON.stringify(patchPayload),
             signal: activeController.signal,
           });
           const result = await response.json();
