@@ -47,7 +47,7 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
   fileSize: formatFileSize(row.drive_file_size),
   downloads: 0,
   tags: row.tags ?? [],
-  badge: row.badge ?? (row.is_featured ? 'Recomendado' : undefined),
+  badge: row.badge ?? undefined,
   accent: safeAccent(row.accent),
   topics: row.topics?.length ? row.topics : row.tags ?? [],
   pdfUrl: safeDriveUrl(row.drive_view_link) ?? '',
@@ -55,7 +55,7 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
   coverUrl: row.cover_drive_file_id
     ? `${WORKER_BASE_URL}/v1/library/covers/${row.id}`
     : safeDriveUrl(row.cover_url),
-  isFeatured: row.is_featured,
+  isFeatured: Boolean(row.is_featured),
   allowDownload: row.allow_download,
 });
 
@@ -69,10 +69,14 @@ export const mergeLibraryResources = (dynamicResources: LibraryResource[]): Libr
     return true;
   });
 
-  const totalVisible = Math.max(uniqueDynamic.length, staticResources.length);
+  const featuredDynamic = uniqueDynamic.filter((book) => book.isFeatured);
+  const nonFeaturedDynamic = uniqueDynamic.filter((book) => !book.isFeatured);
+  const orderedDynamic = [...featuredDynamic, ...nonFeaturedDynamic];
+
+  const totalVisible = Math.max(orderedDynamic.length, staticResources.length);
   return Array.from(
     { length: totalVisible },
-    (_, index) => uniqueDynamic[index] ?? staticResources[index]
+    (_, index) => orderedDynamic[index] ?? staticResources[index]
   );
 };
 
