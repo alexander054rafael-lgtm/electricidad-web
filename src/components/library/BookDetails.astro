@@ -14,7 +14,13 @@ const downloadUrl = book.downloadUrl ?? book.pdfUrl;
 <section class="book-details">
   <div class:list={['book-details__cover', { 'has-image': book.coverUrl }]} style={`--accent:${book.accent}`}>
     {book.coverUrl ? (
-      <><img src={book.coverUrl} alt={`Portada de ${book.title}`} /><span>{book.type}</span></>
+      <>
+        <img src={book.coverUrl} alt={`Portada de ${book.title}`} onerror="this.onerror=null;this.closest('.book-details__cover').classList.remove('has-image');this.remove();" />
+        <span>{book.type}</span>
+        <BookOpen size={72} stroke-width={1.1}/>
+        <strong>{book.title}</strong>
+        <small>Biblioteca técnica · InduTech</small>
+      </>
     ) : (
       <><span>{book.type}</span><BookOpen size={72} stroke-width={1.1}/><strong>{book.title}</strong><small>Biblioteca técnica · InduTech</small></>
     )}

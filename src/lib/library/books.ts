@@ -17,7 +17,8 @@ const safeDriveUrl = (value: string | null) => {
   if (!value) return undefined;
   try {
     const url = new URL(value);
-    return url.protocol === 'https:' && (url.hostname === 'drive.google.com' || url.hostname.endsWith('.googleusercontent.com')) ? url.toString() : undefined;
+    const isAllowedHost = url.hostname === 'drive.google.com' || url.hostname === 'lh3.googleusercontent.com' || url.hostname.endsWith('.googleusercontent.com');
+    return url.protocol === 'https:' && isAllowedHost ? url.toString() : undefined;
   } catch { return undefined; }
 };
 
@@ -26,6 +27,8 @@ export const staticResources: StaticLibraryResource[] = sampleBooks.map((book) =
   id: `static-${book.slug}`,
   source: 'static',
 }));
+
+const WORKER_BASE_URL = (typeof import.meta !== 'undefined' && import.meta.env?.PUBLIC_LIBRARY_WORKER_URL) || 'https://indutech-library-file-worker.alexander054rafael.workers.dev';
 
 export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource => ({
   id: row.id,
@@ -49,7 +52,9 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
   topics: row.topics?.length ? row.topics : row.tags ?? [],
   pdfUrl: safeDriveUrl(row.drive_view_link) ?? '',
   downloadUrl: safeDriveUrl(row.drive_download_link),
-  coverUrl: safeDriveUrl(row.cover_url),
+  coverUrl: row.cover_drive_file_id
+    ? `${WORKER_BASE_URL}/v1/library/covers/${row.id}`
+    : safeDriveUrl(row.cover_url),
   isFeatured: row.is_featured,
   allowDownload: row.allow_download,
 });

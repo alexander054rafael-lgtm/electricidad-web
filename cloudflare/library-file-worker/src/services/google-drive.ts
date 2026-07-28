@@ -36,7 +36,7 @@ const SUBFOLDER_COVER = 'Portadas';
 const CHUNK_SIZE = 8 * 1024 * 1024; // 8 388 608
 
 // ── OAuth ──────────────────────────────────────────────────────────
-const getAccessToken = async (env: Env): Promise<string> => {
+export const getAccessToken = async (env: Env): Promise<string> => {
   const clientId = env.GOOGLE_OAUTH_CLIENT_ID?.trim();
   const clientSecret = env.GOOGLE_OAUTH_CLIENT_SECRET?.trim();
   const refreshToken = env.GOOGLE_OAUTH_REFRESH_TOKEN?.trim();
@@ -63,6 +63,26 @@ const getAccessToken = async (env: Env): Promise<string> => {
   const data = (await response.json()) as AccessTokenResponse;
   return data.access_token;
 };
+
+export const downloadDriveFileStream = async (
+  accessToken: string,
+  fileId: string,
+): Promise<{ body: ReadableStream<Uint8Array> | null; contentType: string | null; contentLength: string | null }> => {
+  const response = await fetch(`${DRIVE_API}/files/${fileId}?alt=media&supportsAllDrives=true`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+
+  if (!response.ok) {
+    throw new Error(`Google Drive file download failed with status ${response.status}`);
+  }
+
+  return {
+    body: response.body,
+    contentType: response.headers.get('content-type'),
+    contentLength: response.headers.get('content-length'),
+  };
+};
+
 
 // ── Subfolder management ───────────────────────────────────────────
 const getOrCreateSubfolder = async (
@@ -364,3 +384,35 @@ export const syncFileToDrive = async (
     syncedAt: new Date().toISOString(),
   };
 };
+
+// ── Permissions ───────────────────────────────────────────────────
+export const makeDriveFilePublic = async (
+  env: Env,
+  fileId: string,
+): Promise<string> => {
+  const accessToken = await getAccessToken(env);
+  const response = await fetch(`${DRIVE_API}/files/${fileId}/permissions?supportsAllDrives=true`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      type: 'anyone',
+      role: 'reader',
+      allowFileDiscovery: false,
+    }),
+  });
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'unknown');
+    throw new Error(`Failed to make Drive file ${fileId} public: ${response.status} ${errorText}`);
+  }
+
+  const data = (await response.json()) as { id: string };
+  if (!data || !data.id) {
+    throw new Error(`Google Drive permissions response missing id for file ${fileId}`);
+  }
+  return data.id;
+};
+

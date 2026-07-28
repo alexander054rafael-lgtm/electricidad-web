@@ -67,9 +67,12 @@ export const publishLibraryResource = async (supabase: SupabaseClient, id: strin
     const pdf = await verifyFileBelongsToLibraryFolder(resource.drive_file_id, 'pdf');
     const cover = resource.cover_drive_file_id ? await verifyFileBelongsToLibraryFolder(resource.cover_drive_file_id, 'cover') : null;
 
+    console.info('creating pdf permission', { operationId, resourceId: id, fileId: pdf.id });
     pdfPermissionId = await makeDriveFilePublic(pdf.id);
+    
     if (cover) {
       try {
+        console.info('creating cover permission', { operationId, resourceId: id, fileId: cover.id });
         coverPermissionId = await makeDriveFilePublic(cover.id);
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
@@ -94,11 +97,11 @@ export const publishLibraryResource = async (supabase: SupabaseClient, id: strin
     }).eq('id', id).eq('is_published', false).select(LIBRARY_ADMIN_SELECT).single();
 
     if (update.error) throw update.error;
+    if (!update.data.is_published) throw new Error('Failed to persist publication status');
+
     console.info('publish succeeded', { operationId, resourceId: id });
-    // Return the updated resource (warnings are logged, not added to type)
     return update.data as AdminLibraryResource;
   } catch (err) {
-    // Cleanup any permissions that may have been created
     if (coverPermissionId && resource.cover_drive_file_id) {
       await Promise.allSettled([removeDrivePublicPermission(resource.cover_drive_file_id, coverPermissionId)]);
     }

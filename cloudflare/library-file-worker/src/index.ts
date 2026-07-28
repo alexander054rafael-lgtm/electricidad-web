@@ -1,5 +1,7 @@
 import { adminStatus } from './routes/admin-status';
 import { health } from './routes/health';
+import { libraryCoverServe } from './routes/library-cover';
+import { libraryResourcePublish } from './routes/library-publish';
 import { libraryResourcesComplete } from './routes/library-resources';
 import { syncDrive, uploadCleanup, uploadComplete, uploadInit } from './routes/uploads';
 import { applyCorsHeaders, getCorsHeaders, json } from './security/cors';
@@ -35,6 +37,10 @@ export default {
         response = await syncDrive(context);
       } else if (request.method === 'POST' && path === '/v1/admin/library/resources/complete') {
         response = await libraryResourcesComplete(context);
+      } else if (request.method === 'POST' && /^\/v1\/admin\/library\/[^/]+\/publish$/.test(path)) {
+        response = await libraryResourcePublish(context);
+      } else if (request.method === 'GET' && /^\/v1\/library\/covers\/[^/]+$/.test(path)) {
+        response = await libraryCoverServe(context);
       } else {
         response = json({ ok: false, error: 'Ruta no encontrada.', operationId: context.operationId }, 404, context);
       }

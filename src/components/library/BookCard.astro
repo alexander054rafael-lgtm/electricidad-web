@@ -6,7 +6,22 @@ const { book } = Astro.props;
 ---
 <article class="book-card" data-book data-search={`${book.title} ${book.author} ${book.category} ${book.tags.join(' ')}`.toLowerCase()} data-category={book.category} data-level={book.level} data-type={book.type} data-language={book.language} data-featured={String(Boolean(book.isFeatured))} data-year={book.publicationYear} data-downloads={book.downloads}>
   <a href={`/biblioteca/${book.slug}`} class:list={['book-card__cover', { 'has-image': book.coverUrl }]} style={`--accent:${book.accent}`} aria-label={`Ver ${book.title}`}>
-    {book.coverUrl ? <><img src={book.coverUrl} alt={`Portada de ${book.title}`} loading="lazy" /><span class="book-card__cover-type">{book.type}</span></> : <><span class="book-card__cover-type">{book.type}</span><BookOpen size={44} stroke-width={1.2} /><strong>{book.title}</strong><small>InduTech · Biblioteca técnica</small></>}
+    {book.coverUrl ? (
+      <>
+        <img src={book.coverUrl} alt={`Portada de ${book.title}`} loading="lazy" onerror="this.onerror=null;this.closest('.book-card__cover').classList.remove('has-image');this.remove();" />
+        <span class="book-card__cover-type">{book.type}</span>
+        <BookOpen size={44} stroke-width={1.2} />
+        <strong>{book.title}</strong>
+        <small>InduTech · Biblioteca técnica</small>
+      </>
+    ) : (
+      <>
+        <span class="book-card__cover-type">{book.type}</span>
+        <BookOpen size={44} stroke-width={1.2} />
+        <strong>{book.title}</strong>
+        <small>InduTech · Biblioteca técnica</small>
+      </>
+    )}
   </a>
   <div class="book-card__body">
     <div class="book-card__meta"><span>{book.category}</span>{book.badge && <b>{book.badge}</b>}</div>
