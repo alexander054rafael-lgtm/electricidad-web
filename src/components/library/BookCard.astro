@@ -4,7 +4,7 @@ import type { LibraryResource } from '../../lib/library/types';
 interface Props { book: LibraryResource }
 const { book } = Astro.props;
 ---
-<article class="book-card" data-book data-search={`${book.title} ${book.author} ${book.category} ${book.tags.join(' ')}`.toLowerCase()} data-category={book.category} data-level={book.level} data-type={book.type} data-language={book.language} data-featured={String(Boolean(book.isFeatured))} data-year={book.publicationYear} data-downloads={book.downloads}>
+<article class="book-card" data-book data-resource-id={book.id} data-source={book.source} data-search={`${book.title} ${book.author} ${book.category} ${book.tags.join(' ')}`.toLowerCase()} data-category={book.category} data-level={book.level} data-type={book.type} data-language={book.language} data-featured={String(Boolean(book.isFeatured))} data-year={book.publicationYear} data-downloads={book.downloads}>
   <a href={`/biblioteca/${book.slug}`} class:list={['book-card__cover', { 'has-image': book.coverUrl }]} style={`--accent:${book.accent}`} aria-label={`Ver ${book.title}`}>
     {book.coverUrl ? (
       <>
@@ -33,7 +33,7 @@ const { book } = Astro.props;
     <div class="book-card__meta"><span>{book.category}</span>{book.badge && <b>{book.badge}</b>}</div>
     <h2><a href={`/biblioteca/${book.slug}`}>{book.title}</a></h2><p class="book-card__author">{book.author}</p><p class="book-card__description">{book.description}</p>
     <div class="book-card__details"><span><FileText size={14}/> {book.pages} págs.</span><span><Languages size={14}/> {book.language}</span><span>{book.level}</span></div>
-    <div class="book-card__actions">{book.source === 'database' ? (book.pdfUrl ? <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer" class="book-card__read"><BookOpen size={16}/> Leer PDF</a> : <span class="book-card__unavailable">Archivo no disponible</span>) : <a href={`/biblioteca/${book.slug}`} class="book-card__read"><BookOpen size={16}/> Leer PDF</a>}{book.allowDownload && (book.downloadUrl ?? book.pdfUrl) && <a href={book.downloadUrl ?? book.pdfUrl} download={book.source === 'static'} target={book.source === 'database' ? '_blank' : undefined} rel={book.source === 'database' ? 'noopener noreferrer' : undefined} class="book-card__download" aria-label={`Descargar ${book.title}`}><Download size={17}/></a>}<button type="button" class="book-card__favorite" aria-label={`Guardar ${book.title} en favoritos`}><Heart size={17}/></button></div>
+    <div class="book-card__actions">{book.source === 'database' ? (book.pdfUrl ? <a href={book.pdfUrl} target="_blank" rel="noopener noreferrer" class="book-card__read"><BookOpen size={16}/> Leer PDF</a> : <span class="book-card__unavailable">Archivo no disponible</span>) : <a href={`/biblioteca/${book.slug}`} class="book-card__read"><BookOpen size={16}/> Leer PDF</a>}{book.allowDownload && (book.downloadUrl ?? book.pdfUrl) && <a href={book.downloadUrl ?? book.pdfUrl} download={book.source === 'static'} target={book.source === 'database' ? '_blank' : undefined} rel={book.source === 'database' ? 'noopener noreferrer' : undefined} class="book-card__download" aria-label={`Descargar ${book.title}`}><Download size={17}/></a>}{book.source === 'database' && <button type="button" class="book-card__favorite" data-favorite-button data-resource-id={book.id} data-title={book.title} aria-pressed="false" aria-label={`Guardar ${book.title} en favoritos`}><Heart size={17}/></button>}</div>
   </div>
 </article>
 <style>
@@ -63,5 +63,7 @@ const { book } = Astro.props;
   .book-card__read,.book-card__download,.book-card__favorite,.book-card__unavailable { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:36px; border-radius:10px; font:inherit; font-size:.8rem; font-weight:700; }
   .book-card__read { flex:1; color:white; background:var(--color-primary); }
   .book-card__unavailable{flex:1;padding:.4rem;color:#64748b;background:#f1f5f9}
-  .book-card__download,.book-card__favorite { width:36px; color:var(--color-primary); border:1px solid var(--color-border); background:transparent; }
+  .book-card__download,.book-card__favorite { width:36px; color:var(--color-primary); border:1px solid var(--color-border); background:transparent; cursor:pointer; transition:color var(--transition-fast),background var(--transition-fast),border-color var(--transition-fast); }
+  .book-card__favorite.is-favorite { color: #dc2626; border-color: rgba(220, 38, 38, 0.4); background: rgba(220, 38, 38, 0.08); }
+  .book-card__favorite.is-favorite svg { fill: currentColor; }
 </style>
