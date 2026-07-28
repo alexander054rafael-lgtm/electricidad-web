@@ -12,161 +12,182 @@ const { books } = Astro.props;
   <a href="/iniciar-sesion" class="library-empty__link" hidden data-empty-login-link>Iniciar sesión</a>
 </div>
 <script>
-  const cards = [...document.querySelectorAll<HTMLElement>('[data-book]')];
-  const search = document.querySelector<HTMLInputElement>('[data-library-search]');
-  const count = document.querySelector<HTMLElement>('[data-results-count]');
-  const empty = document.querySelector<HTMLElement>('[data-library-empty]');
-  const emptyMessage = empty?.querySelector<HTMLElement>('[data-empty-message]');
-  const emptyLoginLink = empty?.querySelector<HTMLAnchorElement>('[data-empty-login-link]');
-  const toast = document.querySelector<HTMLElement>('[data-library-toast]');
+  const setupLibraryGrid = () => {
+    const gridContainer = document.querySelector<HTMLElement>('[data-book-grid]');
+    if (!gridContainer || gridContainer.dataset.ready === 'true') return;
+    gridContainer.dataset.ready = 'true';
 
-  let category = 'Todos';
-  let isLoggedIn = false;
-  let favoritesFetched = false;
-  const userFavoritesSet = new Set<string>();
+    const cards = [...document.querySelectorAll<HTMLElement>('[data-book]')];
+    const search = document.querySelector<HTMLInputElement>('[data-library-search]');
+    const count = document.querySelector<HTMLElement>('[data-results-count]');
+    const empty = document.querySelector<HTMLElement>('[data-library-empty]');
+    const emptyMessage = empty?.querySelector<HTMLElement>('[data-empty-message]');
+    const emptyLoginLink = empty?.querySelector<HTMLAnchorElement>('[data-empty-login-link]');
+    const toast = document.querySelector<HTMLElement>('[data-library-toast]');
 
-  const showToast = (msg: string, linkHref?: string, linkText?: string) => {
-    if (!toast) return;
-    toast.innerHTML = linkHref
-      ? `<span>${msg}</span> <a href="${linkHref}">${linkText || 'Iniciar sesión'}</a>`
-      : `<span>${msg}</span>`;
-    toast.hidden = false;
-    setTimeout(() => { if (toast) toast.hidden = true; }, 5000);
-  };
+    let category = 'Todos';
+    let isLoggedIn = false;
+    let favoritesFetched = false;
+    const userFavoritesSet = new Set<string>();
 
-  const updateCardFavoriteState = (button: HTMLButtonElement, isFav: boolean, title: string) => {
-    button.classList.toggle('is-favorite', isFav);
-    button.setAttribute('aria-pressed', String(isFav));
-    button.setAttribute('aria-label', isFav ? `Quitar ${title} de favoritos` : `Guardar ${title} en favoritos`);
-    const card = button.closest<HTMLElement>('[data-book]');
-    if (card) card.dataset.isFavorite = String(isFav);
-  };
+    const showToast = (msg: string, linkHref?: string, linkText?: string) => {
+      if (!toast) return;
+      toast.innerHTML = linkHref
+        ? `<span>${msg}</span> <a href="${linkHref}">${linkText || 'Iniciar sesión'}</a>`
+        : `<span>${msg}</span>`;
+      toast.hidden = false;
+      setTimeout(() => { if (toast) toast.hidden = true; }, 5000);
+    };
 
-  const fetchFavorites = async () => {
-    try {
-      const res = await fetch('/api/library/favorites');
-      if (res.status === 401) {
-        isLoggedIn = false;
+    const updateCardFavoriteState = (button: HTMLButtonElement, isFav: boolean, title: string) => {
+      button.classList.toggle('is-favorite', isFav);
+      button.setAttribute('aria-pressed', String(isFav));
+      button.setAttribute('aria-label', isFav ? `Quitar ${title} de favoritos` : `Guardar ${title} en favoritos`);
+      const card = button.closest<HTMLElement>('[data-book]');
+      if (card) card.dataset.isFavorite = String(isFav);
+    };
+
+    const apply = () => {
+      const favoritesFilter = document.querySelector<HTMLSelectElement>('[data-filter="favorites"]')?.value ?? '';
+      const level = document.querySelector<HTMLSelectElement>('[data-filter="level"]')?.value ?? '';
+      const type = document.querySelector<HTMLSelectElement>('[data-filter="type"]')?.value ?? '';
+      const language = document.querySelector<HTMLSelectElement>('[data-filter="language"]')?.value ?? '';
+      const featured = document.querySelector<HTMLSelectElement>('[data-filter="featured"]')?.value ?? '';
+      const query = search?.value.trim().toLowerCase() ?? '';
+
+      if (favoritesFilter === 'only' && !isLoggedIn && favoritesFetched) {
+        cards.forEach(card => card.hidden = true);
+        if (count) count.textContent = '0';
+        if (empty) {
+          empty.hidden = false;
+          if (emptyMessage) emptyMessage.textContent = 'Inicia sesión para ver tus libros favoritos.';
+          if (emptyLoginLink) emptyLoginLink.hidden = false;
+        }
         return;
       }
-      const data = await res.json();
-      if (res.ok && data.ok && Array.isArray(data.favorites)) {
-        isLoggedIn = true;
-        data.favorites.forEach((id: string) => userFavoritesSet.add(id));
-        cards.forEach(card => {
-          const resId = card.dataset.resourceId;
-          const btn = card.querySelector<HTMLButtonElement>('[data-favorite-button]');
-          if (resId && userFavoritesSet.has(resId) && btn) {
-            updateCardFavoriteState(btn, true, btn.dataset.title || '');
-          }
-        });
-      }
-    } catch {
-      // Ignore initial network errors
-    } finally {
-      favoritesFetched = true;
-      apply();
-    }
-  };
 
-  const apply = () => {
-    const favoritesFilter = document.querySelector<HTMLSelectElement>('[data-filter="favorites"]')?.value ?? '';
-    const level = document.querySelector<HTMLSelectElement>('[data-filter="level"]')?.value ?? '';
-    const type = document.querySelector<HTMLSelectElement>('[data-filter="type"]')?.value ?? '';
-    const language = document.querySelector<HTMLSelectElement>('[data-filter="language"]')?.value ?? '';
-    const featured = document.querySelector<HTMLSelectElement>('[data-filter="featured"]')?.value ?? '';
-    const query = search?.value.trim().toLowerCase() ?? '';
-    const sort = document.querySelector<HTMLSelectElement>('[data-filter="sort"]')?.value;
+      if (emptyLoginLink) emptyLoginLink.hidden = true;
 
-    if (favoritesFilter === 'only' && !isLoggedIn && favoritesFetched) {
-      cards.forEach(card => card.hidden = true);
-      if (count) count.textContent = '0';
-      if (empty) {
-        empty.hidden = false;
-        if (emptyMessage) emptyMessage.textContent = 'Inicia sesión para ver tus libros favoritos.';
-        if (emptyLoginLink) emptyLoginLink.hidden = false;
-      }
-      return;
-    }
+      let visibleCount = 0;
+      cards.forEach(card => {
+        const matchesCategory = (category === 'Todos' || card.dataset.category === category || (category === 'Manuales Técnicos' && card.dataset.type === 'Manual'));
+        const matchesLevel = (!level || card.dataset.level === level);
+        const matchesType = (!type || card.dataset.type === type);
+        const matchesLanguage = (!language || card.dataset.language === language);
+        const matchesFeatured = (!featured || card.dataset.featured === featured);
+        const matchesFavorites = (favoritesFilter !== 'only' || card.dataset.isFavorite === 'true');
+        const matchesQuery = (!query || card.dataset.search?.includes(query));
 
-    if (emptyLoginLink) emptyLoginLink.hidden = true;
-
-    let visible = cards.filter(card => 
-      (category === 'Todos' || card.dataset.category === category || (category === 'Manuales Técnicos' && card.dataset.type === 'Manual')) &&
-      (!level || card.dataset.level === level) &&
-      (!type || card.dataset.type === type) &&
-      (!language || card.dataset.language === language) &&
-      (!featured || card.dataset.featured === featured) &&
-      (favoritesFilter !== 'only' || card.dataset.isFavorite === 'true') &&
-      (!query || card.dataset.search?.includes(query))
-    );
-
-    visible.sort((a,b) => sort === 'downloads' ? Number(b.dataset.downloads)-Number(a.dataset.downloads) : Number(b.dataset.year)-Number(a.dataset.year)).forEach(card => card.parentElement?.append(card));
-    cards.forEach(card => card.hidden = !visible.includes(card));
-    if (count) count.textContent = String(visible.length);
-
-    if (empty) {
-      empty.hidden = visible.length > 0;
-      if (visible.length === 0 && emptyMessage) {
-        if (favoritesFilter === 'only') {
-          emptyMessage.textContent = 'Aún no has guardado ningún libro en tus favoritos.';
-        } else {
-          emptyMessage.textContent = 'No encontramos documentos con esos filtros. Prueba con otra búsqueda.';
-        }
-      }
-    }
-  };
-
-  search?.addEventListener('input', apply);
-  document.querySelectorAll<HTMLButtonElement>('[data-category]').forEach(button => button.addEventListener('click', () => { category = button.dataset.category ?? 'Todos'; document.querySelectorAll('[data-category]').forEach(chip => chip.classList.toggle('is-active', chip === button)); apply(); }));
-  document.querySelectorAll<HTMLSelectElement>('[data-filter]').forEach(select => select.addEventListener('change', apply));
-
-  document.addEventListener('click', async (e) => {
-    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-favorite-button]');
-    if (!btn) return;
-
-    if (!isLoggedIn) {
-      showToast('Inicia sesión para guardar libros en favoritos.', '/iniciar-sesion', 'Iniciar sesión');
-      return;
-    }
-
-    const resId = btn.dataset.resourceId;
-    const title = btn.dataset.title || '';
-    if (!resId) return;
-
-    const wasFav = btn.classList.contains('is-favorite');
-    const newFavState = !wasFav;
-
-    updateCardFavoriteState(btn, newFavState, title);
-    if (newFavState) userFavoritesSet.add(resId);
-    else userFavoritesSet.delete(resId);
-    apply();
-
-    try {
-      const res = await fetch(newFavState ? '/api/library/favorites' : `/api/library/favorites/${resId}`, {
-        method: newFavState ? 'POST' : 'DELETE',
-        headers: { 'Content-Type': 'application/json' },
-        ...(newFavState ? { body: JSON.stringify({ resourceId: resId }) } : {}),
+        const isVisible = matchesCategory && matchesLevel && matchesType && matchesLanguage && matchesFeatured && matchesFavorites && matchesQuery;
+        card.hidden = !isVisible;
+        if (isVisible) visibleCount++;
       });
 
-      const data = await res.json();
-      if (!res.ok || !data.ok) {
+      if (count) count.textContent = String(visibleCount);
+
+      if (empty) {
+        empty.hidden = visibleCount > 0;
+        if (visibleCount === 0 && emptyMessage) {
+          if (favoritesFilter === 'only') {
+            emptyMessage.textContent = 'Aún no has guardado ningún libro en tus favoritos.';
+          } else {
+            emptyMessage.textContent = 'No encontramos documentos con esos filtros. Prueba con otra búsqueda.';
+          }
+        }
+      }
+    };
+
+    const fetchFavorites = async () => {
+      try {
+        const res = await fetch('/api/library/favorites');
+        if (res.status === 401) {
+          isLoggedIn = false;
+          return;
+        }
+        const data = await res.json();
+        if (res.ok && data.ok && Array.isArray(data.favorites)) {
+          isLoggedIn = true;
+          data.favorites.forEach((id: string) => userFavoritesSet.add(id));
+          cards.forEach(card => {
+            const resId = card.dataset.resourceId;
+            const btn = card.querySelector<HTMLButtonElement>('[data-favorite-button]');
+            if (resId && userFavoritesSet.has(resId) && btn) {
+              updateCardFavoriteState(btn, true, btn.dataset.title || '');
+            }
+          });
+        }
+      } catch {
+        // Ignore initial network errors
+      } finally {
+        favoritesFetched = true;
+        const favoritesFilter = document.querySelector<HTMLSelectElement>('[data-filter="favorites"]')?.value ?? '';
+        if (favoritesFilter === 'only') {
+          apply();
+        }
+      }
+    };
+
+    search?.addEventListener('input', apply);
+    document.querySelectorAll<HTMLButtonElement>('[data-category]').forEach(button => button.addEventListener('click', () => { category = button.dataset.category ?? 'Todos'; document.querySelectorAll('[data-category]').forEach(chip => chip.classList.toggle('is-active', chip === button)); apply(); }));
+    document.querySelectorAll<HTMLSelectElement>('[data-filter]').forEach(select => select.addEventListener('change', apply));
+
+    gridContainer.addEventListener('click', async (e) => {
+      const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-favorite-button]');
+      if (!btn || !gridContainer.contains(btn)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      if (!isLoggedIn) {
+        showToast('Inicia sesión para guardar libros en favoritos.', '/iniciar-sesion', 'Iniciar sesión');
+        return;
+      }
+
+      const resId = btn.dataset.resourceId;
+      const title = btn.dataset.title || '';
+      if (!resId) return;
+
+      const wasFav = btn.classList.contains('is-favorite');
+      const newFavState = !wasFav;
+
+      updateCardFavoriteState(btn, newFavState, title);
+      if (newFavState) userFavoritesSet.add(resId);
+      else userFavoritesSet.delete(resId);
+
+      const favoritesFilter = document.querySelector<HTMLSelectElement>('[data-filter="favorites"]')?.value ?? '';
+      if (favoritesFilter === 'only') {
+        apply();
+      }
+
+      try {
+        const res = await fetch(newFavState ? '/api/library/favorites' : `/api/library/favorites/${resId}`, {
+          method: newFavState ? 'POST' : 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          ...(newFavState ? { body: JSON.stringify({ resourceId: resId }) } : {}),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          updateCardFavoriteState(btn, wasFav, title);
+          if (wasFav) userFavoritesSet.add(resId);
+          else userFavoritesSet.delete(resId);
+          if (favoritesFilter === 'only') apply();
+          showToast(data.error || 'No se pudo actualizar el favorito.');
+        }
+      } catch {
         updateCardFavoriteState(btn, wasFav, title);
         if (wasFav) userFavoritesSet.add(resId);
         else userFavoritesSet.delete(resId);
-        apply();
-        showToast(data.error || 'No se pudo actualizar el favorito.');
+        if (favoritesFilter === 'only') apply();
+        showToast('Error de conexión al actualizar favorito.');
       }
-    } catch {
-      updateCardFavoriteState(btn, wasFav, title);
-      if (wasFav) userFavoritesSet.add(resId);
-      else userFavoritesSet.delete(resId);
-      apply();
-      showToast('Error de conexión al actualizar favorito.');
-    }
-  });
+    });
 
-  fetchFavorites();
+    fetchFavorites();
+  };
+
+  setupLibraryGrid();
+  document.addEventListener('astro:page-load', setupLibraryGrid);
 </script>
 <style>
   .library-results { margin-bottom:1rem; color:var(--color-text-secondary); font-size:.9rem; }.library-results span { color:var(--color-text); font-weight:800; }.book-grid { display:grid; grid-template-columns:1fr; gap:1.25rem; }@media (min-width:680px){.book-grid{grid-template-columns:repeat(2,1fr)}}@media(min-width:1100px){.book-grid{grid-template-columns:repeat(4,1fr)}}.library-empty { padding:3rem 1rem; text-align:center; color:var(--color-text-secondary); display:flex; flex-direction:column; align-items:center; gap:1rem; }.library-empty__link { display:inline-flex; padding:.55rem 1.1rem; border-radius:10px; background:var(--color-primary); color:#fff; font-weight:700; font-size:.85rem; text-decoration:none; }.library-toast { margin-bottom:1rem; padding:.75rem 1rem; border-radius:10px; background:#1e293b; color:#fff; font-size:.82rem; display:flex; align-items:center; justify-content:space-between; gap:.75rem; box-shadow:0 4px 14px rgba(0,0,0,.15); }.library-toast a { color:#4ade80; font-weight:700; text-decoration:underline; }
