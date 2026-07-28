@@ -468,7 +468,57 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
         return;
       }
 
-      // ── Branch 2: Browser Google Drive direct flow / Edition flow ──
+      // ── Branch 2: Metadata-only update (Editing existing resource without new files) ──
+      const hasNewPdf = pdfFile instanceof File && pdfFile.size > 0;
+      const hasNewCover = coverFile instanceof File && coverFile.size > 0;
+      const requiresFileUpload = hasNewPdf || hasNewCover;
+
+      if (resourceId && !requiresFileUpload) {
+        isSubmitting = true;
+        activeController = new AbortController();
+        form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = true; });
+
+        try {
+          setStage('Guardando cambios…');
+          updateDiagnostic('actualizando metadatos');
+          const body = {
+            ...metadataFrom(formData, intent),
+            ...(removeCoverRequested ? { removeCover: true } : {}),
+          };
+          const response = await fetch(`/api/admin/library/${resourceId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body),
+            signal: activeController.signal,
+          });
+          const result = await response.json();
+          if (!response.ok || !result.ok) {
+            applyFieldError(result);
+            const errCode = result.code ? ` [Código: ${result.code}]` : '';
+            throw new Error(`${result.error ?? 'No se pudieron guardar los cambios.'}${errCode}`);
+          }
+          updateDiagnostic('completado');
+          setStage('Recurso actualizado con éxito.', undefined, 'ok');
+          window.location.href = '/admin/biblioteca';
+        } catch (error) {
+          if (activeController?.signal.aborted) {
+            setStage('Operación cancelada.', undefined, 'error');
+            updateDiagnostic('cancelado', 'Operación cancelada por el usuario.');
+          } else {
+            const errObj = error as { message?: string; code?: string; operationId?: string };
+            const safeCode = errObj.code ? ` [Código: ${errObj.code}]` : '';
+            const safeMsg = sanitizeErrorMessage(errObj.message || 'Ocurrió un error al actualizar los metadatos.');
+            setStage(`[${currentStage}] ${safeMsg}${safeCode}`, undefined, 'error');
+            updateDiagnostic(currentStage, `${safeMsg}${safeCode}`, errObj.operationId || currentOpId);
+          }
+        } finally {
+          isSubmitting = false;
+          form.querySelectorAll<HTMLButtonElement>('button[type="submit"]').forEach(btn => { btn.disabled = false; });
+        }
+        return;
+      }
+
+      // ── Branch 3: Browser Google Drive direct flow / Edition with new files ──
       isSubmitting = true;
       activeController = new AbortController();
       if (cancelUploadButton) cancelUploadButton.hidden = false;
@@ -486,12 +536,12 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
         let pdfResult: Uploaded | undefined;
         let coverResult: Uploaded | undefined;
 
-        if (pdfFile) {
-          const res = await upload(pdfFile, 'pdf', config, token, renewToken, uploads);
+        if (hasNewPdf) {
+          const res = await upload(pdfFile!, 'pdf', config, token, renewToken, uploads);
           pdfResult = { id: res.id, asset: 'pdf' };
         }
-        if (coverFile) {
-          const res = await upload(coverFile, 'cover', config, token, renewToken, uploads);
+        if (hasNewCover) {
+          const res = await upload(coverFile!, 'cover', config, token, renewToken, uploads);
           coverResult = { id: res.id, asset: 'cover' };
         }
 
@@ -504,8 +554,8 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
             ...(coverResult ? { coverDriveFileId: coverResult.id } : {}),
             ...(removeCoverRequested ? { removeCover: true } : {}),
           };
-          const response = await fetch(`/api/admin/library/books/${resourceId}`, {
-            method: 'PUT',
+          const response = await fetch(`/api/admin/library/${resourceId}`, {
+            method: 'PATCH',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(body),
             signal: activeController.signal,
