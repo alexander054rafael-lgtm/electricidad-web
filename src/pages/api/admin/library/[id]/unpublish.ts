@@ -1,64 +1,110 @@
-// Proxy route for unpublishing a library resource to the Cloudflare Worker
 import type { APIRoute } from 'astro';
 import { json, requireApiAdmin } from '../../../../../lib/api';
 import { isLibraryUuid, isSameOriginRequest } from '../../../../../lib/library/validation';
-
-// Base URL of the Cloudflare Worker (same as in client adapters)
-const WORKER_BASE_URL = import.meta.env.PUBLIC_LIBRARY_WORKER_URL ?? 'https://indutech-library-file-worker.alexander054rafael.workers.dev';
+import { createSupabaseAdminClient } from '../../../../../lib/supabase/server';
 
 export const prerender = false;
 
 export const POST: APIRoute = async (context) => {
-  // Authenticate admin request
+  // Ensure request is from an authenticated admin
   const auth = requireApiAdmin(context);
   if (!auth.ok) return auth.response;
 
-  // CSRF protection
+  // CSRF / same-origin protection
   if (!isSameOriginRequest(context.request, context.url))
     return json({ ok: false, error: 'Origen de solicitud no permitido.' }, 403);
 
-  const id = context.params.id ?? '';
-  if (!isLibraryUuid(id)) return json({ ok: false, error: 'Identificador inválido.' }, 422);
+  const resourceId = context.params.id ?? '';
+  if (!isLibraryUuid(resourceId)) return json({ ok: false, error: 'Identificador inválido.' }, 422);
 
-  // Forward Supabase JWT to the worker
-  const { data: sessionData, error: sessionError } = await auth.supabase.auth.getSession();
-  if (sessionError || !sessionData.session?.access_token) {
-    return json({ ok: false, error: 'No hay sesión activa.' }, 401);
-  }
-  const token = sessionData.session.access_token;
-
-  const workerUrl = `${WORKER_BASE_URL}/v1/admin/library/${id}/unpublish`;
-  console.log('[unpublish‑proxy] forwarding request', { resourceId: id, url: workerUrl });
+  const adminDb = createSupabaseAdminClient();
 
   try {
-    const workerResp = await fetch(workerUrl, {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${token}`,
-        'content-type': 'application/json',
-      },
-    });
+    const updateResult = await adminDb
+      .from('library_resources')
+      .update({ is_published: false })
+      .eq('id', resourceId)
+      .select('id,is_published')
+      .maybeSingle();
 
-    const contentType = workerResp.headers.get('content-type') ?? '';
-    let payload: unknown;
-    if (contentType.includes('application/json')) {
-      payload = await workerResp.json();
-    } else {
-      const txt = await workerResp.text();
-      payload = { raw: txt };
+    if (updateResult.error) {
+      console.error('[admin-library-unpublish] database update failed', {
+        resourceId,
+        code: updateResult.error.code,
+        message: updateResult.error.message,
+        details: updateResult.error.details,
+        hint: updateResult.error.hint,
+      });
+
+      return json(
+        {
+          ok: false,
+          error: 'Error al despublicar el recurso.',
+          code: updateResult.error.code,
+          message: updateResult.error.message,
+          details: updateResult.error.details,
+          hint: updateResult.error.hint,
+        },
+        500
+      );
     }
 
-    return new Response(JSON.stringify(payload), {
-      status: workerResp.status,
-      headers: {
-        'content-type': 'application/json; charset=utf-8',
-        'cache-control': 'no-store',
-        'x-content-type-options': 'nosniff',
-      },
+    if (!updateResult.data) {
+      console.error('[admin-library-unpublish] resource not found', {
+        resourceId,
+        code: 'NOT_FOUND',
+        message: 'El recurso no existe.',
+        details: null,
+        hint: null,
+      });
+
+      return json(
+        {
+          ok: false,
+          error: 'El recurso no existe.',
+          code: 'NOT_FOUND',
+          message: 'El recurso no existe.',
+          details: null,
+          hint: null,
+        },
+        404
+      );
+    }
+
+    console.info('[admin-library-unpublish] resource unpublished successfully', {
+      resourceId,
+      code: 'SUCCESS',
+      message: 'Recurso despublicado exitosamente.',
+      details: updateResult.data,
+      hint: null,
     });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : String(err);
-    console.error('[unpublish‑proxy] error forwarding request', { resourceId: id, error: msg });
-    return json({ ok: false, error: msg, workerUrl, resourceId: id }, 502);
+
+    return json({
+      ok: true,
+      resource: updateResult.data,
+    });
+  } catch (error) {
+    const errObj = error as { code?: string; message?: string; details?: unknown; hint?: unknown };
+    const message = error instanceof Error ? error.message : String(error);
+
+    console.error('[admin-library-unpublish] unexpected error', {
+      resourceId,
+      code: errObj.code ?? 'UNKNOWN_ERROR',
+      message,
+      details: errObj.details ?? null,
+      hint: errObj.hint ?? null,
+    });
+
+    return json(
+      {
+        ok: false,
+        error: 'Error interno del servidor al despublicar el recurso.',
+        code: errObj.code ?? 'UNKNOWN_ERROR',
+        message,
+        details: errObj.details ?? null,
+        hint: errObj.hint ?? null,
+      },
+      500
+    );
   }
 };
