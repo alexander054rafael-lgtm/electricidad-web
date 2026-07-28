@@ -1,55 +1,139 @@
 ---
 export const prerender = false;
-import { BookOpen, CirclePlus, Eye, EyeOff, Search, SquarePen, Star, Trash2, TriangleAlert } from '@lucide/astro';
-import AdminLayout from '../../../layouts/AdminLayout.astro';
-import { categories as publicCategories } from '../../../data/books';
-import { staticResources } from '../../../lib/library/books';
-import R2UploadTest from '../../../components/admin/R2UploadTest.astro';
+import {
+  BookOpen,
+  CirclePlus,
+  Eye,
+  EyeOff,
+  Search,
+  SquarePen,
+  Star,
+  Trash2,
+  TriangleAlert,
+} from "@lucide/astro";
+import AdminLayout from "../../../layouts/AdminLayout.astro";
+import { categories as publicCategories } from "../../../data/books";
+import { staticResources } from "../../../lib/library/books";
+import R2UploadTest from "../../../components/admin/R2UploadTest.astro";
 
 const client = Astro.locals.supabase;
-const q = Astro.url.searchParams.get('q')?.trim() ?? '';
-const category = Astro.url.searchParams.get('category') ?? '';
-const type = Astro.url.searchParams.get('type') ?? '';
-const state = Astro.url.searchParams.get('state') ?? '';
-const page = Math.max(1, Number.parseInt(Astro.url.searchParams.get('page') ?? '1', 10) || 1);
+const q = Astro.url.searchParams.get("q")?.trim() ?? "";
+const category = Astro.url.searchParams.get("category") ?? "";
+const type = Astro.url.searchParams.get("type") ?? "";
+const state = Astro.url.searchParams.get("state") ?? "";
+const page = Math.max(
+  1,
+  Number.parseInt(Astro.url.searchParams.get("page") ?? "1", 10) || 1,
+);
 const pageSize = 12;
 const from = (page - 1) * pageSize;
-const resourceTypes = ['Libro', 'Manual', 'Guía', 'Catálogo', 'Ficha técnica', 'Norma', 'Documento'];
+const resourceTypes = [
+  "Libro",
+  "Manual",
+  "Guía",
+  "Catálogo",
+  "Ficha técnica",
+  "Norma",
+  "Documento",
+];
 
-let query = client?.from('library_resources').select('id,title,slug,author,category,resource_type,is_published,is_featured,cover_drive_file_id,drive_file_id,file_error,created_at,updated_at', { count: 'exact' }).order('updated_at', { ascending: false });
-if (query && q) { const safe = q.replace(/[%_,()]/g, ''); query = query.or(`title.ilike.%${safe}%,author.ilike.%${safe}%`); }
-if (query && category) query = query.eq('category', category);
-if (query && resourceTypes.includes(type)) query = query.eq('resource_type', type);
-if (query && state === 'published') query = query.eq('is_published', true);
-if (query && state === 'draft') query = query.eq('is_published', false);
-if (query && state === 'error') query = query.not('file_error', 'is', null);
+let query = client
+  ?.from("library_resources")
+  .select(
+    "id,title,slug,author,category,resource_type,is_published,is_featured,cover_drive_file_id,drive_file_id,file_error,created_at,updated_at",
+    { count: "exact" },
+  )
+  .order("updated_at", { ascending: false });
+if (query && q) {
+  const safe = q.replace(/[%_,()]/g, "");
+  query = query.or(`title.ilike.%${safe}%,author.ilike.%${safe}%`);
+}
+if (query && category) query = query.eq("category", category);
+if (query && resourceTypes.includes(type))
+  query = query.eq("resource_type", type);
+if (query && state === "published") query = query.eq("is_published", true);
+if (query && state === "draft") query = query.eq("is_published", false);
+if (query && state === "error") query = query.not("file_error", "is", null);
 
-const [result, totalResult, publishedResult] = client ? await Promise.all([
-  query!.range(from, from + pageSize - 1),
-  client.from('library_resources').select('id', { count: 'exact', head: true }),
-  client.from('library_resources').select('id', { count: 'exact', head: true }).eq('is_published', true),
-]) : [{ data: null, count: 0, error: new Error('Database unavailable') }, { count: 0 }, { count: 0 }];
+const [result, totalResult, publishedResult] = client
+  ? await Promise.all([
+      query!.range(from, from + pageSize - 1),
+      client
+        .from("library_resources")
+        .select("id", { count: "exact", head: true }),
+      client
+        .from("library_resources")
+        .select("id", { count: "exact", head: true })
+        .eq("is_published", true),
+    ])
+  : [
+      { data: null, count: 0, error: new Error("Database unavailable") },
+      { count: 0 },
+      { count: 0 },
+    ];
 const resources = result.data ?? [];
 const total = totalResult.count ?? 0;
 const published = publishedResult.count ?? 0;
 const drafts = Math.max(0, total - published);
 const pages = Math.max(1, Math.ceil((result.count ?? 0) / pageSize));
-const pageUrl = (nextPage: number) => { const params = new URLSearchParams(Astro.url.searchParams); params.set('page', String(nextPage)); return `/admin/biblioteca?${params}`; };
+const pageUrl = (nextPage: number) => {
+  const params = new URLSearchParams(Astro.url.searchParams);
+  params.set("page", String(nextPage));
+  return `/admin/biblioteca?${params}`;
+};
 ---
 
-<AdminLayout title="Biblioteca" description="Gestiona recursos técnicos dinámicos sin modificar los documentos de muestra." active="books">
-  <header class="page-head"><div><span>Biblioteca Técnica</span><h1>Biblioteca</h1><p>PDFs y portadas en Google Drive; metadatos y publicación en Supabase.</p></div><a href="/admin/biblioteca/nuevo"><CirclePlus size={18}/> Añadir recurso</a></header>
+<AdminLayout
+  title="Biblioteca"
+  description="Gestiona recursos técnicos dinámicos sin modificar los documentos de muestra."
+  active="books"
+>
+  <header class="page-head">
+    <div>
+      <span>Biblioteca Técnica</span><h1>Biblioteca</h1><p>
+        PDFs y portadas en Google Drive; metadatos y publicación en Supabase.
+      </p>
+    </div><a href="/admin/biblioteca/nuevo"
+      ><CirclePlus size={18} /> Añadir recurso</a>
+  </header>
 
-  <section class="stats" aria-label="Resumen"><article><strong>{total}</strong><span>Total dinámicos</span></article><article><strong>{published}</strong><span>Publicados</span></article><article><strong>{drafts}</strong><span>Borradores</span></article></section>
+  <section class="stats" aria-label="Resumen">
+    <article>
+      <strong>{total}</strong><span>Total dinámicos</span>
+    </article><article>
+      <strong>{published}</strong><span>Publicados</span>
+    </article><article>
+      <strong>{drafts}</strong><span>Borradores</span>
+    </article>
+  </section>
 
-  <section class="worker-test" aria-labelledby="worker-test-title" data-worker-test>
-    <div><span>Prueba temporal</span><h2 id="worker-test-title">Conexión Cloudflare Worker</h2><p>Verifica la sesión actual contra el endpoint administrativo de Biblioteca.</p></div>
+  <section
+    class="worker-test"
+    aria-labelledby="worker-test-title"
+    data-worker-test
+  >
+    <div>
+      <span>Prueba temporal</span><h2 id="worker-test-title">
+        Conexión Cloudflare Worker
+      </h2><p>
+        Verifica la sesión actual contra el endpoint administrativo de
+        Biblioteca.
+      </p>
+    </div>
     <button type="button" data-worker-test-button>Probar conexión</button>
     <ul aria-live="polite">
-      <li data-worker-state="worker"><span>Worker conectado</span><strong>Pendiente</strong></li>
-      <li data-worker-state="r2"><span>R2 disponible</span><strong>Pendiente</strong></li>
-      <li data-worker-state="user"><span>Usuario validado</span><strong>Pendiente</strong></li>
-      <li data-worker-state="admin"><span>Rol admin confirmado</span><strong>Pendiente</strong></li>
+      <li data-worker-state="worker">
+        <span>Worker conectado</span><strong>Pendiente</strong>
+      </li>
+      <li data-worker-state="r2">
+        <span>R2 disponible</span><strong>Pendiente</strong>
+      </li>
+      <li data-worker-state="user">
+        <span>Usuario validado</span><strong>Pendiente</strong>
+      </li>
+      <li data-worker-state="admin">
+        <span>Rol admin confirmado</span><strong>Pendiente</strong>
+      </li>
     </ul>
     <p class="worker-test-error" role="alert" hidden data-worker-test-error></p>
   </section>
@@ -57,118 +141,775 @@ const pageUrl = (nextPage: number) => { const params = new URLSearchParams(Astro
   <R2UploadTest />
 
   <form class="filters" method="get" action="/admin/biblioteca">
-    <label class="search"><Search size={17}/><span class="sr-only">Buscar</span><input name="q" value={q} placeholder="Buscar por título o autor" /></label>
-    <label><span class="sr-only">Categoría</span><select name="category"><option value="">Todas las categorías</option>{publicCategories.filter(item => item !== 'Todos' && item !== 'Manuales Técnicos').map(item => <option selected={category === item}>{item}</option>)}</select></label>
-    <label><span class="sr-only">Tipo</span><select name="type"><option value="">Todos los tipos</option>{resourceTypes.map(item => <option selected={type === item}>{item}</option>)}</select></label>
-    <label><span class="sr-only">Estado</span><select name="state"><option value="">Todos los estados</option><option value="published" selected={state === 'published'}>Publicado</option><option value="draft" selected={state === 'draft'}>Borrador</option><option value="error" selected={state === 'error'}>Error de archivo</option></select></label>
+    <label class="search"
+      ><Search size={17} /><span class="sr-only">Buscar</span><input
+        name="q"
+        value={q}
+        placeholder="Buscar por título o autor"
+      /></label
+    >
+    <label
+      ><span class="sr-only">Categoría</span><select name="category"
+        ><option value="">Todas las categorías</option>{
+          publicCategories
+            .filter((item) => item !== "Todos" && item !== "Manuales Técnicos")
+            .map((item) => <option selected={category === item}>{item}</option>)
+        }</select
+      ></label
+    >
+    <label
+      ><span class="sr-only">Tipo</span><select name="type"
+        ><option value="">Todos los tipos</option>{
+          resourceTypes.map((item) => (
+            <option selected={type === item}>{item}</option>
+          ))
+        }</select
+      ></label
+    >
+    <label
+      ><span class="sr-only">Estado</span><select name="state"
+        ><option value="">Todos los estados</option><option
+          value="published"
+          selected={state === "published"}>Publicado</option
+        ><option value="draft" selected={state === "draft"}>Borrador</option
+        ><option value="error" selected={state === "error"}
+          >Error de archivo</option
+        ></select
+      ></label
+    >
     <button type="submit">Filtrar</button>
   </form>
 
   <p class="action-message" aria-live="polite" data-action-message></p>
-  {result.error ? <div class="empty"><TriangleAlert size={28}/><h2>No se pudo consultar la Biblioteca</h2><p>Comprueba que la migración de `library_resources` esté aplicada.</p></div> : resources.length ? (
-    <div class="resource-table" data-library-admin>
-      <div class="table-head"><span>Recurso</span><span>Clasificación</span><span>Estado</span><span>Fecha</span><span>Acciones</span></div>
-      {resources.map(resource => <article data-resource-row={resource.id}>
-        <div class="resource-main">{resource.cover_drive_file_id ? <img src={`/api/library/books/${resource.id}/cover`} alt="" loading="lazy"/> : <span class="cover-empty"><BookOpen size={19}/></span>}<div><strong>{resource.title}</strong><small>{resource.author || 'Sin autor'}</small>{resource.file_error && <em><TriangleAlert size={12}/> Error de archivo</em>}</div></div>
-        <div class="classification"><span>{resource.category}</span><small>{resource.resource_type}</small></div>
-        <div class="state"><span class:list={{ published: resource.is_published, draft: !resource.is_published }}>{resource.is_published ? 'Publicado' : 'Borrador'}</span>{resource.is_featured && <small><Star size={12}/> Destacado</small>}</div>
-        <time datetime={resource.updated_at}>{new Date(resource.updated_at).toLocaleDateString('es-PE')}</time>
-        <div class="actions"><a href={`/admin/biblioteca/${resource.id}/editar`} aria-label={`Editar ${resource.title}`}><SquarePen size={16}/></a><a href={`/api/library/books/${resource.id}/pdf`} target="_blank" aria-label={`Ver archivo de ${resource.title}`}><Eye size={16}/></a><button type="button" data-action={resource.is_published ? 'unpublish' : 'publish'} data-id={resource.id} aria-label={resource.is_published ? `Despublicar ${resource.title}` : `Publicar ${resource.title}`}>{resource.is_published ? <EyeOff size={16}/> : <Eye size={16}/>}</button><button type="button" class="danger" data-action="delete" data-id={resource.id} data-title={resource.title} aria-label={`Eliminar ${resource.title}`}><Trash2 size={16}/></button></div>
-      </article>)}
-    </div>
-  ) : <div class="empty"><BookOpen size={28}/><h2>No hay recursos con estos filtros</h2><p>Añade un documento o ajusta los criterios de búsqueda.</p></div>}
+  {
+    result.error ? (
+      <div class="empty">
+        <>
+          <TriangleAlert size={28} />
+          <h2>No se pudo consultar la Biblioteca</h2>
+          <p>
+            Comprueba que la migración de `library_resources` esté aplicada.
+          </p>
+        </>
+      </div>
+    ) : resources.length ? (
+      <div class="resource-table" data-library-admin>
+        <div class="table-head">
+          <>
+            <span>Recurso</span>
+            <span>Clasificación</span>
+            <span>Estado</span>
+            <span>Fecha</span>
+            <span>Acciones</span>
+          </>
+        </div>
+        {resources.map((resource) => (
+          <article data-resource-row={resource.id}>
+            <div class="resource-main">
+              {resource.cover_drive_file_id ? (
+                <img
+                  src={`/api/library/books/${resource.id}/cover`}
+                  alt=""
+                  loading="lazy"
+                />
+              ) : (
+                <span class="cover-empty">
+                  <BookOpen size={19} />
+                </span>
+              )}
+              <div>
+                <strong>{resource.title}</strong>
+                <small>{resource.author || "Sin autor"}</small>
+                {resource.file_error && (
+                  <em>
+                    <TriangleAlert size={12} /> Error de archivo
+                  </em>
+                )}
+              </div>
+            </div>
+            <div class="classification">
+              <span>{resource.category}</span>
+              <small>{resource.resource_type}</small>
+            </div>
+            <div class="state">
+              <span
+                class:list={{
+                  published: resource.is_published,
+                  draft: !resource.is_published,
+                }}
+              >
+                {resource.is_published ? "Publicado" : "Borrador"}
+              </span>
+              {resource.is_featured && (
+                <small>
+                  <Star size={12} /> Destacado
+                </small>
+              )}
+            </div>
+            <time datetime={resource.updated_at}>
+              {new Date(resource.updated_at).toLocaleDateString("es-PE")}
+            </time>
+            <div class="actions">
+              <a
+                href={`/admin/biblioteca/${resource.id}/editar`}
+                aria-label={`Editar ${resource.title}`}
+              >
+                <SquarePen size={16} />
+              </a>
+              <a
+                href={`/api/library/books/${resource.id}/pdf`}
+                target="_blank"
+                aria-label={`Ver archivo de ${resource.title}`}
+              >
+                <Eye size={16} />
+              </a>
+              <button
+                type="button"
+                data-action={resource.is_published ? "unpublish" : "publish"}
+                data-id={resource.id}
+                aria-label={
+                  resource.is_published
+                    ? `Despublicar ${resource.title}`
+                    : `Publicar ${resource.title}`
+                }
+              >
+                {resource.is_published ? (
+                  <EyeOff size={16} />
+                ) : (
+                  <Eye size={16} />
+                )}
+              </button>
+              <button
+                type="button"
+                class="danger"
+                data-action="delete"
+                data-id={resource.id}
+                data-title={resource.title}
+                aria-label={`Eliminar ${resource.title}`}
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          </article>
+        ))}
+      </div>
+    ) : (
+      <div class="empty">
+        <>
+          <BookOpen size={28} />
+          <h2>No hay recursos con estos filtros</h2>
+          <p>Añade un documento o ajusta los criterios de búsqueda.</p>
+        </>
+      </div>
+    )
+  }
 
-  {pages > 1 && <nav class="pagination" aria-label="Paginación"><a class:list={{ disabled: page <= 1 }} href={pageUrl(Math.max(1, page - 1))}>Anterior</a><span>Página {page} de {pages}</span><a class:list={{ disabled: page >= pages }} href={pageUrl(Math.min(pages, page + 1))}>Siguiente</a></nav>}
+  {
+    pages > 1 && (
+      <nav class="pagination" aria-label="Paginación">
+        <>
+          <a
+            class:list={{ disabled: page <= 1 }}
+            href={pageUrl(Math.max(1, page - 1))}
+          >
+            Anterior
+          </a>
+          <span>
+            Página {page} de {pages}
+          </span>
+          <a
+            class:list={{ disabled: page >= pages }}
+            href={pageUrl(Math.min(pages, page + 1))}
+          >
+            Siguiente
+          </a>
+        </>
+      </nav>
+    )
+  }
 
-  <aside class="samples"><strong>Recursos de muestra — solo lectura</strong><span>{staticResources.length} recursos permanecen protegidos en código y no tienen acciones administrativas.</span></aside>
+  <aside class="samples">
+    <strong>Recursos de muestra — solo lectura</strong><span
+      >{staticResources.length} recursos permanecen protegidos en código y no tienen
+      acciones administrativas.</span>
+  </aside>
 </AdminLayout>
 
 <script>
-  import { createBrowserClient } from '@supabase/ssr';
+  import { createBrowserClient } from "@supabase/ssr";
 
-  const WORKER_STATUS_URL = 'https://indutech-library-file-worker.alexander054rafael.workers.dev/v1/admin/library/status';
+  const WORKER_STATUS_URL =
+    "https://indutech-library-file-worker.alexander054rafael.workers.dev/v1/admin/library/status";
 
   const initializeWorkerTest = () => {
-    const root = document.querySelector<HTMLElement>('[data-worker-test]');
-    const button = root?.querySelector<HTMLButtonElement>('[data-worker-test-button]');
-    const error = root?.querySelector<HTMLElement>('[data-worker-test-error]');
-    if (!root || !button || root.dataset.ready === 'true') return;
-    root.dataset.ready = 'true';
+    const root = document.querySelector<HTMLElement>("[data-worker-test]");
+    const button = root?.querySelector<HTMLButtonElement>(
+      "[data-worker-test-button]",
+    );
+    const error = root?.querySelector<HTMLElement>("[data-worker-test-error]");
+    if (!root || !button || root.dataset.ready === "true") return;
+    root.dataset.ready = "true";
 
-    const setState = (name: 'worker' | 'r2' | 'user' | 'admin', text: string, state: 'pending' | 'ok' | 'error') => {
-      const item = root.querySelector<HTMLElement>(`[data-worker-state="${name}"]`);
-      const value = item?.querySelector<HTMLElement>('strong');
+    const setState = (
+      name: "worker" | "r2" | "user" | "admin",
+      text: string,
+      state: "pending" | "ok" | "error",
+    ) => {
+      const item = root.querySelector<HTMLElement>(
+        `[data-worker-state="${name}"]`,
+      );
+      const value = item?.querySelector<HTMLElement>("strong");
       if (item) item.dataset.state = state;
       if (value) value.textContent = text;
     };
     const reset = () => {
-      (['worker', 'r2', 'user', 'admin'] as const).forEach(name => setState(name, 'Pendiente', 'pending'));
-      if (error) { error.hidden = true; error.textContent = ''; }
+      (["worker", "r2", "user", "admin"] as const).forEach((name) =>
+        setState(name, "Pendiente", "pending"),
+      );
+      if (error) {
+        error.hidden = true;
+        error.textContent = "";
+      }
     };
 
-    button.addEventListener('click', async () => {
+    button.addEventListener("click", async () => {
       reset();
       button.disabled = true;
-      button.textContent = 'Comprobando…';
+      button.textContent = "Comprobando…";
       try {
         const url = import.meta.env.PUBLIC_SUPABASE_URL;
         const key = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
-        if (!url || !key) throw new Error('Supabase no está configurado en el navegador.');
+        if (!url || !key)
+          throw new Error("Supabase no está configurado en el navegador.");
         const supabase = createBrowserClient(url, key);
         const { data, error: sessionError } = await supabase.auth.getSession();
-        if (sessionError || !data.session?.access_token) throw new Error('No se encontró una sesión activa de Supabase.');
+        if (sessionError || !data.session?.access_token)
+          throw new Error("No se encontró una sesión activa de Supabase.");
 
         const response = await fetch(WORKER_STATUS_URL, {
           headers: { Authorization: `Bearer ${data.session.access_token}` },
         });
-        const result = await response.json().catch(() => ({})) as { worker?: string; r2?: string; error?: string };
-        if (!response.ok) throw new Error(result.error ?? 'El Worker rechazó la comprobación.');
-        setState('worker', result.worker === 'available' ? 'Conectado' : 'No disponible', result.worker === 'available' ? 'ok' : 'error');
-        setState('r2', result.r2 === 'available' ? 'Disponible' : 'No disponible', result.r2 === 'available' ? 'ok' : 'error');
-        setState('user', 'Validado', 'ok');
-        setState('admin', 'Confirmado', 'ok');
+        const result = (await response.json().catch(() => ({}))) as {
+          worker?: string;
+          r2?: string;
+          error?: string;
+        };
+        if (!response.ok)
+          throw new Error(result.error ?? "El Worker rechazó la comprobación.");
+        setState(
+          "worker",
+          result.worker === "available" ? "Conectado" : "No disponible",
+          result.worker === "available" ? "ok" : "error",
+        );
+        setState(
+          "r2",
+          result.r2 === "available" ? "Disponible" : "No disponible",
+          result.r2 === "available" ? "ok" : "error",
+        );
+        setState("user", "Validado", "ok");
+        setState("admin", "Confirmado", "ok");
       } catch (reason) {
-        const message = reason instanceof Error ? reason.message : 'No se pudo comprobar el Worker.';
-        (['worker', 'r2', 'user', 'admin'] as const).forEach(name => setState(name, 'No verificado', 'error'));
-        if (error) { error.textContent = message; error.hidden = false; }
+        const message =
+          reason instanceof Error
+            ? reason.message
+            : "No se pudo comprobar el Worker.";
+        (["worker", "r2", "user", "admin"] as const).forEach((name) =>
+          setState(name, "No verificado", "error"),
+        );
+        if (error) {
+          error.textContent = message;
+          error.hidden = false;
+        }
       } finally {
         button.disabled = false;
-        button.textContent = 'Probar conexión';
+        button.textContent = "Probar conexión";
       }
     });
   };
 
   const initializeLibraryAdmin = () => {
-    const root = document.querySelector<HTMLElement>('[data-library-admin]');
-    if (!root || root.dataset.ready === 'true') return;
-    root.dataset.ready = 'true';
-    const message = document.querySelector<HTMLElement>('[data-action-message]');
-    root.addEventListener('click', async event => {
-      const button = (event.target as HTMLElement).closest<HTMLButtonElement>('button[data-action]');
+    const root = document.querySelector<HTMLElement>("[data-library-admin]");
+    if (!root || root.dataset.ready === "true") return;
+    root.dataset.ready = "true";
+    const message = document.querySelector<HTMLElement>(
+      "[data-action-message]",
+    );
+    root.addEventListener("click", async (event) => {
+      const button = (event.target as HTMLElement).closest<HTMLButtonElement>(
+        "button[data-action]",
+      );
       if (!button) return;
       const action = button.dataset.action;
       const id = button.dataset.id;
       if (!action || !id) return;
-      if (action === 'delete' && !confirm(`¿Eliminar “${button.dataset.title}”? Esta acción también elimina sus archivos de Google Drive.`)) return;
+      if (
+        action === "delete" &&
+        !confirm(
+          `¿Eliminar “${button.dataset.title}”? Esta acción también elimina sus archivos de Google Drive.`,
+        )
+      )
+        return;
       button.disabled = true;
-      if (message) { message.textContent = action === 'delete' ? 'Eliminando recurso…' : 'Actualizando publicación…'; message.dataset.state = ''; }
+      if (message) {
+        message.textContent =
+          action === "delete"
+            ? "Eliminando recurso…"
+            : "Actualizando publicación…";
+        message.dataset.state = "";
+      }
       try {
-        const response = await fetch(action === 'delete' ? `/api/admin/library/${id}` : `/api/admin/library/${id}/${action}`, { method: action === 'delete' ? 'DELETE' : 'POST' });
-        const result = await response.json();
-        if (!response.ok) throw new Error(result.error ?? 'No se pudo completar la acción.');
+        const response = await fetch(
+          action === "delete"
+            ? `/api/admin/library/${id}`
+            : `/api/admin/library/${id}/${action}`,
+          { method: action === "delete" ? "DELETE" : "POST" },
+        );
+
+        const body = await response.text();
+
+        console.log("[library-action]", {
+          action,
+          id,
+          status: response.status,
+          statusText: response.statusText,
+          contentType: response.headers.get("content-type"),
+          body,
+        });
+
+        let result: {
+          ok?: boolean;
+          error?: string;
+        } = {};
+
+        if (body.trim()) {
+          try {
+            result = JSON.parse(body);
+          } catch {
+            throw new Error(
+              `El servidor devolvió una respuesta inválida. HTTP ${response.status}`,
+            );
+          }
+        }
+
+        if (!response.ok) {
+          throw new Error(
+            result.error ??
+              `No se pudo completar la acción. HTTP ${response.status}`,
+          );
+        }
+
         location.reload();
       } catch (error) {
-        if (message) { message.textContent = error instanceof Error ? error.message : 'No se pudo completar la acción.'; message.dataset.state = 'error'; }
+        if (message) {
+          message.textContent =
+            error instanceof Error
+              ? error.message
+              : "No se pudo completar la acción.";
+          message.dataset.state = "error";
+        }
         button.disabled = false;
       }
     });
   };
   initializeWorkerTest();
   initializeLibraryAdmin();
-  document.addEventListener('astro:page-load', initializeWorkerTest);
-  document.addEventListener('astro:page-load', initializeLibraryAdmin);
+  document.addEventListener("astro:page-load", initializeWorkerTest);
+  document.addEventListener("astro:page-load", initializeLibraryAdmin);
 </script>
 
 <style>
-  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}.page-head{display:flex;align-items:end;justify-content:space-between;gap:1rem}.page-head>div>span,.worker-test>div>span{color:var(--admin-green);font-size:.75rem;font-weight:850}.page-head h1{margin:.25rem 0;font-size:clamp(2rem,5vw,3rem)}.page-head p,.worker-test p{margin:0;color:var(--admin-text-muted)}.page-head>a,.filters>button,.worker-test button{display:inline-flex;min-height:44px;align-items:center;justify-content:center;gap:.45rem;padding:.7rem 1rem;border:0;border-radius:10px;background:var(--admin-green);color:#fff;font:inherit;font-size:.78rem;font-weight:850}.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:.75rem;margin:1.5rem 0}.stats article{display:grid;padding:1rem;border:1px solid var(--admin-border);border-radius:13px;background:var(--admin-surface-raised)}.stats strong{font-size:1.5rem}.stats span{color:var(--admin-text-muted);font-size:.7rem}.worker-test{display:grid;grid-template-columns:minmax(220px,1fr) auto;gap:.8rem 1rem;margin:0 0 1.5rem;padding:1rem;border:1px solid var(--admin-border);border-radius:13px;background:var(--admin-surface-raised)}.worker-test h2{margin:.2rem 0;font-size:1rem}.worker-test ul{display:grid;grid-column:1/-1;grid-template-columns:repeat(4,minmax(0,1fr));gap:.55rem;padding:0;margin:0;list-style:none}.worker-test li{display:flex;justify-content:space-between;gap:.5rem;padding:.6rem .7rem;border-radius:9px;background:#f8faf9;font-size:.7rem}.worker-test li strong{font-size:.68rem;color:#64748b}.worker-test li[data-state="ok"]{background:#f0fdf4}.worker-test li[data-state="ok"] strong{color:#15803d}.worker-test li[data-state="error"]{background:#fef2f2}.worker-test li[data-state="error"] strong,.worker-test-error{color:#b42318}.worker-test-error{grid-column:1/-1;margin:0;font-size:.72rem}.worker-test button:disabled{cursor:wait;opacity:.7}.filters{display:grid;grid-template-columns:minmax(220px,1.5fr) repeat(3,minmax(140px,1fr)) auto;gap:.55rem;margin-bottom:1rem}.filters label{position:relative}.filters input,.filters select{width:100%;height:44px;padding:.65rem .75rem;border:1px solid var(--admin-border);border-radius:10px;background:#fff;color:var(--admin-text);font:inherit;font-size:.75rem}.filters .search svg{position:absolute;top:50%;left:.75rem;transform:translateY(-50%);color:var(--admin-text-muted)}.filters .search input{padding-left:2.2rem}.action-message{min-height:1.3rem;margin:.25rem 0;color:var(--admin-text-muted);font-size:.75rem}.action-message[data-state="error"]{color:#b42318}.resource-table{overflow:hidden;border:1px solid var(--admin-border);border-radius:14px;background:var(--admin-surface-raised)}.table-head,.resource-table article{display:grid;grid-template-columns:minmax(260px,2fr) minmax(150px,1fr) 120px 100px 170px;align-items:center;gap:.8rem;padding:.75rem 1rem}.table-head{background:#f4f7f5;color:var(--admin-text-muted);font-size:.65rem;font-weight:800;text-transform:uppercase}.resource-table article{border-top:1px solid var(--admin-border)}.resource-main{display:flex;min-width:0;align-items:center;gap:.7rem}.resource-main img,.cover-empty{width:42px;height:52px;flex:none;border-radius:7px;object-fit:cover}.cover-empty{display:grid;place-items:center;background:var(--admin-green-soft);color:var(--admin-green)}.resource-main>div{display:grid;min-width:0}.resource-main strong,.resource-main small{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.resource-main small,.classification small,time{color:var(--admin-text-muted);font-size:.68rem}.resource-main em{display:inline-flex;align-items:center;gap:.2rem;color:#b42318;font-size:.64rem;font-style:normal}.classification,.state{display:grid;gap:.15rem;font-size:.73rem}.state>span{width:max-content;padding:.2rem .45rem;border-radius:99px;font-size:.65rem;font-weight:800}.state .published{background:#dcfce7;color:#166534}.state .draft{background:#f1f5f9;color:#475569}.state small{display:flex;align-items:center;gap:.2rem;color:#a16207;font-size:.63rem}.actions{display:flex;gap:.3rem}.actions a,.actions button{display:grid;width:36px;height:36px;place-items:center;border:1px solid var(--admin-border);border-radius:8px;background:#fff;color:#345246}.actions .danger{color:#b42318}.empty{display:grid;min-height:250px;place-items:center;align-content:center;border:1px dashed var(--admin-border);border-radius:14px;color:var(--admin-text-muted);text-align:center}.empty h2{margin:.7rem 0 .2rem;color:var(--admin-text);font-size:1rem}.empty p{margin:0}.pagination{display:flex;align-items:center;justify-content:center;gap:1rem;margin:1.2rem 0}.pagination a{padding:.5rem .75rem;border:1px solid var(--admin-border);border-radius:8px;background:#fff;font-size:.72rem;font-weight:750}.pagination .disabled{pointer-events:none;opacity:.45}.pagination span{color:var(--admin-text-muted);font-size:.7rem}.samples{display:flex;justify-content:space-between;gap:1rem;margin-top:1.5rem;padding:1rem;border:1px dashed var(--admin-border);border-radius:12px;background:rgba(255,255,255,.55)}.samples span{color:var(--admin-text-muted);font-size:.72rem}@media(max-width:1050px){.filters{grid-template-columns:1fr 1fr}.worker-test ul{grid-template-columns:1fr 1fr}.table-head{display:none}.resource-table article{grid-template-columns:minmax(220px,2fr) 1fr 110px}.resource-table article time{display:none}.actions{grid-column:2/4;justify-content:flex-end}}@media(max-width:650px){.page-head,.samples{align-items:stretch;flex-direction:column}.filters,.stats,.worker-test ul{grid-template-columns:1fr}.worker-test{grid-template-columns:1fr}.worker-test button{width:100%}.resource-table article{grid-template-columns:1fr}.actions{grid-column:auto;justify-content:flex-start}.classification,.state{grid-auto-flow:column;justify-content:start;gap:.6rem}}
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+  .page-head {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+  .page-head > div > span,
+  .worker-test > div > span {
+    color: var(--admin-green);
+    font-size: 0.75rem;
+    font-weight: 850;
+  }
+  .page-head h1 {
+    margin: 0.25rem 0;
+    font-size: clamp(2rem, 5vw, 3rem);
+  }
+  .page-head p,
+  .worker-test p {
+    margin: 0;
+    color: var(--admin-text-muted);
+  }
+  .page-head > a,
+  .filters > button,
+  .worker-test button {
+    display: inline-flex;
+    min-height: 44px;
+    align-items: center;
+    justify-content: center;
+    gap: 0.45rem;
+    padding: 0.7rem 1rem;
+    border: 0;
+    border-radius: 10px;
+    background: var(--admin-green);
+    color: #fff;
+    font: inherit;
+    font-size: 0.78rem;
+    font-weight: 850;
+  }
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+    margin: 1.5rem 0;
+  }
+  .stats article {
+    display: grid;
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 13px;
+    background: var(--admin-surface-raised);
+  }
+  .stats strong {
+    font-size: 1.5rem;
+  }
+  .stats span {
+    color: var(--admin-text-muted);
+    font-size: 0.7rem;
+  }
+  .worker-test {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto;
+    gap: 0.8rem 1rem;
+    margin: 0 0 1.5rem;
+    padding: 1rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 13px;
+    background: var(--admin-surface-raised);
+  }
+  .worker-test h2 {
+    margin: 0.2rem 0;
+    font-size: 1rem;
+  }
+  .worker-test ul {
+    display: grid;
+    grid-column: 1/-1;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.55rem;
+    padding: 0;
+    margin: 0;
+    list-style: none;
+  }
+  .worker-test li {
+    display: flex;
+    justify-content: space-between;
+    gap: 0.5rem;
+    padding: 0.6rem 0.7rem;
+    border-radius: 9px;
+    background: #f8faf9;
+    font-size: 0.7rem;
+  }
+  .worker-test li strong {
+    font-size: 0.68rem;
+    color: #64748b;
+  }
+  .worker-test li[data-state="ok"] {
+    background: #f0fdf4;
+  }
+  .worker-test li[data-state="ok"] strong {
+    color: #15803d;
+  }
+  .worker-test li[data-state="error"] {
+    background: #fef2f2;
+  }
+  .worker-test li[data-state="error"] strong,
+  .worker-test-error {
+    color: #b42318;
+  }
+  .worker-test-error {
+    grid-column: 1/-1;
+    margin: 0;
+    font-size: 0.72rem;
+  }
+  .worker-test button:disabled {
+    cursor: wait;
+    opacity: 0.7;
+  }
+  .filters {
+    display: grid;
+    grid-template-columns: minmax(220px, 1.5fr) repeat(
+        3,
+        minmax(140px, 1fr)
+      ) auto;
+    gap: 0.55rem;
+    margin-bottom: 1rem;
+  }
+  .filters label {
+    position: relative;
+  }
+  .filters input,
+  .filters select {
+    width: 100%;
+    height: 44px;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 10px;
+    background: #fff;
+    color: var(--admin-text);
+    font: inherit;
+    font-size: 0.75rem;
+  }
+  .filters .search svg {
+    position: absolute;
+    top: 50%;
+    left: 0.75rem;
+    transform: translateY(-50%);
+    color: var(--admin-text-muted);
+  }
+  .filters .search input {
+    padding-left: 2.2rem;
+  }
+  .action-message {
+    min-height: 1.3rem;
+    margin: 0.25rem 0;
+    color: var(--admin-text-muted);
+    font-size: 0.75rem;
+  }
+  .action-message[data-state="error"] {
+    color: #b42318;
+  }
+  .resource-table {
+    overflow: hidden;
+    border: 1px solid var(--admin-border);
+    border-radius: 14px;
+    background: var(--admin-surface-raised);
+  }
+  .table-head,
+  .resource-table article {
+    display: grid;
+    grid-template-columns: minmax(260px, 2fr) minmax(
+        150px,
+        1fr
+      ) 120px 100px 170px;
+    align-items: center;
+    gap: 0.8rem;
+    padding: 0.75rem 1rem;
+  }
+  .table-head {
+    background: #f4f7f5;
+    color: var(--admin-text-muted);
+    font-size: 0.65rem;
+    font-weight: 800;
+    text-transform: uppercase;
+  }
+  .resource-table article {
+    border-top: 1px solid var(--admin-border);
+  }
+  .resource-main {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 0.7rem;
+  }
+  .resource-main img,
+  .cover-empty {
+    width: 42px;
+    height: 52px;
+    flex: none;
+    border-radius: 7px;
+    object-fit: cover;
+  }
+  .cover-empty {
+    display: grid;
+    place-items: center;
+    background: var(--admin-green-soft);
+    color: var(--admin-green);
+  }
+  .resource-main > div {
+    display: grid;
+    min-width: 0;
+  }
+  .resource-main strong,
+  .resource-main small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .resource-main small,
+  .classification small,
+  time {
+    color: var(--admin-text-muted);
+    font-size: 0.68rem;
+  }
+  .resource-main em {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: #b42318;
+    font-size: 0.64rem;
+    font-style: normal;
+  }
+  .classification,
+  .state {
+    display: grid;
+    gap: 0.15rem;
+    font-size: 0.73rem;
+  }
+  .state > span {
+    width: max-content;
+    padding: 0.2rem 0.45rem;
+    border-radius: 99px;
+    font-size: 0.65rem;
+    font-weight: 800;
+  }
+  .state .published {
+    background: #dcfce7;
+    color: #166534;
+  }
+  .state .draft {
+    background: #f1f5f9;
+    color: #475569;
+  }
+  .state small {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+    color: #a16207;
+    font-size: 0.63rem;
+  }
+  .actions {
+    display: flex;
+    gap: 0.3rem;
+  }
+  .actions a,
+  .actions button {
+    display: grid;
+    width: 36px;
+    height: 36px;
+    place-items: center;
+    border: 1px solid var(--admin-border);
+    border-radius: 8px;
+    background: #fff;
+    color: #345246;
+  }
+  .actions .danger {
+    color: #b42318;
+  }
+  .empty {
+    display: grid;
+    min-height: 250px;
+    place-items: center;
+    align-content: center;
+    border: 1px dashed var(--admin-border);
+    border-radius: 14px;
+    color: var(--admin-text-muted);
+    text-align: center;
+  }
+  .empty h2 {
+    margin: 0.7rem 0 0.2rem;
+    color: var(--admin-text);
+    font-size: 1rem;
+  }
+  .empty p {
+    margin: 0;
+  }
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin: 1.2rem 0;
+  }
+  .pagination a {
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--admin-border);
+    border-radius: 8px;
+    background: #fff;
+    font-size: 0.72rem;
+    font-weight: 750;
+  }
+  .pagination .disabled {
+    pointer-events: none;
+    opacity: 0.45;
+  }
+  .pagination span {
+    color: var(--admin-text-muted);
+    font-size: 0.7rem;
+  }
+  .samples {
+    display: flex;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    border: 1px dashed var(--admin-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.55);
+  }
+  .samples span {
+    color: var(--admin-text-muted);
+    font-size: 0.72rem;
+  }
+  @media (max-width: 1050px) {
+    .filters {
+      grid-template-columns: 1fr 1fr;
+    }
+    .worker-test ul {
+      grid-template-columns: 1fr 1fr;
+    }
+    .table-head {
+      display: none;
+    }
+    .resource-table article {
+      grid-template-columns: minmax(220px, 2fr) 1fr 110px;
+    }
+    .resource-table article time {
+      display: none;
+    }
+    .actions {
+      grid-column: 2/4;
+      justify-content: flex-end;
+    }
+  }
+  @media (max-width: 650px) {
+    .page-head,
+    .samples {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .filters,
+    .stats,
+    .worker-test ul {
+      grid-template-columns: 1fr;
+    }
+    .worker-test {
+      grid-template-columns: 1fr;
+    }
+    .worker-test button {
+      width: 100%;
+    }
+    .resource-table article {
+      grid-template-columns: 1fr;
+    }
+    .actions {
+      grid-column: auto;
+      justify-content: flex-start;
+    }
+    .classification,
+    .state {
+      grid-auto-flow: column;
+      justify-content: start;
+      gap: 0.6rem;
+    }
+  }
 </style>
