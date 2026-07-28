@@ -31,6 +31,7 @@ export const GET: APIRoute = async (context) => {
 export const PATCH: APIRoute = async (context) => {
   const auth = authorize(context);
   if (!auth.ok) return auth.response;
+  const resourceId = auth.id;
   try {
     const body = await context.request.json() as Record<string, unknown>;
     const updates = validateLibraryResourcePatch(body);
@@ -40,20 +41,65 @@ export const PATCH: APIRoute = async (context) => {
     if (typeof updates.slug === 'string') {
       const slug = updates.slug;
       if (staticBooks.some((book) => book.slug === slug)) return json({ ok: false, field: 'slug', error: 'Ese slug pertenece a un recurso de muestra protegido.' }, 409);
-      const duplicate = await auth.supabase.from('library_resources').select('id').eq('slug', slug).neq('id', auth.id).maybeSingle();
+      const duplicate = await auth.supabase.from('library_resources').select('id').eq('slug', slug).neq('id', resourceId).maybeSingle();
       if (duplicate.error) throw duplicate.error;
       if (duplicate.data) return json({ ok: false, field: 'slug', error: 'Ya existe un recurso con ese slug.' }, 409);
       updates.slug = slug;
     }
-    const result = await auth.supabase.from('library_resources').update(updates).eq('id', auth.id).select(LIBRARY_ADMIN_SELECT).maybeSingle();
-    if (result.error) throw result.error;
-    if (!result.data) return json({ ok: false, error: 'El recurso dinámico no existe.' }, 404);
-    return json({ ok: true, resource: result.data });
+
+    console.log('[library-patch-input]', {
+      resourceId,
+      body,
+      updates,
+    });
+
+    const { data, error: updateError } = await auth.supabase
+      .from('library_resources')
+      .update(updates)
+      .eq('id', resourceId)
+      .select(LIBRARY_ADMIN_SELECT)
+      .maybeSingle();
+
+    console.log('[library-patch-result]', {
+      data,
+      updateError,
+    });
+
+    if (updateError) {
+      console.error('[library-patch-supabase-error]', {
+        message: updateError.message,
+        details: updateError.details,
+        hint: updateError.hint,
+        code: updateError.code,
+      });
+
+      return json({
+        ok: false,
+        error: updateError.message,
+        code: updateError.code,
+        details: updateError.details,
+        hint: updateError.hint,
+      }, 422);
+    }
+
+    if (!data) return json({ ok: false, error: 'El recurso dinámico no existe.' }, 404);
+    return json({ ok: true, resource: data });
   } catch (error) {
-    if (error instanceof LibraryValidationError) return json({ ok: false, ...(error.field ? { field: error.field } : {}), error: error.message }, error.status);
+    if (error instanceof LibraryValidationError) return json({ ok: false, ...(error.field ? { field: error.field } : {}), error: error.message }, error.status ?? 422);
     const databaseError = error as { code?: string };
     if (databaseError.code === '23505') return json({ ok: false, field: 'slug', error: 'Ya existe un recurso con ese slug.' }, 409);
-    return json({ ok: false, error: 'No se pudo actualizar el recurso.' }, 422);
+
+    console.error('[library-patch-error]', {
+      resourceId: context.params.id,
+      message: error instanceof Error ? error.message : String(error),
+      name: error instanceof Error ? error.name : undefined,
+      cause: error instanceof Error ? error.cause : undefined,
+    });
+
+    return json({
+      ok: false,
+      error: error instanceof Error ? error.message : 'No se pudo actualizar el recurso.',
+    }, 500);
   }
 };
 
