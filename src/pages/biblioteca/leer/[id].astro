@@ -1,0 +1,127 @@
+---
+/**
+ * Dedicated PDF Reader SSR Route: /biblioteca/leer/[id]
+ *
+ * Architecture & Hardening:
+ * - Route Standardization: Serves exclusively under /biblioteca/leer/[id]
+ * - Storage Decoupling: Uses resolvePdfSource() abstraction layer so neither the
+ *   SSR page nor the client PdfViewer component depends directly on storage provider IDs (drive_file_id).
+ * - Security Hardening (404 Policy): Returns 404 Not Found for unpublished draft resources
+ *   to avoid revealing resource existence to unauthenticated users.
+ * - Anti-Tampering: Rejects any client-supplied pdfUrl query parameters.
+ */
+
+import Layout from '../../../layouts/Layout.astro';
+import PdfViewer from '../../../components/pdf-viewer/PdfViewer';
+import { DATABASE_BOOK_SELECT, mapDatabaseBook, staticResources, type DatabaseBookRow } from '../../../lib/library/books';
+import { resolvePdfSource } from '../../../lib/library/pdf-source-resolver';
+
+export const prerender = false;
+
+// 1. Strictly forbid query parameter pdfUrl tampering
+if (Astro.url.searchParams.has('pdfUrl')) {
+  return new Response('Parámetro no permitido', { status: 400 });
+}
+
+const idParam = Astro.params.id ?? '';
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+// 2. Check static sample resources first
+const staticCandidate = staticResources.find((r) => r.id === idParam || r.slug === idParam);
+
+let resourceId = '';
+let title = '';
+let author = '';
+let pdfUrl = '';
+let allowDownload = false;
+
+if (staticCandidate) {
+  const resolved = resolvePdfSource({
+    id: staticCandidate.id,
+    source: 'static',
+    title: staticCandidate.title,
+    pdfUrl: staticCandidate.pdfUrl,
+  });
+  resourceId = staticCandidate.id;
+  title = staticCandidate.title;
+  author = staticCandidate.author;
+  pdfUrl = resolved.streamUrl;
+  allowDownload = staticCandidate.allowDownload;
+} else {
+  // 3. Must be a valid UUID for database resources
+  if (!UUID_PATTERN.test(idParam)) {
+    return new Response('Recurso no encontrado', { status: 404 });
+  }
+
+  const supabase = Astro.locals.supabase;
+  if (!supabase) {
+    return new Response('Base de datos no disponible', { status: 503 });
+  }
+
+  const result = await supabase
+    .from('library_resources')
+    .select(DATABASE_BOOK_SELECT)
+    .eq('id', idParam)
+    .maybeSingle();
+
+  if (result.error || !result.data) {
+    return new Response('Recurso no encontrado', { status: 404 });
+  }
+
+  const row = result.data as DatabaseBookRow;
+
+  // 4. Security Policy: Return 404 for unpublished resources to prevent enumeration
+  if (!row.is_published) {
+    return new Response('Recurso no encontrado', { status: 404 });
+  }
+
+  const mapped = mapDatabaseBook(row);
+
+  // 5. Decoupled PDF source resolution
+  const resolved = resolvePdfSource({
+    id: row.id,
+    source: 'database',
+    title: row.title,
+    drive_file_id: row.drive_file_id,
+    drive_file_name: row.drive_file_name,
+    pdfUrl: mapped.pdfUrl,
+  });
+
+  if (!resolved.hasDirectFile) {
+    return new Response('Archivo PDF no disponible', { status: 404 });
+  }
+
+  resourceId = mapped.id;
+  title = mapped.title;
+  author = mapped.author;
+  pdfUrl = resolved.streamUrl;
+  allowDownload = mapped.allowDownload;
+}
+
+// 6. Calculate initial page safely
+const pageParam = parseInt(Astro.url.searchParams.get('page') || '1', 10);
+const initialPage = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
+---
+
+<Layout title={`${title} | Lector InduTech`} description={`Leyendo ${title} por ${author} en InduTech Academy.`}>
+  <main class="pdf-reader-page">
+    <PdfViewer
+      client:only="react"
+      resourceId={resourceId}
+      title={title}
+      author={author}
+      pdfUrl={pdfUrl}
+      allowDownload={allowDownload}
+      initialPage={initialPage}
+    />
+  </main>
+</Layout>
+
+<style>
+  .pdf-reader-page {
+    width: 100vw;
+    height: 100vh;
+    overflow: hidden;
+    background-color: #0f172a;
+  }
+</style>

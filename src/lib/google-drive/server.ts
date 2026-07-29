@@ -45,6 +45,8 @@ export type DriveStreamResult = {
   stream: ReadableStream<Uint8Array>;
   contentType: string;
   contentLength?: string;
+  contentRange?: string;
+  status?: number;
 };
 
 export type LibraryDriveFolders = {
@@ -423,18 +425,23 @@ export const downloadDriveFile = async (fileId: string): Promise<DriveDownloadRe
   };
 };
 
-export const streamDriveFile = async (fileId: string): Promise<DriveStreamResult> => {
+export const streamDriveFile = async (fileId: string, rangeHeader?: string): Promise<DriveStreamResult> => {
   const { drive } = getDriveContext();
   const response = await drive.files.get(
     { fileId, alt: 'media', supportsAllDrives: true },
-    { responseType: 'stream' },
+    {
+      responseType: 'stream',
+      ...(rangeHeader ? { headers: { Range: rangeHeader } } : {}),
+    },
   );
   const headers = response.headers as unknown as { get?: (name: string) => string | null; [key: string]: unknown };
   const readHeader = (name: string) => headers.get?.(name) ?? (typeof headers[name] === 'string' ? headers[name] : undefined);
   return {
     stream: Readable.toWeb(response.data as unknown as Readable) as ReadableStream<Uint8Array>,
     contentType: readHeader('content-type') ?? 'application/octet-stream',
+    status: response.status ?? 200,
     ...(readHeader('content-length') ? { contentLength: readHeader('content-length')! } : {}),
+    ...(readHeader('content-range') ? { contentRange: readHeader('content-range')! } : {}),
   };
 };
 

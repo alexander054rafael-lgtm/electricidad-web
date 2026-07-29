@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "perplexity": {
+      "transport": "http",
+      "url": "127.0.0.1:62086",
+      "headers": {
+        "Authorization": "Bearer zE903kDK2hFk8zQ7GhfZJxIc8tUpWqMcnVT1qEJM3g4"
+      }
+    }
+  }
+}
