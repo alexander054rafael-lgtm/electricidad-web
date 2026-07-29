@@ -16,6 +16,13 @@ export type LibraryResourceType = typeof LIBRARY_RESOURCE_TYPES[number];
 export type LibraryResourceLevel = typeof LIBRARY_RESOURCE_LEVELS[number];
 export type LibraryResourceBadge = typeof LIBRARY_RESOURCE_BADGES[number];
 
+export type ReadingProgress = {
+  lastPage: number;
+  totalPages: number;
+  percent: number;
+  updatedAt?: string;
+};
+
 type LibraryResourcePresentation = {
   id: string;
   source: LibraryResourceSource;
@@ -41,6 +48,7 @@ type LibraryResourcePresentation = {
   coverUrl?: string;
   isFeatured?: boolean;
   allowDownload: boolean;
+  progress?: ReadingProgress | null;
 };
 
 export type StaticLibraryResource = LibraryResourcePresentation & {

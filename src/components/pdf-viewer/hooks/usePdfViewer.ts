@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { createBrowserClient } from '@supabase/ssr';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { loadPdfDocument } from '../lib/pdf-loader';
 import type {
@@ -19,6 +20,7 @@ export function usePdfViewer({
 }: PdfViewerProps) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const hasLoadedInitialPageRef = useRef<boolean>(false);
   const [state, setState] = useState<PdfViewerState>({
     status: 'loading',
     errorMessage: null,
@@ -32,9 +34,59 @@ export function usePdfViewer({
     rotation: 0,
   });
 
+  // Load saved reading progress from Supabase on init
+  useEffect(() => {
+    if (state.status !== 'ready' || !resourceId || hasLoadedInitialPageRef.current) {
+      return;
+    }
+
+    hasLoadedInitialPageRef.current = true;
+
+    const fetchProgress = async () => {
+      const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        return;
+      }
+
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !user.id) {
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from('user_reading_progress')
+        .select('last_page')
+        .eq('user_id', user.id)
+        .eq('resource_id', resourceId)
+        .maybeSingle();
+
+      if (error || !data || !data.last_page) {
+        return;
+      }
+
+      const lastPage = data.last_page;
+
+      if (lastPage > 1 && lastPage <= state.totalPages) {
+        if (import.meta.env.DEV) {
+          console.log('Cargando progreso:', lastPage);
+        }
+        setState((prev) => ({ ...prev, currentPage: lastPage }));
+      }
+    };
+
+    fetchProgress();
+  }, [state.status, state.totalPages, resourceId]);
+
   // Load document when pdfUrl changes
   useEffect(() => {
     let isCancelled = false;
+    hasLoadedInitialPageRef.current = false;
 
     setState((prev) => ({ ...prev, status: 'loading', errorMessage: null }));
 
@@ -130,9 +182,13 @@ export function usePdfViewer({
     };
   }, [recalculateAutoZoom, state.zoomMode]);
 
-  // Report progress change
+  // Report progress change & save to Supabase
   useEffect(() => {
-    if (state.status === 'ready' && state.totalPages > 0 && onProgressChange) {
+    if (state.status !== 'ready' || !state.totalPages || !resourceId) {
+      return;
+    }
+
+    if (onProgressChange) {
       onProgressChange({
         resourceId,
         currentPage: state.currentPage,
@@ -141,6 +197,46 @@ export function usePdfViewer({
         timestamp: Date.now(),
       });
     }
+
+    const timer = setTimeout(async () => {
+      const supabaseUrl = import.meta.env.PUBLIC_SUPABASE_URL;
+      const supabaseAnonKey = import.meta.env.PUBLIC_SUPABASE_ANON_KEY;
+
+      if (!supabaseUrl || !supabaseAnonKey) {
+        return;
+      }
+
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (!user || !user.id) {
+        return;
+      }
+
+      if (import.meta.env.DEV) {
+        console.log('Guardando progreso:', state.currentPage);
+      }
+
+      const progress = (state.currentPage / state.totalPages) * 100;
+
+      await supabase.from('user_reading_progress').upsert(
+        {
+          user_id: user.id,
+          resource_id: resourceId,
+          last_page: state.currentPage,
+          total_pages: state.totalPages,
+          progress_percent: progress,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: 'user_id,resource_id' }
+      );
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+    };
   }, [resourceId, state.currentPage, state.totalPages, state.status, onProgressChange]);
 
   // Navigation handlers
@@ -243,3 +339,4 @@ export function usePdfViewer({
     toggleFullscreen,
   };
 }
+

@@ -6,13 +6,66 @@ import LibraryHero from '../components/library/LibraryHero.astro';
 import LibrarySearch from '../components/library/LibrarySearch.astro';
 import LibraryFilters from '../components/library/LibraryFilters.astro';
 import BookGrid from '../components/library/BookGrid.astro';
-import { getPublishedDatabaseBooks, mergeLibraryResources } from '../lib/library/books';
+import BookCard from '../components/library/BookCard.astro';
+import { getPublishedDatabaseBooks, getUserReadingProgress, mergeLibraryResources } from '../lib/library/books';
 
 export const prerender = false;
 
-const { books: dynamicResources, error: dynamicError } = await getPublishedDatabaseBooks(Astro.locals.supabase);
+const supabase = Astro.locals.supabase;
+const user = Astro.locals.user;
+
+const { books: dynamicResources, error: dynamicError } = await getPublishedDatabaseBooks(supabase);
 if (dynamicError) console.warn('[biblioteca] Algunos recursos dinámicos no pudieron cargarse.');
-const books = mergeLibraryResources(dynamicResources);
+const rawBooks = mergeLibraryResources(dynamicResources);
+
+const progressMap = user?.id ? await getUserReadingProgress(supabase, user.id) : {};
+const books = rawBooks.map((book) => ({
+  ...book,
+  progress: progressMap[book.id] || null,
+}));
+
+const inProgressBooks = books
+  .filter((book) => book.progress && book.progress.percent > 0)
+  .sort((a, b) => {
+    const timeA = a.progress?.updatedAt ? new Date(a.progress.updatedAt).getTime() : 0;
+    const timeB = b.progress?.updatedAt ? new Date(b.progress.updatedAt).getTime() : 0;
+    return timeB - timeA;
+  })
+  .slice(0, 5);
 ---
-<Layout title="Biblioteca Técnica | InduTech Academy" description="Libros, manuales y guías técnicas de electricidad industrial y automatización."><Header /><main><LibraryHero /><section class="library-page"><div class="container">{dynamicError && <p class="library-notice" role="status">Algunos recursos dinámicos no pudieron cargarse.</p>}<LibrarySearch /><LibraryFilters /><BookGrid books={books} /></div></section></main><Footer /></Layout>
-<style>.library-page{padding:clamp(3rem,7vw,5rem) 0 6rem;background:var(--color-gray-50)}.library-notice{margin:0 0 1rem;padding:.65rem .8rem;border:1px solid #fde68a;border-radius:9px;background:#fffbeb;color:#854d0e;font-size:.78rem}</style>
+<Layout title="Biblioteca Técnica | InduTech Academy" description="Libros, manuales y guías técnicas de electricidad industrial y automatización.">
+  <Header />
+  <main>
+    <LibraryHero />
+    <section class="library-page">
+      <div class="container">
+        {dynamicError && <p class="library-notice" role="status">Algunos recursos dinámicos no pudieron cargarse.</p>}
+
+        {inProgressBooks.length > 0 && (
+          <div class="continue-learning">
+            <h2 class="continue-learning__title">Continuar aprendiendo</h2>
+            <div class="continue-learning__grid">
+              {inProgressBooks.map((book) => (
+                <BookCard book={book} />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <LibrarySearch />
+        <LibraryFilters />
+        <BookGrid books={books} />
+      </div>
+    </section>
+  </main>
+  <Footer />
+</Layout>
+<style>
+  .library-page { padding: clamp(3rem, 7vw, 5rem) 0 6rem; background: var(--color-gray-50); }
+  .library-notice { margin: 0 0 1rem; padding: .65rem .8rem; border: 1px solid #fde68a; border-radius: 9px; background: #fffbeb; color: #854d0e; font-size: .78rem; }
+  .continue-learning { margin-bottom: 3rem; padding-bottom: 2rem; border-bottom: 1px solid var(--color-border); }
+  .continue-learning__title { margin-bottom: 1.25rem; font-size: 1.4rem; font-weight: 800; color: var(--color-text); }
+  .continue-learning__grid { display: grid; grid-template-columns: 1fr; gap: 1.25rem; }
+  @media (min-width: 680px) { .continue-learning__grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1100px) { .continue-learning__grid { grid-template-columns: repeat(4, 1fr); } }
+</style>

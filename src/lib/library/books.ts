@@ -96,3 +96,34 @@ export const getPublishedDatabaseBooks = async (supabase: SupabaseClient | null)
     error: result.error,
   };
 };
+
+export const getUserReadingProgress = async (
+  supabase: SupabaseClient | null,
+  userId: string | null
+): Promise<Record<string, { lastPage: number; totalPages: number; percent: number; updatedAt?: string }>> => {
+  if (!supabase || !userId) return {};
+  try {
+    const { data, error } = await supabase
+      .from('user_reading_progress')
+      .select('resource_id, last_page, total_pages, progress_percent, updated_at')
+      .eq('user_id', userId);
+
+    if (error || !data) return {};
+
+    const progressMap: Record<string, { lastPage: number; totalPages: number; percent: number; updatedAt?: string }> = {};
+    for (const row of data) {
+      const percent = Number(row.progress_percent ?? 0);
+      if (row.resource_id && row.last_page && row.total_pages && percent > 0) {
+        progressMap[row.resource_id] = {
+          lastPage: Number(row.last_page),
+          totalPages: Number(row.total_pages),
+          percent: Math.round(percent),
+          updatedAt: row.updated_at ?? undefined,
+        };
+      }
+    }
+    return progressMap;
+  } catch {
+    return {};
+  }
+};
