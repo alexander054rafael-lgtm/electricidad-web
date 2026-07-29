@@ -140,7 +140,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             }
           }}
         >
-          <option value="fit-width">Ajustar ancho</option>
+          <option value="fit-width">Ajustar al ancho</option>
           <option value="fit-page">Página completa</option>
           <option value="50%">50%</option>
           <option value="60%">60%</option>

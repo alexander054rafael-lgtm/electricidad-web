@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { loadPdfDocument } from '../lib/pdf-loader';
 import type {
@@ -18,6 +18,7 @@ export function usePdfViewer({
   onError,
 }: PdfViewerProps) {
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
+  const viewportRef = useRef<HTMLDivElement | null>(null);
   const [state, setState] = useState<PdfViewerState>({
     status: 'loading',
     errorMessage: null,
@@ -61,6 +62,73 @@ export function usePdfViewer({
       isCancelled = true;
     };
   }, [pdfUrl, initialPage, onError]);
+
+  // Recalculate zoom scale for automatic modes ('fit-width', 'fit-page')
+  const recalculateAutoZoom = useCallback(async () => {
+    if (!doc || state.status !== 'ready' || state.zoomMode === 'custom') return;
+    const container = viewportRef.current;
+    if (!container) return;
+
+    const containerWidth = container.clientWidth;
+    const containerHeight = container.clientHeight;
+    if (containerWidth <= 0 || containerHeight <= 0) return;
+
+    try {
+      const page = await doc.getPage(state.currentPage);
+      const unscaledViewport = page.getViewport({ scale: 1, rotation: state.rotation });
+      const baseWidth = unscaledViewport.width;
+      const baseHeight = unscaledViewport.height;
+
+      if (baseWidth <= 0 || baseHeight <= 0) return;
+
+      const paddingX = 32; // 1rem left + 1rem right
+      const paddingY = 64; // 2rem top + 2rem bottom
+
+      const availableWidth = Math.max(100, containerWidth - paddingX);
+      const availableHeight = Math.max(100, containerHeight - paddingY);
+
+      let targetScale = 1.0;
+
+      if (state.zoomMode === 'fit-width') {
+        targetScale = availableWidth / baseWidth;
+      } else if (state.zoomMode === 'fit-page') {
+        const scaleX = availableWidth / baseWidth;
+        const scaleY = availableHeight / baseHeight;
+        targetScale = Math.min(scaleX, scaleY);
+      }
+
+      const safeScale = Number(Math.min(3.0, Math.max(0.5, targetScale)).toFixed(3));
+
+      setState((prev) => {
+        if (prev.zoomMode === 'custom') return prev;
+        if (Math.abs(prev.zoomScale - safeScale) < 0.005) return prev;
+        return { ...prev, zoomScale: safeScale };
+      });
+    } catch {
+      // Ignore cancellation or temporary loading errors
+    }
+  }, [doc, state.currentPage, state.rotation, state.zoomMode, state.status]);
+
+  // Recalculate auto zoom on dependencies change & container resize
+  useEffect(() => {
+    if (state.zoomMode === 'custom') return;
+    recalculateAutoZoom();
+
+    const container = viewportRef.current;
+    if (!container) return;
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        recalculateAutoZoom();
+      });
+      resizeObserver.observe(container);
+    }
+
+    return () => {
+      if (resizeObserver) resizeObserver.disconnect();
+    };
+  }, [recalculateAutoZoom, state.zoomMode]);
 
   // Report progress change
   useEffect(() => {
@@ -162,6 +230,7 @@ export function usePdfViewer({
     doc,
     state,
     capabilities,
+    viewportRef,
     goToPage,
     nextPage,
     prevPage,

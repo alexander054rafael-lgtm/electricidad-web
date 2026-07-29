@@ -13,6 +13,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
     doc,
     state,
     capabilities,
+    viewportRef,
     goToPage,
     nextPage,
     prevPage,
@@ -54,7 +55,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
           totalPages={state.totalPages}
         />
 
-        <main className="pdf-viewport">
+        <main className="pdf-viewport" ref={viewportRef}>
           {state.status === 'loading' && <PdfViewerLoading title={props.title} />}
 
           {state.status === 'error' && <PdfViewerError message={state.errorMessage || undefined} />}
