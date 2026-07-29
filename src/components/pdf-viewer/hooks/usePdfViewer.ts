@@ -50,10 +50,19 @@ export function usePdfViewer({
         return;
       }
 
-      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey);
+      const supabase = createBrowserClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          persistSession: true,
+          autoRefreshToken: true,
+          detectSessionInUrl: true,
+        },
+      });
+
       const {
         data: { user },
       } = await supabase.auth.getUser();
+
+      console.log("USER:", user);
 
       if (!user || !user.id) {
         return;
@@ -305,11 +314,11 @@ export function usePdfViewer({
     if (!document.fullscreenElement) {
       document.documentElement.requestFullscreen().then(() => {
         setState((prev) => ({ ...prev, isFullscreen: true }));
-      }).catch(() => {});
+      }).catch(() => { });
     } else {
       document.exitFullscreen().then(() => {
         setState((prev) => ({ ...prev, isFullscreen: false }));
-      }).catch(() => {});
+      }).catch(() => { });
     }
   }, []);
 
