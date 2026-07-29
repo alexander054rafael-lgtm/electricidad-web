@@ -15,6 +15,7 @@ import Layout from '../../../layouts/Layout.astro';
 import PdfViewer from '../../../components/pdf-viewer/PdfViewer';
 import { DATABASE_BOOK_SELECT, mapDatabaseBook, staticResources, type DatabaseBookRow } from '../../../lib/library/books';
 import { resolvePdfSource } from '../../../lib/library/pdf-source-resolver';
+import { createSupabaseAdminClient, shouldUseAdminFallback } from '../../../lib/supabase/server';
 
 export const prerender = false;
 
@@ -42,6 +43,9 @@ if (staticCandidate) {
     title: staticCandidate.title,
     pdfUrl: staticCandidate.pdfUrl,
   });
+  if (!resolved.available) {
+    return new Response('Archivo PDF no disponible', { status: 404 });
+  }
   resourceId = staticCandidate.id;
   title = staticCandidate.title;
   author = staticCandidate.author;
@@ -54,15 +58,29 @@ if (staticCandidate) {
   }
 
   const supabase = Astro.locals.supabase;
-  if (!supabase) {
-    return new Response('Base de datos no disponible', { status: 503 });
-  }
+  let result = supabase
+    ? await supabase
+        .from('library_resources')
+        .select(DATABASE_BOOK_SELECT)
+        .eq('id', idParam)
+        .eq('is_published', true)
+        .maybeSingle()
+    : { data: null, error: new Error('Base de datos no disponible') };
 
-  const result = await supabase
-    .from('library_resources')
-    .select(DATABASE_BOOK_SELECT)
-    .eq('id', idParam)
-    .maybeSingle();
+  // Strict Admin Fallback: Triggers ONLY for Postgres RLS permission error 42501
+  if (shouldUseAdminFallback(result.error)) {
+    try {
+      const adminClient = createSupabaseAdminClient();
+      result = await adminClient
+        .from('library_resources')
+        .select(DATABASE_BOOK_SELECT)
+        .eq('id', idParam)
+        .eq('is_published', true)
+        .maybeSingle();
+    } catch {
+      // Admin client fallback
+    }
+  }
 
   if (result.error || !result.data) {
     return new Response('Recurso no encontrado', { status: 404 });
@@ -82,12 +100,15 @@ if (staticCandidate) {
     id: row.id,
     source: 'database',
     title: row.title,
+    author: row.author ?? undefined,
+    storage_backend: row.storage_backend,
     drive_file_id: row.drive_file_id,
     drive_file_name: row.drive_file_name,
-    pdfUrl: mapped.pdfUrl,
+    drive_mime_type: row.drive_mime_type,
+    allowDownload: row.allow_download,
   });
 
-  if (!resolved.hasDirectFile) {
+  if (!resolved.available) {
     return new Response('Archivo PDF no disponible', { status: 404 });
   }
 

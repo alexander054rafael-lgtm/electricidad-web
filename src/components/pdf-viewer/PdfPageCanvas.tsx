@@ -48,6 +48,7 @@ export const PdfPageCanvas: React.FC<Props> = ({ doc, pageNumber, scale, rotatio
         const renderContext = {
           canvasContext: context,
           viewport,
+          canvas,
           transform,
         };
 

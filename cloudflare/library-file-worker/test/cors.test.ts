@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import worker from '../src/index.ts';
 import { getCorsHeaders } from '../src/security/cors.ts';
 import type { Env } from '../src/types/env.ts';
+import { createExecutionContext } from './helpers/create-execution-context.ts';
 
 const mockEnv: Env = {
   LIBRARY_CACHE: {} as any,
@@ -17,10 +18,7 @@ const mockEnv: Env = {
   CACHE_MAX_AGE_DAYS: '30',
 };
 
-const mockCtx: ExecutionContext = {
-  waitUntil() {},
-  passThroughOnException() {},
-};
+const mockCtx = createExecutionContext().context;
 
 test('CORS getCorsHeaders - allowed origin returns exact origin received and standard headers', () => {
   const req = new Request('https://worker.dev/v1/health', {

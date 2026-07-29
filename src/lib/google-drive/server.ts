@@ -425,12 +425,17 @@ export const downloadDriveFile = async (fileId: string): Promise<DriveDownloadRe
   };
 };
 
-export const streamDriveFile = async (fileId: string, rangeHeader?: string): Promise<DriveStreamResult> => {
+export const streamDriveFile = async (
+  fileId: string,
+  rangeHeader?: string,
+  signal?: AbortSignal,
+): Promise<DriveStreamResult> => {
   const { drive } = getDriveContext();
   const response = await drive.files.get(
     { fileId, alt: 'media', supportsAllDrives: true },
     {
       responseType: 'stream',
+      signal,
       ...(rangeHeader ? { headers: { Range: rangeHeader } } : {}),
     },
   );

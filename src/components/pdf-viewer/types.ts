@@ -23,6 +23,8 @@ export interface PdfViewerActionCapabilities {
   canToggleFullscreen: boolean;
 }
 
+export type PdfViewerCapabilities = PdfViewerActionCapabilities;
+
 export interface ReadingProgressEvent {
   resourceId: string;
   currentPage: number;

@@ -18,6 +18,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
     prevPage,
     zoomIn,
     zoomOut,
+    setZoomScale,
     setZoomMode,
     rotateClockwise,
     toggleSidebar,
@@ -35,6 +36,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
         onPrevPage={prevPage}
         onZoomIn={zoomIn}
         onZoomOut={zoomOut}
+        onZoomScaleChange={setZoomScale}
         onZoomModeChange={setZoomMode}
         onRotate={rotateClockwise}
         onToggleSidebar={toggleSidebar}

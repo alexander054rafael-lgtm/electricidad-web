@@ -3,6 +3,9 @@ import { createClient } from '@supabase/supabase-js';
 import type { APIContext } from 'astro';
 import { getSecret } from 'astro:env/server';
 import { getSupabaseConfig } from './config';
+import { shouldUseAdminFallback } from './helpers';
+
+export { shouldUseAdminFallback };
 
 type ServerContext = Pick<APIContext, 'cookies' | 'request'>;
 

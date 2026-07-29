@@ -2,10 +2,17 @@
   "extends": "astro/tsconfigs/strict",
   "include": [
     ".astro/types.d.ts",
-    "**/*"
+    "src/**/*",
+    "scripts/**/*"
   ],
   "exclude": [
-    "dist"
+    "dist",
+    ".vercel",
+    ".astro",
+    ".wrangler",
+    "output",
+    "tmp",
+    "cloudflare"
   ],
   "compilerOptions": {
     "jsx": "react-jsx",

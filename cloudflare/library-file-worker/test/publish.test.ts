@@ -2,6 +2,7 @@ import { strict as assert } from 'node:assert';
 import { test } from 'node:test';
 import worker from '../src/index.ts';
 import type { Env } from '../src/types/env.ts';
+import { createExecutionContext } from './helpers/create-execution-context.ts';
 
 const mockEnv: Env = {
   LIBRARY_CACHE: {} as any,
@@ -20,10 +21,7 @@ const mockEnv: Env = {
   GOOGLE_DRIVE_FOLDER_ID: 'mock-folder-id',
 };
 
-const mockCtx: ExecutionContext = {
-  waitUntil() {},
-  passThroughOnException() {},
-};
+const mockCtx = createExecutionContext().context;
 
 test('Publish Route - Unauthenticated request returns 401 and does not 404', async () => {
   const req = new Request('https://worker.dev/v1/admin/library/12345678-1234-1234-1234-123456789012/publish', {

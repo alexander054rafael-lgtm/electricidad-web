@@ -8,18 +8,51 @@
  * - Storage Provider Isolation: Never exposes private storage URLs or Drive File IDs to client.
  * - Security Hardening (404 on Unpublished): Returns 404 Not Found for unpublished
  *   draft resources to prevent resource enumeration and information disclosure.
- * - Request Tracing: Assigns/forwards X-Request-ID for end-to-end telemetry and debugging.
- * - HTTP Range Support: Supports 206 Partial Content range requests (Accept-Ranges: bytes, Content-Range)
- *   enabling PDF.js to stream chunks of large PDFs on demand.
+ * - Strict Admin Fallback: Fallback to createSupabaseAdminClient triggers ONLY for RLS permission
+ *   error 42501, maintaining .eq('is_published', true) and minimal column selection.
+ * - AbortSignal & Stream Cancellation: Passes context.request.signal to streamDriveFile so Google Drive
+ *   streams are aborted immediately when client disconnects.
+ * - Standardized Error Contracts: Returns structured JSON errors with stable codes and requestId.
+ * - HTTP Range Support: Supports 206 Partial Content range requests (Accept-Ranges: bytes, Content-Range).
  */
 
 import type { APIRoute } from 'astro';
 import { streamDriveFile } from '../../../../../lib/google-drive/server';
 import { getOrCreateRequestId, logger } from '../../../../../lib/logger';
+import { createSupabaseAdminClient, shouldUseAdminFallback } from '../../../../../lib/supabase/server';
 
 export const prerender = false;
 
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+const REQUIRED_SELECT_COLUMNS = 'id,title,author,drive_file_id,drive_file_name,drive_mime_type,storage_backend,allow_download,is_published';
+
+export type PdfErrorCode =
+  | 'INVALID_RESOURCE_ID'
+  | 'PDF_NOT_FOUND'
+  | 'PARAM_NOT_ALLOWED'
+  | 'PDF_SOURCE_UNAVAILABLE'
+  | 'STORAGE_TEMPORARILY_UNAVAILABLE'
+  | 'INTERNAL_PDF_ERROR';
+
+const jsonError = (code: PdfErrorCode, message: string, status: number, requestId: string) =>
+  new Response(
+    JSON.stringify({
+      error: {
+        code,
+        message,
+        requestId,
+      },
+    }),
+    {
+      status,
+      headers: {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+        'X-Request-ID': requestId,
+      },
+    },
+  );
 
 const safeFilename = (value: string) =>
   value
@@ -35,50 +68,64 @@ export const GET: APIRoute = async (context) => {
   // 1. Validate UUID structure
   if (!UUID_PATTERN.test(id)) {
     logger.warn(`Solicitud PDF rechazada por UUID inválido: "${id}"`, requestId);
-    return new Response('Recurso no encontrado', { status: 404, headers: { 'X-Request-ID': requestId } });
+    return jsonError('INVALID_RESOURCE_ID', 'Recurso no encontrado', 404, requestId);
   }
 
   // 2. Reject client-supplied parameter tampering
   if (context.url.searchParams.has('pdfUrl')) {
     logger.warn(`Intento de alteración de parámetros pdfUrl en recurso "${id}"`, requestId);
-    return new Response('Parámetro no permitido', { status: 400, headers: { 'X-Request-ID': requestId } });
+    return jsonError('PARAM_NOT_ALLOWED', 'Parámetro no permitido', 400, requestId);
   }
 
   const supabase = context.locals.supabase;
-  if (!supabase) {
-    logger.error('Cliente Supabase no disponible en contexto SSR', requestId);
-    return new Response('Base de datos no disponible', { status: 503, headers: { 'X-Request-ID': requestId } });
-  }
+  let result = supabase
+    ? await supabase
+        .from('library_resources')
+        .select(REQUIRED_SELECT_COLUMNS)
+        .eq('id', id)
+        .eq('is_published', true)
+        .maybeSingle()
+    : { data: null, error: new Error('Base de datos no disponible') };
 
-  // 3. Autonomous database query
-  const result = await supabase
-    .from('library_resources')
-    .select('title,is_published,drive_file_id,drive_mime_type,drive_file_name')
-    .eq('id', id)
-    .maybeSingle();
+  // Strict Admin Fallback: Triggers ONLY for Postgres RLS permission error 42501
+  if (shouldUseAdminFallback(result.error)) {
+    logger.info(`Activando fallback de administración controlado por RLS (42501) para "${id}"`, requestId);
+    try {
+      const adminClient = createSupabaseAdminClient();
+      result = await adminClient
+        .from('library_resources')
+        .select(REQUIRED_SELECT_COLUMNS)
+        .eq('id', id)
+        .eq('is_published', true)
+        .maybeSingle();
+    } catch (adminErr) {
+      logger.warn(`Fallback de cliente de administración no configurado: ${adminErr}`, requestId);
+    }
+  }
 
   if (result.error || !result.data) {
-    logger.warn(`Recurso no encontrado en BD: "${id}"`, requestId);
-    return new Response('Recurso no encontrado', { status: 404, headers: { 'X-Request-ID': requestId } });
+    logger.warn(`Recurso no encontrado o no publicado en BD: "${id}"`, requestId);
+    return jsonError('PDF_NOT_FOUND', 'Recurso no encontrado', 404, requestId);
   }
 
-  // 4. Security Hardening: Return 404 for unpublished resources to prevent enumeration
+  // Double check publication status
   if (!result.data.is_published) {
     logger.warn(`Intento de acceso a recurso no publicado: "${id}"`, requestId);
-    return new Response('Recurso no encontrado', { status: 404, headers: { 'X-Request-ID': requestId } });
+    return jsonError('PDF_NOT_FOUND', 'Recurso no encontrado', 404, requestId);
   }
 
   const fileId = result.data.drive_file_id;
   if (!fileId) {
     logger.error(`Recurso publicado sin drive_file_id: "${id}"`, requestId);
-    return new Response('Archivo PDF no disponible', { status: 404, headers: { 'X-Request-ID': requestId } });
+    return jsonError('PDF_SOURCE_UNAVAILABLE', 'Archivo PDF no disponible', 404, requestId);
   }
 
   // 5. Extract HTTP Range request header if present
   const rangeHeader = context.request.headers.get('range') ?? undefined;
 
   try {
-    const file = await streamDriveFile(fileId, rangeHeader);
+    // Pass context.request.signal for client disconnect / abort handling
+    const file = await streamDriveFile(fileId, rangeHeader, context.request.signal);
     const filename = safeFilename(result.data.drive_file_name || `${result.data.title}.pdf`);
 
     const headers = new Headers({
@@ -107,7 +154,12 @@ export const GET: APIRoute = async (context) => {
       headers,
     });
   } catch (error) {
-    logger.error(`Error al transmitir stream de Drive para "${id}": ${error instanceof Error ? error.message : String(error)}`, requestId);
-    return new Response('Error al transmitir el documento PDF', { status: 502, headers: { 'X-Request-ID': requestId } });
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'AbortError') {
+      logger.info(`Stream cancelado por el navegador para "${id}"`, requestId);
+      return new Response(null, { status: 499 }); // Client Closed Request
+    }
+
+    logger.error(`Error al transmitir stream para "${id}": ${error instanceof Error ? error.message : String(error)}`, requestId);
+    return jsonError('STORAGE_TEMPORARILY_UNAVAILABLE', 'Error al transmitir el documento PDF', 502, requestId);
   }
 };

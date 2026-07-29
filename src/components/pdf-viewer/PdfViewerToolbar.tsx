@@ -10,6 +10,7 @@ interface Props {
   onPrevPage: () => void;
   onZoomIn: () => void;
   onZoomOut: () => void;
+  onZoomScaleChange: (scale: number) => void;
   onZoomModeChange: (mode: ZoomMode) => void;
   onRotate: () => void;
   onToggleSidebar: (tab?: SidebarTab) => void;
@@ -26,6 +27,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
   onPrevPage,
   onZoomIn,
   onZoomOut,
+  onZoomScaleChange,
   onZoomModeChange,
   onRotate,
   onToggleSidebar,
@@ -131,9 +133,9 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             if (val === 'fit-width' || val === 'fit-page') {
               onZoomModeChange(val as ZoomMode);
             } else {
-              const parsedScale = parseInt(val, 10) / 100;
-              if (!isNaN(parsedScale)) {
-                onZoomModeChange('custom');
+              const parsedScale = parseFloat(val) / 100;
+              if (Number.isFinite(parsedScale) && parsedScale > 0) {
+                onZoomScaleChange(parsedScale);
               }
             }
           }}
@@ -141,6 +143,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
           <option value="fit-width">Ajustar ancho</option>
           <option value="fit-page">Página completa</option>
           <option value="50%">50%</option>
+          <option value="60%">60%</option>
           <option value="75%">75%</option>
           <option value="100%">100%</option>
           <option value="125%">125%</option>

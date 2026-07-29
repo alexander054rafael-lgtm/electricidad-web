@@ -82,6 +82,7 @@ export type DatabaseLibraryResourceRow = {
   badge: LibraryResourceBadge | null;
   accent: string | null;
   allow_download: boolean;
+  storage_backend?: string | null;
   is_featured: boolean;
   is_published: boolean;
   created_at: string;
