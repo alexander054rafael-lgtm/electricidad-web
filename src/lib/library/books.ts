@@ -4,6 +4,8 @@ import type { DatabaseLibraryResource, DatabaseLibraryResourceRow, LibraryResour
 
 export const DATABASE_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,tags,topics,badge,accent,allow_download,storage_backend,is_featured,is_published,created_at,updated_at';
 
+export const PUBLIC_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,tags,topics,badge,accent,allow_download,is_featured,is_published,created_at,updated_at';
+
 export type DatabaseBookRow = DatabaseLibraryResourceRow;
 
 const formatFileSize = (bytes: number | null) => {
@@ -50,8 +52,8 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
   badge: row.badge ?? undefined,
   accent: safeAccent(row.accent),
   topics: row.topics?.length ? row.topics : row.tags ?? [],
-  pdfUrl: safeDriveUrl(row.drive_view_link) ?? '',
-  downloadUrl: safeDriveUrl(row.drive_download_link),
+  pdfUrl: `/api/library/books/${row.id}/pdf`,
+  downloadUrl: `/api/library/books/${row.id}/pdf`,
   coverUrl: row.cover_drive_file_id
     ? `${WORKER_BASE_URL}/v1/library/covers/${row.id}`
     : safeDriveUrl(row.cover_url),
@@ -84,7 +86,7 @@ export const getPublishedDatabaseBooks = async (supabase: SupabaseClient | null)
   if (!supabase) return { books: [] as DatabaseLibraryResource[], error: new Error('Database client unavailable') };
   const result = await supabase
     .from('library_resources')
-    .select(DATABASE_BOOK_SELECT)
+    .select(PUBLIC_BOOK_SELECT)
     .eq('is_published', true)
     .order('is_featured', { ascending: false })
     .order('updated_at', { ascending: false });
