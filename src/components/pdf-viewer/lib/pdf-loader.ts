@@ -1,27 +1,38 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
+import { installPdfBrowserPolyfills } from './pdf-browser-polyfills';
 
-let pdfjsLibInstance: typeof import('pdfjs-dist') | null = null;
+let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 
 /**
  * Safely load PDF.js client-side without SSR evaluation errors.
  * Configured to use local static worker matching installed pdfjs-dist version (6.2.108).
- * Eliminates external CDN dependencies and worker mismatch errors.
+ * Installs target browser polyfills (Uint8Array.toHex, Promise.withResolvers) BEFORE PDF.js evaluation.
  */
 export async function getPdfjsLib(): Promise<typeof import('pdfjs-dist')> {
   if (typeof window === 'undefined') {
     throw new Error('PDF.js can only be loaded on the browser client.');
   }
 
-  if (!pdfjsLibInstance) {
+  if (pdfjsPromise) {
+    return pdfjsPromise;
+  }
+
+  pdfjsPromise = (async () => {
+    // 1. Install browser polyfills BEFORE importing PDF.js module
+    installPdfBrowserPolyfills();
+
+    // 2. Dynamically import PDF.js
     const pdfjs = await import('pdfjs-dist');
-    // Set up GlobalWorkerOptions workerSrc using local static worker file
+
+    // 3. Set up GlobalWorkerOptions workerSrc using local static worker file
     if (pdfjs.GlobalWorkerOptions) {
       pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
     }
-    pdfjsLibInstance = pdfjs;
-  }
 
-  return pdfjsLibInstance;
+    return pdfjs;
+  })();
+
+  return pdfjsPromise;
 }
 
 /**
