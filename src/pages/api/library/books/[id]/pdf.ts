@@ -159,7 +159,22 @@ export const GET: APIRoute = async (context) => {
       return new Response(null, { status: 499 }); // Client Closed Request
     }
 
-    logger.error(`Error al transmitir stream para "${id}": ${error instanceof Error ? error.message : String(error)}`, requestId);
+    const errorName = error instanceof Error ? error.name : typeof error;
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const workerUrlConfigured = process.env.PUBLIC_CLOUDFLARE_LIBRARY_API_URL ?? import.meta.env.PUBLIC_CLOUDFLARE_LIBRARY_API_URL ?? 'N/A';
+    const targetOrigin = 'GoogleDriveAPI';
+    const upstreamStatus = (error as { status?: number; code?: number })?.status ?? (error as { status?: number; code?: number })?.code ?? 502;
+
+    console.error('[PDF_PROXY_ERROR]', {
+      requestId,
+      errorName,
+      errorMessage,
+      workerUrlConfigured,
+      targetOrigin,
+      upstreamStatus,
+    });
+
+    logger.error(`Error al transmitir stream para "${id}": ${errorMessage}`, requestId);
     return jsonError('STORAGE_TEMPORARILY_UNAVAILABLE', 'Error al transmitir el documento PDF', 502, requestId);
   }
 };
