@@ -1,0 +1,297 @@
+---
+import Layout from '../layouts/Layout.astro';
+import Header from '../components/landing/Header.astro';
+import Footer from '../components/landing/Footer.astro';
+import Container from '../components/ui/Container.astro';
+import { FileText, ShieldCheck, ArrowLeft, BookOpen, Award, ShieldAlert, Scale, CheckCircle2 } from '@lucide/astro';
+
+const lastUpdated = '30 de julio de 2026';
+---
+
+<Layout 
+  title="Términos y Condiciones | InduTech Academy" 
+  description="Consulta los términos de uso y condiciones del servicio aplicables en la plataforma InduTech Academy."
+>
+  <Header />
+  
+  <main class="legal-page">
+    <Container>
+      <div class="legal-page__header">
+        <a href="/" class="legal-page__back">
+          <ArrowLeft size={16} />
+          <span>Volver al inicio</span>
+        </a>
+        <div class="legal-page__badge">
+          <Scale size={18} />
+          <span>Acuerdo Legal</span>
+        </div>
+        <h1 class="legal-page__title">Términos y Condiciones</h1>
+        <p class="legal-page__subtitle">
+          Bienvenido a <strong>InduTech Academy</strong>. Al registrarte o utilizar nuestros servicios de capacitación técnica, 
+          aceptas cumplir con los presentes términos y condiciones de uso.
+        </p>
+        <p class="legal-page__date">Última actualización: {lastUpdated}</p>
+      </div>
+
+      <div class="legal-page__content">
+        <nav class="legal-page__nav" aria-label="Navegación legal rápida">
+          <a href="/privacidad"><ShieldCheck size={16} /> Política de Privacidad</a>
+          <a href="/terminos" class="active"><FileText size={16} /> Términos y Condiciones</a>
+        </nav>
+
+        <article class="legal-card">
+          <section class="legal-section">
+            <div class="legal-section__heading">
+              <CheckCircle2 class="legal-section__icon" size={22} />
+              <h2>1. Aceptación del Servicio</h2>
+            </div>
+            <p>
+              El acceso a nuestros cursos, guías técnicas, evaluaciones y herramientas interactivas implica la aceptación total de 
+              estos términos. Si no estás de acuerdo con alguna disposición, te solicitamos abstenerte de utilizar la plataforma.
+            </p>
+          </section>
+
+          <section class="legal-section">
+            <div class="legal-section__heading">
+              <BookOpen class="legal-section__icon" size={22} />
+              <h2>2. Uso de la Cuenta y Contenidos</h2>
+            </div>
+            <p>
+              Cada usuario es responsable de mantener la confidencialidad de sus credenciales de acceso. 
+              Los contenidos educativos de InduTech Academy (videos, simuladores, diagramas y textos) están protegidos por derechos de propiedad intelectual:
+            </p>
+            <ul>
+              <li>El uso de la cuenta es personal e intransferible.</li>
+              <li>Está prohibido copiar, reproducir, revender o redistribuir los contenidos sin autorización expresa por escrito.</li>
+              <li>Nos reservamos el derecho de suspender cuentas que incurran en fraudes o incumplimientos.</li>
+            </ul>
+          </section>
+
+          <section class="legal-section">
+            <div class="legal-section__heading">
+              <Award class="legal-section__icon" size={22} />
+              <h2>3. Certificados y Evaluaciones</h2>
+            </div>
+            <p>
+              Los certificados emitidos por InduTech Academy acreditan la aprobación satisfactoria de nuestros programas con una nota mínima requerida. 
+              Cada certificado incluye un código de verificación único accesible públicamente mediante nuestra herramienta de validación.
+            </p>
+          </section>
+
+          <section class="legal-section">
+            <div class="legal-section__heading">
+              <ShieldAlert class="legal-section__icon" size={22} />
+              <h2>4. Respuestas Técnicas y Seguridad Industrial</h2>
+            </div>
+            <p>
+              Nuestros cursos promueven estándares estrictos de seguridad eléctrica. Sin embargo, InduTech Academy no se responsabiliza 
+              por accidentes, daños materiales o pérdidas derivadas de la mala aplicación práctica de procedimientos sin la debida supervisión 
+              y equipos de protección personal (EPP) en entornos reales.
+            </p>
+          </section>
+
+          <section class="legal-section">
+            <div class="legal-section__heading">
+              <Scale class="legal-section__icon" size={22} />
+              <h2>5. Modificaciones de las Condiciones</h2>
+            </div>
+            <p>
+              Nos reservamos el derecho de actualizar estos términos para adaptarlos a cambios legislativos o mejoras de la plataforma. 
+              Publicaremos la fecha de última revisión al inicio de esta página.
+            </p>
+          </section>
+
+          <section class="legal-section legal-section--footer">
+            <p>
+              Para conocer cómo manejamos tus datos personales y tu privacidad, visita nuestra 
+              <a href="/privacidad">Política de Privacidad</a>.
+            </p>
+          </section>
+        </article>
+      </div>
+    </Container>
+  </main>
+
+  <Footer />
+</Layout>
+
+<style>
+  .legal-page {
+    padding: clamp(2.5rem, 5vw, 4.5rem) 0 6rem;
+    background: radial-gradient(circle at 50% 0%, var(--color-hero-glow) 0%, transparent 60%),
+                var(--color-gray-50);
+    min-height: 80vh;
+  }
+
+  .legal-page__header {
+    max-width: 800px;
+    margin: 0 auto 2.5rem;
+    text-align: center;
+  }
+
+  .legal-page__back {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    color: var(--color-text-secondary);
+    font-size: 0.875rem;
+    font-weight: 500;
+    text-decoration: none;
+    margin-bottom: 1.25rem;
+    transition: color var(--transition-fast);
+  }
+
+  .legal-page__back:hover {
+    color: var(--color-primary);
+  }
+
+  .legal-page__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.35rem 0.85rem;
+    background: rgba(22, 163, 74, 0.1);
+    color: var(--color-primary);
+    border-radius: var(--radius-full);
+    font-size: 0.8rem;
+    font-weight: 600;
+    margin-bottom: 1rem;
+  }
+
+  .legal-page__title {
+    font-family: var(--font-display);
+    font-size: clamp(2rem, 4vw, 2.75rem);
+    font-weight: 800;
+    color: var(--color-text);
+    line-height: 1.2;
+    margin-bottom: 1rem;
+  }
+
+  .legal-page__subtitle {
+    font-size: 1.05rem;
+    color: var(--color-text-secondary);
+    line-height: 1.6;
+    margin-bottom: 0.75rem;
+  }
+
+  .legal-page__date {
+    font-size: 0.85rem;
+    color: var(--color-text-secondary);
+    font-weight: 500;
+    opacity: 0.8;
+  }
+
+  .legal-page__content {
+    max-width: 860px;
+    margin: 0 auto;
+  }
+
+  .legal-page__nav {
+    display: flex;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border);
+    padding-bottom: 0.75rem;
+  }
+
+  .legal-page__nav a {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem;
+    border-radius: var(--radius-md);
+    font-size: 0.9rem;
+    font-weight: 600;
+    color: var(--color-text-secondary);
+    text-decoration: none;
+    transition: all var(--transition-fast);
+  }
+
+  .legal-page__nav a:hover {
+    color: var(--color-text);
+    background: rgba(0, 0, 0, 0.03);
+  }
+
+  .legal-page__nav a.active {
+    color: var(--color-primary);
+    background: rgba(22, 163, 74, 0.08);
+  }
+
+  .legal-card {
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-xl);
+    padding: clamp(1.75rem, 4vw, 3rem);
+    box-shadow: var(--shadow-md);
+  }
+
+  .legal-section {
+    margin-bottom: 2.25rem;
+  }
+
+  .legal-section:last-child {
+    margin-bottom: 0;
+  }
+
+  .legal-section__heading {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    margin-bottom: 1rem;
+  }
+
+  .legal-section__icon {
+    color: var(--color-primary);
+    flex-shrink: 0;
+  }
+
+  .legal-section h2 {
+    font-family: var(--font-display);
+    font-size: 1.3rem;
+    font-weight: 700;
+    color: var(--color-text);
+    margin: 0;
+  }
+
+  .legal-section p {
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+    font-size: 0.975rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .legal-section ul {
+    margin: 0.5rem 0 1rem 1.25rem;
+    padding: 0;
+    color: var(--color-text-secondary);
+    line-height: 1.7;
+    font-size: 0.95rem;
+  }
+
+  .legal-section li {
+    margin-bottom: 0.4rem;
+  }
+
+  .legal-section a {
+    color: var(--color-primary);
+    font-weight: 600;
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  .legal-section a:hover {
+    color: var(--color-primary-dark);
+  }
+
+  .legal-section--footer {
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border);
+  }
+
+  @media (max-width: 640px) {
+    .legal-page__nav {
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+  }
+</style>
