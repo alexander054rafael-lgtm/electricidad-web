@@ -172,41 +172,47 @@
   padding: 1rem;
 }
 
-/* Viewport / Stage */
+/* Scroll Container */
 .pdf-viewport {
   flex: 1;
-  overflow: auto;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding: 2rem 1rem;
   position: relative;
-  background-color: #0b0f19;
-  touch-action: pan-x pan-y;
+  width: 100%;
+  height: 100%;
+  overflow-x: auto;
+  overflow-y: auto;
   overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+  -webkit-overflow-scrolling: touch;
+  background-color: #0b0f19;
+  padding: 2rem 1rem;
 }
 
+/* Viewer Layer: Allows max-content expansion without clipping left edge */
 .pdf-stage {
+  position: relative;
   display: flex;
   flex-direction: column;
-  align-items: center;
+  align-items: flex-start;
+  width: max-content;
+  min-width: 100%;
+  min-height: 100%;
   gap: 1.5rem;
-  transform-origin: top center;
-  transition: transform 0.1s ease-out;
+  transform-origin: top left;
 }
 
-/* Canvas container */
+/* Page wrapper container */
 .pdf-page-container {
   background-color: #ffffff;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
   border-radius: 4px;
   position: relative;
   overflow: hidden;
+  width: max-content;
+  flex: none;
 }
 
 .pdf-page-canvas {
   display: block;
-  margin: 0 auto;
 }
 
 /* Status states (Loading / Error) */

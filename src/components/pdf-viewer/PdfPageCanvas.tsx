@@ -18,6 +18,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
   rotation,
   qualityMode,
 }) => {
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRenderTaskRef = useRef<RenderTask | null>(null);
   const renderCountRef = useRef<number>(0);
@@ -26,7 +27,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
     let isCancelled = false;
 
     const renderPage = async () => {
-      if (!canvasRef.current || pageNumber < 1 || pageNumber > doc.numPages) return;
+      if (!canvasRef.current || !containerRef.current || pageNumber < 1 || pageNumber > doc.numPages) return;
 
       try {
         // Cancel any ongoing render task before starting a new one
@@ -39,7 +40,8 @@ export const PdfPageCanvas: React.FC<Props> = ({
         if (isCancelled) return;
 
         const canvas = canvasRef.current;
-        if (!canvas) return;
+        const pageContainer = containerRef.current;
+        if (!canvas || !pageContainer) return;
 
         const context = canvas.getContext('2d');
         if (!context) return;
@@ -50,6 +52,20 @@ export const PdfPageCanvas: React.FC<Props> = ({
 
         // 1. CSS Viewport (visual size of the page in screen CSS pixels)
         const cssViewport = page.getViewport({ scale: visualZoom, rotation });
+        const cssWidth = Math.floor(cssViewport.width);
+        const cssHeight = Math.floor(cssViewport.height);
+
+        // Update container & canvas CSS size so layout dimensions expand naturally for scrollWidth
+        pageContainer.style.width = `${cssWidth}px`;
+        pageContainer.style.height = `${cssHeight}px`;
+
+        // Manage marginInline dynamically: auto when page fits in viewport, 0 when wider
+        const viewportParent = pageContainer.closest('.pdf-viewport');
+        if (viewportParent) {
+          const parentWidth = viewportParent.clientWidth;
+          const pageFits = cssWidth <= parentWidth;
+          pageContainer.style.marginInline = pageFits ? 'auto' : '0';
+        }
 
         // 2. Calculate output scale & quality multiplier
         const scaleResult = calculatePdfOutputScale({
@@ -73,17 +89,13 @@ export const PdfPageCanvas: React.FC<Props> = ({
 
         const renderScale = visualZoom * qualityMultiplier;
 
-        // Set logical CSS dimensions matching the CSS viewport (DO NOT change page CSS size)
-        const cssWidth = Math.floor(cssViewport.width);
-        const cssHeight = Math.floor(cssViewport.height);
         canvas.style.width = `${cssWidth}px`;
         canvas.style.height = `${cssHeight}px`;
 
         let renderTask: RenderTask;
 
         if (renderStrategy === 'LARGE_RENDER_VIEWPORT') {
-          // PARTE 1: INDEPENDENT LARGE RENDER VIEWPORT
-          // Build high-resolution viewport for PDF.js page.render()
+          // INDEPENDENT LARGE RENDER VIEWPORT
           const renderViewport = page.getViewport({ scale: renderScale, rotation });
 
           canvas.width = Math.ceil(renderViewport.width);
@@ -93,7 +105,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
             canvasContext: context,
             viewport: renderViewport,
             canvas,
-            transform: undefined, // Do not multiply scale twice!
+            transform: undefined,
           });
         } else {
           // Fallback comparison strategy: TRANSFORM_OUTPUT_SCALE
@@ -114,7 +126,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
 
         renderCountRef.current += 1;
 
-        // Calculate effective scale X/Y and detect CSS stretching
+        // Calculate effective scale X/Y and audit overflow
         const rect = canvas.getBoundingClientRect();
         const effectiveScaleX = rect.width > 0 ? Number((canvas.width / rect.width).toFixed(2)) : qualityMultiplier;
         const effectiveScaleY = rect.height > 0 ? Number((canvas.height / rect.height).toFixed(2)) : qualityMultiplier;
@@ -126,6 +138,19 @@ export const PdfPageCanvas: React.FC<Props> = ({
         if (typeof window !== 'undefined') {
           const isDebug = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
           if (isDebug) {
+            const scrollContainer = viewportParent as HTMLElement | null;
+            const cWidth = scrollContainer?.clientWidth ?? 0;
+            const cHeight = scrollContainer?.clientHeight ?? 0;
+            const sWidth = scrollContainer?.scrollWidth ?? 0;
+            const sHeight = scrollContainer?.scrollHeight ?? 0;
+            const sLeft = scrollContainer?.scrollLeft ?? 0;
+            const sTop = scrollContainer?.scrollTop ?? 0;
+            const maxSLeft = sWidth - cWidth;
+            const maxSTop = sHeight - cHeight;
+            const pageFits = cssWidth <= cWidth;
+            const isLeftInaccessible = !pageFits && (scrollContainer ? getComputedStyle(scrollContainer).justifyContent === 'center' : false);
+            const isOverflowNotScrollable = cssWidth > cWidth && sWidth <= cWidth;
+
             (window as unknown as Record<string, unknown>).__pdf_debug_last_render = {
               qualityMode,
               zoomVisual: `${Math.round(visualZoom * 100)}%`,
@@ -142,6 +167,18 @@ export const PdfPageCanvas: React.FC<Props> = ({
               renderStrategy,
               renderCount: renderCountRef.current,
               activeCanvases: '1 active (visible page)',
+              scrollMetrics: {
+                cssSize: `${cssWidth} × ${cssHeight}`,
+                containerClient: `${cWidth} × ${cHeight}`,
+                containerScroll: `${sWidth} × ${sHeight}`,
+                scrollLeftTop: `${sLeft} / ${sTop}`,
+                maxScrollLeftTop: `${maxSLeft} / ${maxSTop}`,
+                pageFitsContainer: pageFits ? 'YES' : 'NO',
+                warnings: [
+                  isOverflowNotScrollable ? 'HORIZONTAL OVERFLOW NOT SCROLLABLE' : null,
+                  isLeftInaccessible ? 'LEFT SIDE INACCESSIBLE' : null,
+                ].filter(Boolean).join(' | ') || 'None',
+              },
             };
           }
         }
@@ -171,7 +208,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
   }, [doc, pageNumber, scale, rotation, qualityMode]);
 
   return (
-    <div className="pdf-page-container">
+    <div ref={containerRef} className="pdf-page-container">
       <canvas ref={canvasRef} className="pdf-page-canvas" />
     </div>
   );

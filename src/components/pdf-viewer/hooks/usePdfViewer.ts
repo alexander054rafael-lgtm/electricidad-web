@@ -172,6 +172,43 @@ export function usePdfViewer({
     }
   }, [doc, state.currentPage, state.rotation, state.zoomMode, state.status]);
 
+  // Zoom helper with focal point preservation
+  const changeZoomWithFocal = useCallback((newScale: number, focalXParam?: number, focalYParam?: number) => {
+    const container = viewportRef.current;
+    const clampedScale = Number(Math.max(0.5, Math.min(4.0, newScale)).toFixed(2));
+
+    if (!container) {
+      setState((prev) => ({ ...prev, zoomScale: clampedScale, zoomMode: 'custom' }));
+      return;
+    }
+
+    const oldZoom = state.zoomScale;
+    if (Math.abs(clampedScale - oldZoom) < 0.005) return;
+
+    const focalX = focalXParam ?? container.clientWidth / 2;
+    const focalY = focalYParam ?? container.clientHeight / 2;
+    const oldScrollLeft = container.scrollLeft;
+    const oldScrollTop = container.scrollTop;
+
+    const ratio = clampedScale / oldZoom;
+    const targetScrollLeft = (oldScrollLeft + focalX) * ratio - focalX;
+    const targetScrollTop = (oldScrollTop + focalY) * ratio - focalY;
+
+    setState((prev) => ({ ...prev, zoomScale: clampedScale, zoomMode: 'custom' }));
+
+    // Apply focal scroll position across two animation frames after React layout updates
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (container) {
+          const maxScrollLeft = container.scrollWidth - container.clientWidth;
+          const maxScrollTop = container.scrollHeight - container.clientHeight;
+          container.scrollLeft = Math.max(0, Math.min(targetScrollLeft, maxScrollLeft));
+          container.scrollTop = Math.max(0, Math.min(targetScrollTop, maxScrollTop));
+        }
+      });
+    });
+  }, [state.zoomScale]);
+
   // Pinch-to-zoom implementation with focal point scroll preservation
   useEffect(() => {
     const container = viewportRef.current;
@@ -239,23 +276,7 @@ export function usePdfViewer({
         const newVisualZoom = Number(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * pinchFactor)).toFixed(2));
 
         if (Math.abs(newVisualZoom - initialZoom) > 0.02) {
-          // Adjust scroll position to keep focal point anchored
-          const scaleRatio = newVisualZoom / initialZoom;
-          const newScrollLeft = (initialScrollLeft + focalX) * scaleRatio - focalX;
-          const newScrollTop = (initialScrollTop + focalY) * scaleRatio - focalY;
-
-          setState((prev) => ({
-            ...prev,
-            zoomScale: newVisualZoom,
-            zoomMode: 'custom',
-          }));
-
-          requestAnimationFrame(() => {
-            if (container) {
-              container.scrollLeft = Math.max(0, newScrollLeft);
-              container.scrollTop = Math.max(0, newScrollTop);
-            }
-          });
+          changeZoomWithFocal(newVisualZoom, focalX, focalY);
         }
 
         pinchFactor = 1.0;
@@ -274,7 +295,7 @@ export function usePdfViewer({
       container.removeEventListener('touchend', onTouchEnd);
       container.removeEventListener('touchcancel', onTouchEnd);
     };
-  }, [state.zoomScale]);
+  }, [state.zoomScale, changeZoomWithFocal]);
 
   // Recalculate auto zoom on dependencies change & container resize
   useEffect(() => {
@@ -376,25 +397,18 @@ export function usePdfViewer({
     });
   }, []);
 
-  // Zoom handlers
+  // Zoom handlers using focal center preservation
   const setZoomScale = useCallback((scale: number) => {
-    const clampedScale = Math.max(0.5, Math.min(3.0, scale));
-    setState((prev) => ({ ...prev, zoomScale: clampedScale, zoomMode: 'custom' }));
-  }, []);
+    changeZoomWithFocal(scale);
+  }, [changeZoomWithFocal]);
 
   const zoomIn = useCallback(() => {
-    setState((prev) => {
-      const nextScale = Math.min(3.0, Number((prev.zoomScale + 0.15).toFixed(2)));
-      return { ...prev, zoomScale: nextScale, zoomMode: 'custom' };
-    });
-  }, []);
+    changeZoomWithFocal(state.zoomScale + 0.15);
+  }, [state.zoomScale, changeZoomWithFocal]);
 
   const zoomOut = useCallback(() => {
-    setState((prev) => {
-      const nextScale = Math.max(0.5, Number((prev.zoomScale - 0.15).toFixed(2)));
-      return { ...prev, zoomScale: nextScale, zoomMode: 'custom' };
-    });
-  }, []);
+    changeZoomWithFocal(state.zoomScale - 0.15);
+  }, [state.zoomScale, changeZoomWithFocal]);
 
   const setZoomMode = useCallback((mode: ZoomMode) => {
     setState((prev) => ({ ...prev, zoomMode: mode }));
