@@ -1,14 +1,23 @@
 import React, { useEffect, useRef } from 'react';
 import type { PDFDocumentProxy, RenderTask } from 'pdfjs-dist';
+import { detectPdfCompatibility } from './lib/pdf-browser-polyfills';
+import { calculatePdfOutputScale, type PdfQualityMode } from './lib/pdf-render-scale';
 
 interface Props {
   doc: PDFDocumentProxy;
   pageNumber: number;
   scale: number;
   rotation: number;
+  qualityMode: PdfQualityMode;
 }
 
-export const PdfPageCanvas: React.FC<Props> = ({ doc, pageNumber, scale, rotation }) => {
+export const PdfPageCanvas: React.FC<Props> = ({
+  doc,
+  pageNumber,
+  scale,
+  rotation,
+  qualityMode,
+}) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRenderTaskRef = useRef<RenderTask | null>(null);
 
@@ -35,14 +44,34 @@ export const PdfPageCanvas: React.FC<Props> = ({ doc, pageNumber, scale, rotatio
         const context = canvas.getContext('2d');
         if (!context) return;
 
-        // Support high DPI screens
-        const outputScale = window.devicePixelRatio || 1;
+        // Detect devicePixelRatio & compatibility mode
+        const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+        const compatibility = detectPdfCompatibility();
 
-        canvas.width = Math.floor(viewport.width * outputScale);
-        canvas.height = Math.floor(viewport.height * outputScale);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        // Calculate adaptive HiDPI output scale
+        const scaleResult = calculatePdfOutputScale({
+          viewportWidth: viewport.width,
+          viewportHeight: viewport.height,
+          devicePixelRatio: dpr,
+          qualityMode,
+          compatibilityMode: compatibility.mode,
+        });
 
+        const outputScale = scaleResult.outputScale;
+
+        // Physical backing store resolution (HiDPI)
+        const canvasWidth = Math.floor(viewport.width * outputScale);
+        const canvasHeight = Math.floor(viewport.height * outputScale);
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
+        // Logical CSS dimensions matching viewport exactly
+        const cssWidth = Math.floor(viewport.width);
+        const cssHeight = Math.floor(viewport.height);
+        canvas.style.width = `${cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+
+        // Transform for scaling PDF.js rendering context to backing store
         const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
 
         const renderContext = {
@@ -56,6 +85,23 @@ export const PdfPageCanvas: React.FC<Props> = ({ doc, pageNumber, scale, rotatio
         currentRenderTaskRef.current = renderTask;
 
         await renderTask.promise;
+
+        // Store debug info for ?pdfDebug=1 badge
+        if (typeof window !== 'undefined') {
+          const isDebug = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
+          if (isDebug) {
+            (window as unknown as Record<string, unknown>).__pdf_debug_last_render = {
+              qualityMode,
+              dpr,
+              outputScale,
+              canvasWidth,
+              canvasHeight,
+              cssWidth,
+              cssHeight,
+              pixelBudget: scaleResult.maxPixelsBudget,
+            };
+          }
+        }
       } catch (err: unknown) {
         // Ignore expected rendering cancellations
         if (err && typeof err === 'object' && 'name' in err && err.name === 'RenderingCancelledException') {
@@ -73,8 +119,13 @@ export const PdfPageCanvas: React.FC<Props> = ({ doc, pageNumber, scale, rotatio
         currentRenderTaskRef.current.cancel();
         currentRenderTaskRef.current = null;
       }
+      // Memory cleanup if component unmounts
+      if (canvasRef.current) {
+        canvasRef.current.width = 0;
+        canvasRef.current.height = 0;
+      }
     };
-  }, [doc, pageNumber, scale, rotation]);
+  }, [doc, pageNumber, scale, rotation, qualityMode]);
 
   return (
     <div className="pdf-page-container">

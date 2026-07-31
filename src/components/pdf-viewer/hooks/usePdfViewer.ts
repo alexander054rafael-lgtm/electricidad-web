@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { createBrowserClient } from '@supabase/ssr';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { loadPdfDocument } from '../lib/pdf-loader';
+import { getSavedPdfQualityMode, savePdfQualityMode, type PdfQualityMode } from '../lib/pdf-render-scale';
 import type {
   PdfViewerCapabilities,
   PdfViewerProps,
@@ -28,6 +29,7 @@ export function usePdfViewer({
     totalPages: 0,
     zoomMode: 'fit-width',
     zoomScale: 1.0,
+    qualityMode: getSavedPdfQualityMode(),
     sidebarTab: 'none',
     sidebarOpen: false,
     isFullscreen: false,
@@ -331,6 +333,11 @@ export function usePdfViewer({
     canToggleFullscreen: typeof document !== 'undefined' && Boolean(document.fullscreenEnabled),
   };
 
+  const setQualityMode = useCallback((mode: PdfQualityMode) => {
+    savePdfQualityMode(mode);
+    setState((prev) => ({ ...prev, qualityMode: mode }));
+  }, []);
+
   return {
     doc,
     state,
@@ -343,6 +350,7 @@ export function usePdfViewer({
     zoomIn,
     zoomOut,
     setZoomMode,
+    setQualityMode,
     rotateClockwise,
     toggleSidebar,
     toggleFullscreen,

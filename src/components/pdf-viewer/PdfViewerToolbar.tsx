@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
+import type { PdfQualityMode } from './lib/pdf-render-scale';
 import type { PdfViewerCapabilities, PdfViewerState, SidebarTab, ZoomMode } from './types';
 
 interface Props {
@@ -12,6 +13,7 @@ interface Props {
   onZoomOut: () => void;
   onZoomScaleChange: (scale: number) => void;
   onZoomModeChange: (mode: ZoomMode) => void;
+  onQualityModeChange: (mode: PdfQualityMode) => void;
   onRotate: () => void;
   onToggleSidebar: (tab?: SidebarTab) => void;
   onToggleFullscreen: () => void;
@@ -29,11 +31,29 @@ export const PdfViewerToolbar: React.FC<Props> = ({
   onZoomOut,
   onZoomScaleChange,
   onZoomModeChange,
+  onQualityModeChange,
   onRotate,
   onToggleSidebar,
   onToggleFullscreen,
   downloadUrl,
 }) => {
+  const [debugData, setDebugData] = useState<Record<string, unknown> | null>(null);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const isDebug = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
+    if (!isDebug) return;
+
+    const interval = setInterval(() => {
+      const info = (window as unknown as Record<string, unknown>).__pdf_debug_last_render;
+      if (info) {
+        setDebugData(info as Record<string, unknown>);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const handlePageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
@@ -42,6 +62,12 @@ export const PdfViewerToolbar: React.FC<Props> = ({
       onGoToPage(pageVal);
     }
   };
+
+  const isLowMemoryDevice =
+    typeof navigator !== 'undefined' &&
+    'deviceMemory' in navigator &&
+    typeof (navigator as unknown as Record<string, number>).deviceMemory === 'number' &&
+    (navigator as unknown as Record<string, number>).deviceMemory <= 4;
 
   return (
     <header className="pdf-toolbar">
@@ -165,6 +191,29 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             <path d="M8 11h6" />
           </svg>
         </button>
+
+        <span style={{ width: 1, height: 20, background: 'var(--pdf-border)', margin: '0 0.2rem' }} />
+
+        {/* Discrete Quality Selector */}
+        <select
+          className="pdf-toolbar__select"
+          value={state.qualityMode}
+          onChange={(e) => onQualityModeChange(e.target.value as PdfQualityMode)}
+          title="Calidad de renderizado"
+        >
+          <option value="auto">Calidad: Automática</option>
+          <option value="high">Calidad: Alta</option>
+          <option value="economy">Calidad: Ahorro</option>
+        </select>
+
+        {state.qualityMode === 'high' && isLowMemoryDevice && (
+          <span
+            style={{ fontSize: '10px', color: '#f59e0b', whiteSpace: 'nowrap' }}
+            title="La calidad alta puede utilizar más memoria en este dispositivo"
+          >
+            ⚠️ Poca memoria
+          </span>
+        )}
       </div>
 
       <div className="pdf-toolbar__right">
@@ -213,25 +262,40 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             ? 'LEGACY'
             : 'MODERN';
           const workerName = mode === 'LEGACY' ? 'legacy.compat.v1' : 'modern';
+          const dpr = window.devicePixelRatio || 1;
+          const qMode = state.qualityMode.toUpperCase();
+          const outScale = String(debugData?.outputScale ?? '-');
+          const cW = String(debugData?.canvasWidth ?? '-');
+          const cH = String(debugData?.canvasHeight ?? '-');
+          const cssW = String(debugData?.cssWidth ?? '-');
+          const cssH = String(debugData?.cssHeight ?? '-');
+          const pBudget = String(debugData?.pixelBudget ?? '-');
+
           return (
             <div
               id="pdf-debug-badge"
               style={{
                 background: '#f59e0b',
                 color: '#000',
-                padding: '2px 8px',
+                padding: '4px 8px',
                 borderRadius: '4px',
-                fontSize: '11px',
+                fontSize: '10px',
                 fontWeight: 'bold',
                 fontFamily: 'monospace',
                 marginLeft: '6px',
                 whiteSpace: 'nowrap',
-                lineHeight: '1.2',
+                lineHeight: '1.25',
               }}
             >
               PDF engine: {mode}<br />
               Worker: {workerName}<br />
-              PDF.js: 6.2.108
+              PDF.js: 6.2.108<br />
+              Quality: {qMode}<br />
+              DPR: {dpr}<br />
+              Output scale: {outScale}<br />
+              Canvas: {cW} × {cH}<br />
+              CSS viewport: {cssW} × {cssH}<br />
+              Pixel budget: {pBudget}
             </div>
           );
         })()}

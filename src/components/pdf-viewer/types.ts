@@ -1,3 +1,5 @@
+import type { PdfQualityMode } from './lib/pdf-render-scale';
+
 export type ViewerStatus = 'idle' | 'loading' | 'rendering' | 'ready' | 'error';
 
 export type ZoomMode = 'fit-width' | 'fit-page' | 'custom';
@@ -52,6 +54,7 @@ export interface PdfViewerState {
   totalPages: number;
   zoomMode: ZoomMode;
   zoomScale: number; // e.g. 1.0 = 100%
+  qualityMode: PdfQualityMode;
   sidebarTab: SidebarTab;
   sidebarOpen: boolean;
   isFullscreen: boolean;
