@@ -1,11 +1,10 @@
 /**
- * Target Polyfills for PDF.js Compatibility on Legacy Browsers (Chromium <128 / Android Tablets).
+ * Target Capability Detection & Polyfills for PDF.js Dual Engine Architecture.
  *
- * Hardening Features:
- * - Non-overwriting: Respects existing native implementations.
- * - Standard Spec: Uint8Array.prototype.toHex produces lowercase 2-char padded hex strings.
- * - Non-enumerable: Uses Object.defineProperty with enumerable: false to prevent for..in pollution.
- * - SSR Protection: Safe no-op execution when evaluated in server context.
+ * Mode Selection Rules:
+ * - Native Detection BEFORE polyfill installation: Checks Uint8Array.toHex, Promise.withResolvers, Object.hasOwn, Array.prototype.at.
+ * - Auto Selection: mode = 'modern' if all required APIs exist natively; mode = 'legacy' if any is missing.
+ * - Diagnostic Override: Supports ?pdfMode=legacy or ?pdfMode=modern URL search param for field testing.
  */
 
 declare global {
@@ -27,9 +26,64 @@ export interface PdfPolyfillReport {
   alreadySupported: string[];
 }
 
+export interface PdfCompatibilityResult {
+  mode: 'modern' | 'legacy';
+  missingModernFeatures: string[];
+}
+
 let isInstalled = false;
 let polyfillReportCache: PdfPolyfillReport | null = null;
+let compatibilityCache: PdfCompatibilityResult | null = null;
 
+/**
+ * Detect native browser capabilities to decide whether to use the Modern or Legacy PDF.js build.
+ * MUST run BEFORE polyfill installation to ensure accurate native capability detection.
+ */
+export function detectPdfCompatibility(): PdfCompatibilityResult {
+  if (typeof window === 'undefined') {
+    return { mode: 'modern', missingModernFeatures: [] };
+  }
+
+  if (compatibilityCache) {
+    return compatibilityCache;
+  }
+
+  const missingModernFeatures: string[] = [];
+
+  if (typeof Uint8Array === 'undefined' || typeof Uint8Array.prototype.toHex !== 'function') {
+    missingModernFeatures.push('Uint8Array.prototype.toHex');
+  }
+  if (typeof Promise === 'undefined' || typeof Promise.withResolvers !== 'function') {
+    missingModernFeatures.push('Promise.withResolvers');
+  }
+  if (typeof Object.hasOwn !== 'function') {
+    missingModernFeatures.push('Object.hasOwn');
+  }
+  if (typeof Array.prototype.at !== 'function') {
+    missingModernFeatures.push('Array.prototype.at');
+  }
+
+  // Diagnostic URL query parameter override: ?pdfMode=legacy or ?pdfMode=modern
+  let forcedMode: 'modern' | 'legacy' | null = null;
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const pdfMode = params.get('pdfMode');
+    if (pdfMode === 'legacy' || pdfMode === 'modern') {
+      forcedMode = pdfMode;
+    }
+  } catch {
+    // Ignore URL parse errors in non-standard browser contexts
+  }
+
+  const mode: 'modern' | 'legacy' = forcedMode ?? (missingModernFeatures.length === 0 ? 'modern' : 'legacy');
+  compatibilityCache = { mode, missingModernFeatures };
+
+  return compatibilityCache;
+}
+
+/**
+ * Install safe main-thread polyfills for Uint8Array.prototype.toHex and Promise.withResolvers.
+ */
 export function installPdfBrowserPolyfills(): PdfPolyfillReport {
   if (typeof window === 'undefined') {
     return { installed: [], alreadySupported: [] };
@@ -89,11 +143,6 @@ export function installPdfBrowserPolyfills(): PdfPolyfillReport {
   isInstalled = true;
   polyfillReportCache = { installed, alreadySupported };
 
-  if (import.meta.env.DEV) {
-    console.info('[PDF_COMPATIBILITY]', polyfillReportCache);
-    verifyPdfBrowserPolyfills();
-  }
-
   return polyfillReportCache;
 }
 
@@ -105,7 +154,6 @@ export function verifyPdfBrowserPolyfills(): boolean {
 
   installPdfBrowserPolyfills();
 
-  // Test 1: Uint8Array([0, 1, 15, 16, 255]) produces "00010f10ff"
   const testArr = new Uint8Array([0, 1, 15, 16, 255]);
   const hex = testArr.toHex();
   if (hex !== '00010f10ff') {
@@ -113,14 +161,12 @@ export function verifyPdfBrowserPolyfills(): boolean {
     return false;
   }
 
-  // Test 2: Uint8Array.prototype.toHex is non-enumerable
   const desc = Object.getOwnPropertyDescriptor(Uint8Array.prototype, 'toHex');
   if (desc && desc.enumerable !== false) {
     console.error('[PDF_COMPATIBILITY_VERIFY] toHex must be non-enumerable');
     return false;
   }
 
-  // Test 3: Promise.withResolvers is functional
   if (typeof Promise.withResolvers !== 'function') {
     console.error('[PDF_COMPATIBILITY_VERIFY] Promise.withResolvers missing');
     return false;

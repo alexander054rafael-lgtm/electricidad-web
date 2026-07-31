@@ -1,12 +1,16 @@
 import type { PDFDocumentProxy } from 'pdfjs-dist';
-import { installPdfBrowserPolyfills } from './pdf-browser-polyfills';
+import { detectPdfCompatibility, installPdfBrowserPolyfills } from './pdf-browser-polyfills';
 
 let pdfjsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
 
 /**
- * Safely load PDF.js client-side without SSR evaluation errors.
- * Configured to use local static worker matching installed pdfjs-dist version (6.2.108).
- * Installs target browser polyfills (Uint8Array.toHex, Promise.withResolvers) BEFORE PDF.js evaluation.
+ * Safely load PDF.js client-side with dual engine support (Modern vs Legacy).
+ *
+ * Sequence:
+ * 1. Native Capability Detection (BEFORE polyfill installation).
+ * 2. Auxiliary Main-Thread Polyfills.
+ * 3. Dynamic import of target PDF.js build (modern vs legacy).
+ * 4. Configuration of corresponding static Web Worker (/pdf.worker.min.mjs vs /pdf.worker.legacy.min.mjs).
  */
 export async function getPdfjsLib(): Promise<typeof import('pdfjs-dist')> {
   if (typeof window === 'undefined') {
@@ -18,15 +22,46 @@ export async function getPdfjsLib(): Promise<typeof import('pdfjs-dist')> {
   }
 
   pdfjsPromise = (async () => {
-    // 1. Install browser polyfills BEFORE importing PDF.js module
+    // 1. Detect native capabilities BEFORE installing polyfills
+    const compatibility = detectPdfCompatibility();
+
+    // 2. Install main-thread polyfills
     installPdfBrowserPolyfills();
 
-    // 2. Dynamically import PDF.js
-    const pdfjs = await import('pdfjs-dist');
+    // 3. Load target build & worker matching compatibility mode
+    let pdfjs: typeof import('pdfjs-dist');
+    let workerSrc: string;
 
-    // 3. Set up GlobalWorkerOptions workerSrc using local static worker file
+    if (compatibility.mode === 'legacy') {
+      // Import legacy build for older Chromium / Android tablets
+      pdfjs = await import('pdfjs-dist/legacy/build/pdf.mjs');
+      workerSrc = '/pdf.worker.legacy.compat.v1.mjs';
+    } else {
+      // Import modern ES2024 build
+      pdfjs = await import('pdfjs-dist');
+      workerSrc = '/pdf.worker.min.mjs';
+    }
+
     if (pdfjs.GlobalWorkerOptions) {
-      pdfjs.GlobalWorkerOptions.workerSrc = '/pdf.worker.min.mjs';
+      pdfjs.GlobalWorkerOptions.workerSrc = workerSrc;
+    }
+
+    // 4. Diagnostic Logging (DEV mode or ?pdfDebug=1)
+    let isDebugUrl = false;
+    try {
+      isDebugUrl = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
+    } catch {
+      // Ignore
+    }
+
+    if (import.meta.env.DEV || isDebugUrl) {
+      console.info('[PDF_COMPATIBILITY]', {
+        selectedMode: compatibility.mode,
+        missingModernFeatures: compatibility.missingModernFeatures,
+        workerSrc,
+        nativeToHex: typeof Uint8Array.prototype.toHex === 'function',
+        nativePromiseWithResolvers: typeof Promise.withResolvers === 'function',
+      });
     }
 
     return pdfjs;

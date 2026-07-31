@@ -205,6 +205,36 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             )}
           </svg>
         </button>
+
+        {typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('pdfDebug') === '1' && (() => {
+          const mode = (window as unknown as Record<string, unknown>).__pdfjs_mode === 'legacy' ||
+            (new URLSearchParams(window.location.search).get('pdfMode') === 'legacy') ||
+            (typeof Uint8Array === 'undefined' || typeof Uint8Array.prototype.toHex !== 'function')
+            ? 'LEGACY'
+            : 'MODERN';
+          const workerName = mode === 'LEGACY' ? 'legacy.compat.v1' : 'modern';
+          return (
+            <div
+              id="pdf-debug-badge"
+              style={{
+                background: '#f59e0b',
+                color: '#000',
+                padding: '2px 8px',
+                borderRadius: '4px',
+                fontSize: '11px',
+                fontWeight: 'bold',
+                fontFamily: 'monospace',
+                marginLeft: '6px',
+                whiteSpace: 'nowrap',
+                lineHeight: '1.2',
+              }}
+            >
+              PDF engine: {mode}<br />
+              Worker: {workerName}<br />
+              PDF.js: 6.2.108
+            </div>
+          );
+        })()}
       </div>
     </header>
   );
