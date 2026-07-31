@@ -1,4 +1,5 @@
 import type { PdfQualityMode } from './lib/pdf-render-scale';
+import type { PdfPageLabelMaps } from './lib/pdf-page-labels';
 
 export type ViewerStatus = 'idle' | 'loading' | 'rendering' | 'ready' | 'error';
 
@@ -55,6 +56,9 @@ export interface PdfViewerState {
   zoomMode: ZoomMode;
   zoomScale: number; // e.g. 1.0 = 100%
   qualityMode: PdfQualityMode;
+  pageLabels: string[] | null;
+  pageLabelMaps: PdfPageLabelMaps | null;
+  pageInputValue: string;
   sidebarTab: SidebarTab;
   sidebarOpen: boolean;
   isFullscreen: boolean;

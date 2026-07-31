@@ -15,6 +15,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
     capabilities,
     viewportRef,
     goToPage,
+    goToPageInput,
+    setPageInputValue,
     nextPage,
     prevPage,
     zoomIn,
@@ -34,6 +36,8 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
         state={state}
         capabilities={capabilities}
         onGoToPage={goToPage}
+        onGoToPageInput={goToPageInput}
+        onPageInputChange={setPageInputValue}
         onNextPage={nextPage}
         onPrevPage={prevPage}
         onZoomIn={zoomIn}

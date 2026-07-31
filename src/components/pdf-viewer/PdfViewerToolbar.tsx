@@ -7,6 +7,8 @@ interface Props {
   state: PdfViewerState;
   capabilities: PdfViewerCapabilities;
   onGoToPage: (page: number) => void;
+  onGoToPageInput: (input: string) => boolean;
+  onPageInputChange: (value: string) => void;
   onNextPage: () => void;
   onPrevPage: () => void;
   onZoomIn: () => void;
@@ -24,7 +26,8 @@ export const PdfViewerToolbar: React.FC<Props> = ({
   title,
   state,
   capabilities,
-  onGoToPage,
+  onGoToPageInput,
+  onPageInputChange,
   onNextPage,
   onPrevPage,
   onZoomIn,
@@ -56,11 +59,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
 
   const handlePageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const formData = new FormData(e.currentTarget);
-    const pageVal = parseInt(formData.get('pageNumber') as string, 10);
-    if (!isNaN(pageVal)) {
-      onGoToPage(pageVal);
-    }
+    onGoToPageInput(state.pageInputValue);
   };
 
   const isLowMemoryDevice =
@@ -68,6 +67,9 @@ export const PdfViewerToolbar: React.FC<Props> = ({
     'deviceMemory' in navigator &&
     typeof (navigator as unknown as Record<string, number>).deviceMemory === 'number' &&
     (navigator as unknown as Record<string, number>).deviceMemory <= 4;
+
+  const currentLabel = state.pageLabelMaps?.physicalToLabel[state.currentPage - 1] ?? String(state.currentPage);
+  const isLabelDifferent = currentLabel !== String(state.currentPage);
 
   return (
     <header className="pdf-toolbar">
@@ -108,19 +110,21 @@ export const PdfViewerToolbar: React.FC<Props> = ({
 
         <form onSubmit={handlePageSubmit} className="pdf-toolbar__page-indicator">
           <input
-            key={state.currentPage}
-            name="pageNumber"
-            type="number"
-            min={1}
-            max={state.totalPages || 1}
-            defaultValue={state.currentPage}
+            name="pageInput"
+            type="text"
+            inputMode="text"
+            value={state.pageInputValue}
             className="pdf-toolbar__page-input"
-            onBlur={(e) => {
-              const val = parseInt(e.target.value, 10);
-              if (!isNaN(val)) onGoToPage(val);
-            }}
+            onChange={(e) => onPageInputChange(e.target.value)}
+            onBlur={() => onGoToPageInput(state.pageInputValue)}
+            aria-label={`Página lógica ${currentLabel}, página física ${state.currentPage} de ${state.totalPages || 1}`}
+            title={`Página lógica ${currentLabel}, página física ${state.currentPage} de ${state.totalPages || 1}`}
           />
-          <span>/ {state.totalPages || 1}</span>
+          <span>
+            {isLabelDifferent
+              ? ` PDF ${state.currentPage} de ${state.totalPages || 1}`
+              : `/ ${state.totalPages || 1}`}
+          </span>
         </form>
 
         <button
@@ -263,21 +267,10 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             ? 'LEGACY'
             : 'MODERN';
           const workerName = mode === 'LEGACY' ? 'legacy.compat.v1' : 'modern';
-          const dpr = window.devicePixelRatio || 1;
-          const qMode = state.qualityMode.toUpperCase();
-          const zoomVisual = String(debugData?.zoomVisual ?? `${Math.round(state.zoomScale * 100)}%`);
-          const reqScale = String(debugData?.requestedOutputScale ?? '-');
-          const finalScale = String(debugData?.finalOutputScale ?? '-');
-          const renderScale = String(debugData?.renderScale ?? '-');
-          const cssViewport = String(debugData?.cssViewport ?? '-');
-          const renderViewport = String(debugData?.renderViewport ?? '-');
-          const canvasPhys = String(debugData?.canvasPhysicalSize ?? '-');
-          const effScale = String(debugData?.effectiveScale ?? '-');
-          const pBudget = String(debugData?.pixelBudget ?? '-');
-          const limReason = String(debugData?.limitationReason ?? 'None');
-          const renderStrategy = String(debugData?.renderStrategy ?? 'LARGE_RENDER_VIEWPORT');
-          const renderCount = String(debugData?.renderCount ?? '1');
-          const activeCanvases = String(debugData?.activeCanvases ?? '1 active');
+          const labelSource = state.pageLabelMaps?.isFallback ? 'physical-fallback' : 'embedded';
+          const lastInput = String(debugData?.lastResolvedInput ?? state.pageInputValue);
+          const resPhysical = String(debugData?.resolvedPhysicalPage ?? state.currentPage);
+          const matchedBy = String(debugData?.matchedBy ?? (isLabelDifferent ? 'label' : 'physical'));
 
           return (
             <div
@@ -296,20 +289,12 @@ export const PdfViewerToolbar: React.FC<Props> = ({
               }}
             >
               PDF Engine: {mode} ({workerName})<br />
-              Render Strategy: {renderStrategy}<br />
-              Quality Mode: {qMode}<br />
-              Zoom Visual: {zoomVisual}<br />
-              DPR: {dpr}<br />
-              Quality Multiplier: {finalScale} (Req: {reqScale})<br />
-              Render Scale: {renderScale}<br />
-              CSS Viewport: {cssViewport}<br />
-              Render Viewport: {renderViewport}<br />
-              Canvas Physical: {canvasPhys}<br />
-              Effective Scale X/Y: {effScale}<br />
-              Pixel Budget: {pBudget}<br />
-              Limitation Reason: {limReason}<br />
-              Render Count: {renderCount}<br />
-              Active Canvases: {activeCanvases}
+              Page label source: {labelSource}<br />
+              Current page label: {currentLabel}<br />
+              Current physical page: {state.currentPage}<br />
+              Total physical pages: {state.totalPages}<br />
+              Last resolved input: "{lastInput}" → {resPhysical}<br />
+              Page input resolved by: {matchedBy}
             </div>
           );
         })()}

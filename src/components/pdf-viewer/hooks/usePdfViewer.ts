@@ -3,6 +3,7 @@ import { createBrowserClient } from '@supabase/ssr';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { loadPdfDocument } from '../lib/pdf-loader';
 import { getSavedPdfQualityMode, savePdfQualityMode, type PdfQualityMode } from '../lib/pdf-render-scale';
+import { createPdfPageLabelMaps, resolvePageInput } from '../lib/pdf-page-labels';
 import type {
   PdfViewerCapabilities,
   PdfViewerProps,
@@ -30,6 +31,9 @@ export function usePdfViewer({
     zoomMode: 'fit-width',
     zoomScale: 1.0,
     qualityMode: getSavedPdfQualityMode(),
+    pageLabels: null,
+    pageLabelMaps: null,
+    pageInputValue: String(initialPage),
     sidebarTab: 'none',
     sidebarOpen: false,
     isFullscreen: false,
@@ -102,16 +106,33 @@ export function usePdfViewer({
     setState((prev) => ({ ...prev, status: 'loading', errorMessage: null }));
 
     loadPdfDocument(pdfUrl)
-      .then((loadedDoc) => {
+      .then(async (loadedDoc) => {
         if (isCancelled) return;
         setDoc(loadedDoc);
         const total = loadedDoc.numPages;
         const validInitial = Math.max(1, Math.min(initialPage, total));
+
+        // Fetch logical page labels from PDF document
+        let rawLabels: string[] | null = null;
+        try {
+          if (typeof loadedDoc.getPageLabels === 'function') {
+            rawLabels = await loadedDoc.getPageLabels();
+          }
+        } catch (labelErr) {
+          console.warn('[usePdfViewer] No se pudieron cargar las etiquetas de página del PDF:', labelErr);
+        }
+
+        const labelMaps = createPdfPageLabelMaps(rawLabels, total);
+        const initialLabel = labelMaps.physicalToLabel[validInitial - 1] ?? String(validInitial);
+
         setState((prev) => ({
           ...prev,
           status: 'ready',
           totalPages: total,
           currentPage: validInitial,
+          pageLabels: rawLabels,
+          pageLabelMaps: labelMaps,
+          pageInputValue: initialLabel,
         }));
       })
       .catch((err) => {
@@ -375,6 +396,20 @@ export function usePdfViewer({
     };
   }, [resourceId, state.currentPage, state.totalPages, state.status, onProgressChange]);
 
+  // Keep pageInputValue synchronized with current physicalPage's logical label
+  useEffect(() => {
+    if (!state.pageLabelMaps) {
+      setState((prev) => ({ ...prev, pageInputValue: String(prev.currentPage) }));
+      return;
+    }
+
+    const currentLabel = state.pageLabelMaps.physicalToLabel[state.currentPage - 1] ?? String(state.currentPage);
+    setState((prev) => {
+      if (prev.pageInputValue === currentLabel) return prev;
+      return { ...prev, pageInputValue: currentLabel };
+    });
+  }, [state.currentPage, state.pageLabelMaps]);
+
   // Navigation handlers
   const goToPage = useCallback((page: number) => {
     setState((prev) => {
@@ -456,12 +491,71 @@ export function usePdfViewer({
     setState((prev) => ({ ...prev, qualityMode: mode }));
   }, []);
 
+  const setPageInputValue = useCallback((value: string) => {
+    setState((prev) => ({ ...prev, pageInputValue: value }));
+  }, []);
+
+  const goToPageInput = useCallback((input: string): boolean => {
+    let resolvedPage: number | null = null;
+    let matchedBy: 'label' | 'physical' | null = null;
+    let duplicateMatches: number[] | undefined;
+
+    setState((prev) => {
+      if (!prev.pageLabelMaps) {
+        const parsed = parseInt(input.trim(), 10);
+        if (!isNaN(parsed) && parsed >= 1 && parsed <= prev.totalPages) {
+          resolvedPage = parsed;
+          matchedBy = 'physical';
+          return { ...prev, currentPage: parsed, pageInputValue: String(parsed) };
+        }
+        return { ...prev, pageInputValue: String(prev.currentPage) };
+      }
+
+      const result = resolvePageInput({
+        input,
+        totalPages: prev.totalPages,
+        labelToPhysical: prev.pageLabelMaps.labelToPhysical,
+        currentPhysicalPage: prev.currentPage,
+      });
+
+      if (result.found && result.physicalPage) {
+        resolvedPage = result.physicalPage;
+        matchedBy = result.matchedBy;
+        duplicateMatches = result.duplicateMatches;
+        const newLabel = prev.pageLabelMaps.physicalToLabel[result.physicalPage - 1] ?? String(result.physicalPage);
+        return { ...prev, currentPage: result.physicalPage, pageInputValue: newLabel };
+      }
+
+      // Restore current label if resolution failed
+      const currentLabel = prev.pageLabelMaps.physicalToLabel[prev.currentPage - 1] ?? String(prev.currentPage);
+      return { ...prev, pageInputValue: currentLabel };
+    });
+
+    if (typeof window !== 'undefined' && resolvedPage !== null) {
+      const isDebug = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
+      if (isDebug) {
+        const currentData = ((window as unknown as Record<string, unknown>).__pdf_debug_last_render ?? {}) as Record<string, unknown>;
+        (window as unknown as Record<string, unknown>).__pdf_debug_last_render = {
+          ...currentData,
+          lastResolvedInput: input,
+          resolvedPhysicalPage: resolvedPage,
+          matchedBy,
+          duplicateMatches: duplicateMatches ? duplicateMatches.join(', ') : 'None',
+        };
+      }
+    }
+
+    return resolvedPage !== null;
+  }, []);
+
   return {
     doc,
     state,
     capabilities,
     viewportRef,
     goToPage,
+    goToPageInput,
+    setPageInputValue,
     nextPage,
     prevPage,
     setZoomScale,
