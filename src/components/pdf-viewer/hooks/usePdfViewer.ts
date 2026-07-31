@@ -172,6 +172,110 @@ export function usePdfViewer({
     }
   }, [doc, state.currentPage, state.rotation, state.zoomMode, state.status]);
 
+  // Pinch-to-zoom implementation with focal point scroll preservation
+  useEffect(() => {
+    const container = viewportRef.current;
+    if (!container) return;
+
+    let initialDistance = 0;
+    let initialZoom = 1.0;
+    let initialScrollLeft = 0;
+    let initialScrollTop = 0;
+    let focalX = 0;
+    let focalY = 0;
+    let pinchFactor = 1.0;
+    let isPinching = false;
+    let stageElem: HTMLElement | null = null;
+
+    const getDistance = (touches: TouchList) => {
+      const dx = touches[0].clientX - touches[1].clientX;
+      const dy = touches[0].clientY - touches[1].clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 2) {
+        isPinching = true;
+        stageElem = container.querySelector('.pdf-stage');
+        initialDistance = getDistance(e.touches);
+        initialZoom = state.zoomScale;
+        initialScrollLeft = container.scrollLeft;
+        initialScrollTop = container.scrollTop;
+
+        // Focal center relative to viewport container
+        const rect = container.getBoundingClientRect();
+        focalX = (e.touches[0].clientX + e.touches[1].clientX) / 2 - rect.left;
+        focalY = (e.touches[0].clientY + e.touches[1].clientY) / 2 - rect.top;
+      }
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (e.touches.length === 2 && isPinching) {
+        if (e.cancelable) {
+          e.preventDefault(); // Prevent native browser zoom ONLY during 2-finger pinch
+        }
+
+        const dist = getDistance(e.touches);
+        if (initialDistance > 0) {
+          pinchFactor = dist / initialDistance;
+          if (stageElem) {
+            stageElem.style.transformOrigin = `${focalX + initialScrollLeft}px ${focalY + initialScrollTop}px`;
+            stageElem.style.transform = `scale(${pinchFactor})`;
+          }
+        }
+      }
+    };
+
+    const onTouchEnd = (e: TouchEvent) => {
+      if (isPinching && e.touches.length < 2) {
+        isPinching = false;
+        if (stageElem) {
+          stageElem.style.transform = '';
+          stageElem.style.transformOrigin = '';
+        }
+
+        const MIN_ZOOM = 0.5;
+        const MAX_ZOOM = 4.0;
+        const newVisualZoom = Number(Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, initialZoom * pinchFactor)).toFixed(2));
+
+        if (Math.abs(newVisualZoom - initialZoom) > 0.02) {
+          // Adjust scroll position to keep focal point anchored
+          const scaleRatio = newVisualZoom / initialZoom;
+          const newScrollLeft = (initialScrollLeft + focalX) * scaleRatio - focalX;
+          const newScrollTop = (initialScrollTop + focalY) * scaleRatio - focalY;
+
+          setState((prev) => ({
+            ...prev,
+            zoomScale: newVisualZoom,
+            zoomMode: 'custom',
+          }));
+
+          requestAnimationFrame(() => {
+            if (container) {
+              container.scrollLeft = Math.max(0, newScrollLeft);
+              container.scrollTop = Math.max(0, newScrollTop);
+            }
+          });
+        }
+
+        pinchFactor = 1.0;
+        initialDistance = 0;
+      }
+    };
+
+    container.addEventListener('touchstart', onTouchStart, { passive: true });
+    container.addEventListener('touchmove', onTouchMove, { passive: false });
+    container.addEventListener('touchend', onTouchEnd, { passive: true });
+    container.addEventListener('touchcancel', onTouchEnd, { passive: true });
+
+    return () => {
+      container.removeEventListener('touchstart', onTouchStart);
+      container.removeEventListener('touchmove', onTouchMove);
+      container.removeEventListener('touchend', onTouchEnd);
+      container.removeEventListener('touchcancel', onTouchEnd);
+    };
+  }, [state.zoomScale]);
+
   // Recalculate auto zoom on dependencies change & container resize
   useEffect(() => {
     if (state.zoomMode === 'custom') return;

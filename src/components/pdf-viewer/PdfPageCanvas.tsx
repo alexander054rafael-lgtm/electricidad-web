@@ -6,7 +6,7 @@ import { calculatePdfOutputScale, type PdfQualityMode } from './lib/pdf-render-s
 interface Props {
   doc: PDFDocumentProxy;
   pageNumber: number;
-  scale: number;
+  scale: number; // visualZoom (controls CSS size)
   rotation: number;
   qualityMode: PdfQualityMode;
 }
@@ -20,6 +20,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const currentRenderTaskRef = useRef<RenderTask | null>(null);
+  const renderCountRef = useRef<number>(0);
 
   useEffect(() => {
     let isCancelled = false;
@@ -37,61 +38,88 @@ export const PdfPageCanvas: React.FC<Props> = ({
         const page = await doc.getPage(pageNumber);
         if (isCancelled) return;
 
-        const viewport = page.getViewport({ scale, rotation });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
         const context = canvas.getContext('2d');
         if (!context) return;
 
-        // Detect devicePixelRatio & compatibility mode
+        const visualZoom = scale;
         const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
         const compatibility = detectPdfCompatibility();
 
-        // Calculate adaptive output scale
+        // 1. CSS Viewport (visual size of the page in screen CSS pixels)
+        const cssViewport = page.getViewport({ scale: visualZoom, rotation });
+
+        // 2. Calculate output scale & quality multiplier
         const scaleResult = calculatePdfOutputScale({
-          viewportWidth: viewport.width,
-          viewportHeight: viewport.height,
+          viewportWidth: cssViewport.width,
+          viewportHeight: cssViewport.height,
           devicePixelRatio: dpr,
           qualityMode,
           compatibilityMode: compatibility.mode,
         });
 
-        const finalOutputScale = scaleResult.outputScale;
+        const qualityMultiplier = scaleResult.outputScale;
 
-        // Logical CSS dimensions matching viewport scale exactly (Visual Zoom unchanged)
-        const cssWidth = Math.floor(viewport.width);
-        const cssHeight = Math.floor(viewport.height);
+        // Render strategy check from URL (?pdfRenderStrategy=transform vs ?pdfRenderStrategy=largeViewport)
+        let renderStrategy: 'LARGE_RENDER_VIEWPORT' | 'TRANSFORM_OUTPUT_SCALE' = 'LARGE_RENDER_VIEWPORT';
+        if (typeof window !== 'undefined') {
+          const strategyParam = new URLSearchParams(window.location.search).get('pdfRenderStrategy');
+          if (strategyParam === 'transform') {
+            renderStrategy = 'TRANSFORM_OUTPUT_SCALE';
+          }
+        }
+
+        const renderScale = visualZoom * qualityMultiplier;
+
+        // Set logical CSS dimensions matching the CSS viewport (DO NOT change page CSS size)
+        const cssWidth = Math.floor(cssViewport.width);
+        const cssHeight = Math.floor(cssViewport.height);
         canvas.style.width = `${cssWidth}px`;
         canvas.style.height = `${cssHeight}px`;
 
-        // Physical backing store resolution (High resolution internal canvas)
-        const canvasWidth = Math.ceil(viewport.width * finalOutputScale);
-        const canvasHeight = Math.ceil(viewport.height * finalOutputScale);
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
+        let renderTask: RenderTask;
 
-        // Transform for scaling PDF.js rendering context to backing store
-        const transform = finalOutputScale !== 1 ? [finalOutputScale, 0, 0, finalOutputScale, 0, 0] : undefined;
+        if (renderStrategy === 'LARGE_RENDER_VIEWPORT') {
+          // PARTE 1: INDEPENDENT LARGE RENDER VIEWPORT
+          // Build high-resolution viewport for PDF.js page.render()
+          const renderViewport = page.getViewport({ scale: renderScale, rotation });
 
-        const renderContext = {
-          canvasContext: context,
-          viewport,
-          canvas,
-          transform,
-        };
+          canvas.width = Math.ceil(renderViewport.width);
+          canvas.height = Math.ceil(renderViewport.height);
 
-        const renderTask = page.render(renderContext);
+          renderTask = page.render({
+            canvasContext: context,
+            viewport: renderViewport,
+            canvas,
+            transform: undefined, // Do not multiply scale twice!
+          });
+        } else {
+          // Fallback comparison strategy: TRANSFORM_OUTPUT_SCALE
+          canvas.width = Math.ceil(cssViewport.width * qualityMultiplier);
+          canvas.height = Math.ceil(cssViewport.height * qualityMultiplier);
+          const transform = qualityMultiplier !== 1 ? [qualityMultiplier, 0, 0, qualityMultiplier, 0, 0] : undefined;
+
+          renderTask = page.render({
+            canvasContext: context,
+            viewport: cssViewport,
+            canvas,
+            transform,
+          });
+        }
+
         currentRenderTaskRef.current = renderTask;
-
         await renderTask.promise;
+
+        renderCountRef.current += 1;
 
         // Calculate effective scale X/Y and detect CSS stretching
         const rect = canvas.getBoundingClientRect();
-        const effectiveScaleX = rect.width > 0 ? Number((canvas.width / rect.width).toFixed(2)) : finalOutputScale;
-        const effectiveScaleY = rect.height > 0 ? Number((canvas.height / rect.height).toFixed(2)) : finalOutputScale;
-        const diffX = Math.abs(effectiveScaleX - finalOutputScale) / finalOutputScale;
-        const diffY = Math.abs(effectiveScaleY - finalOutputScale) / finalOutputScale;
+        const effectiveScaleX = rect.width > 0 ? Number((canvas.width / rect.width).toFixed(2)) : qualityMultiplier;
+        const effectiveScaleY = rect.height > 0 ? Number((canvas.height / rect.height).toFixed(2)) : qualityMultiplier;
+        const diffX = Math.abs(effectiveScaleX - qualityMultiplier) / qualityMultiplier;
+        const diffY = Math.abs(effectiveScaleY - qualityMultiplier) / qualityMultiplier;
         const isStretched = diffX > 0.05 || diffY > 0.05;
 
         // Store debug info for ?pdfDebug=1 badge
@@ -100,16 +128,20 @@ export const PdfPageCanvas: React.FC<Props> = ({
           if (isDebug) {
             (window as unknown as Record<string, unknown>).__pdf_debug_last_render = {
               qualityMode,
-              zoomVisual: `${Math.round(scale * 100)}%`,
+              zoomVisual: `${Math.round(visualZoom * 100)}%`,
               dpr,
               requestedOutputScale: scaleResult.requestedOutputScale,
-              finalOutputScale,
-              cssSize: `${cssWidth} × ${cssHeight}`,
-              canvasPhysicalSize: `${canvasWidth} × ${canvasHeight}`,
+              finalOutputScale: qualityMultiplier,
+              renderScale: Number(renderScale.toFixed(2)),
+              cssViewport: `${cssWidth} × ${cssHeight}`,
+              renderViewport: `${canvas.width} × ${canvas.height}`,
+              canvasPhysicalSize: `${canvas.width} × ${canvas.height}`,
               effectiveScale: `${effectiveScaleX} / ${effectiveScaleY} ${isStretched ? '⚠️ CANVAS STRETCHED' : ''}`,
               pixelBudget: `${scaleResult.maxPixelsBudget} px`,
               limitationReason: scaleResult.limitationReason,
-              activeCanvases: '1 active (pág. actual)',
+              renderStrategy,
+              renderCount: renderCountRef.current,
+              activeCanvases: '1 active (visible page)',
             };
           }
         }

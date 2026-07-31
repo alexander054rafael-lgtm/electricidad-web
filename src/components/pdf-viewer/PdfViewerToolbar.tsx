@@ -194,7 +194,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
 
         <span style={{ width: 1, height: 20, background: 'var(--pdf-border)', margin: '0 0.2rem' }} />
 
-        {/* Updated Discrete Quality Selector with Ultra option */}
+        {/* Discrete Quality Selector */}
         <select
           className="pdf-toolbar__select"
           value={state.qualityMode}
@@ -268,11 +268,15 @@ export const PdfViewerToolbar: React.FC<Props> = ({
           const zoomVisual = String(debugData?.zoomVisual ?? `${Math.round(state.zoomScale * 100)}%`);
           const reqScale = String(debugData?.requestedOutputScale ?? '-');
           const finalScale = String(debugData?.finalOutputScale ?? '-');
-          const cssSize = String(debugData?.cssSize ?? '-');
+          const renderScale = String(debugData?.renderScale ?? '-');
+          const cssViewport = String(debugData?.cssViewport ?? '-');
+          const renderViewport = String(debugData?.renderViewport ?? '-');
           const canvasPhys = String(debugData?.canvasPhysicalSize ?? '-');
           const effScale = String(debugData?.effectiveScale ?? '-');
           const pBudget = String(debugData?.pixelBudget ?? '-');
           const limReason = String(debugData?.limitationReason ?? 'None');
+          const renderStrategy = String(debugData?.renderStrategy ?? 'LARGE_RENDER_VIEWPORT');
+          const renderCount = String(debugData?.renderCount ?? '1');
           const activeCanvases = String(debugData?.activeCanvases ?? '1 active');
 
           return (
@@ -292,17 +296,20 @@ export const PdfViewerToolbar: React.FC<Props> = ({
               }}
             >
               PDF Engine: {mode} ({workerName})<br />
-              Quality mode: {qMode}<br />
-              Zoom visual: {zoomVisual}<br />
+              Render Strategy: {renderStrategy}<br />
+              Quality Mode: {qMode}<br />
+              Zoom Visual: {zoomVisual}<br />
               DPR: {dpr}<br />
-              Requested output scale: {reqScale}<br />
-              Final output scale: {finalScale}<br />
-              CSS size: {cssSize}<br />
-              Canvas physical size: {canvasPhys}<br />
-              Effective scale X/Y: {effScale}<br />
-              Pixel budget: {pBudget}<br />
-              Limitation reason: {limReason}<br />
-              Active canvases: {activeCanvases}
+              Quality Multiplier: {finalScale} (Req: {reqScale})<br />
+              Render Scale: {renderScale}<br />
+              CSS Viewport: {cssViewport}<br />
+              Render Viewport: {renderViewport}<br />
+              Canvas Physical: {canvasPhys}<br />
+              Effective Scale X/Y: {effScale}<br />
+              Pixel Budget: {pBudget}<br />
+              Limitation Reason: {limReason}<br />
+              Render Count: {renderCount}<br />
+              Active Canvases: {activeCanvases}
             </div>
           );
         })()}
