@@ -49,7 +49,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
       if (info) {
         setDebugData(info as Record<string, unknown>);
       }
-    }, 500);
+    }, 300);
 
     return () => clearInterval(interval);
   }, []);
@@ -194,22 +194,23 @@ export const PdfViewerToolbar: React.FC<Props> = ({
 
         <span style={{ width: 1, height: 20, background: 'var(--pdf-border)', margin: '0 0.2rem' }} />
 
-        {/* Discrete Quality Selector */}
+        {/* Updated Discrete Quality Selector with Ultra option */}
         <select
           className="pdf-toolbar__select"
           value={state.qualityMode}
           onChange={(e) => onQualityModeChange(e.target.value as PdfQualityMode)}
-          title="Calidad de renderizado"
+          title="Calidad de renderizado interno"
         >
           <option value="auto">Calidad: Automática</option>
-          <option value="high">Calidad: Alta</option>
-          <option value="economy">Calidad: Ahorro</option>
+          <option value="high">Calidad: Alta — 200 %</option>
+          <option value="ultra">Calidad: Ultra — 300 %</option>
+          <option value="economy">Calidad: Ahorro de memoria</option>
         </select>
 
-        {state.qualityMode === 'high' && isLowMemoryDevice && (
+        {(state.qualityMode === 'high' || state.qualityMode === 'ultra') && isLowMemoryDevice && (
           <span
             style={{ fontSize: '10px', color: '#f59e0b', whiteSpace: 'nowrap' }}
-            title="La calidad alta puede utilizar más memoria en este dispositivo"
+            title="Esta calidad puede utilizar más memoria en este dispositivo"
           >
             ⚠️ Poca memoria
           </span>
@@ -264,12 +265,15 @@ export const PdfViewerToolbar: React.FC<Props> = ({
           const workerName = mode === 'LEGACY' ? 'legacy.compat.v1' : 'modern';
           const dpr = window.devicePixelRatio || 1;
           const qMode = state.qualityMode.toUpperCase();
-          const outScale = String(debugData?.outputScale ?? '-');
-          const cW = String(debugData?.canvasWidth ?? '-');
-          const cH = String(debugData?.canvasHeight ?? '-');
-          const cssW = String(debugData?.cssWidth ?? '-');
-          const cssH = String(debugData?.cssHeight ?? '-');
+          const zoomVisual = String(debugData?.zoomVisual ?? `${Math.round(state.zoomScale * 100)}%`);
+          const reqScale = String(debugData?.requestedOutputScale ?? '-');
+          const finalScale = String(debugData?.finalOutputScale ?? '-');
+          const cssSize = String(debugData?.cssSize ?? '-');
+          const canvasPhys = String(debugData?.canvasPhysicalSize ?? '-');
+          const effScale = String(debugData?.effectiveScale ?? '-');
           const pBudget = String(debugData?.pixelBudget ?? '-');
+          const limReason = String(debugData?.limitationReason ?? 'None');
+          const activeCanvases = String(debugData?.activeCanvases ?? '1 active');
 
           return (
             <div
@@ -287,15 +291,18 @@ export const PdfViewerToolbar: React.FC<Props> = ({
                 lineHeight: '1.25',
               }}
             >
-              PDF engine: {mode}<br />
-              Worker: {workerName}<br />
-              PDF.js: 6.2.108<br />
-              Quality: {qMode}<br />
+              PDF Engine: {mode} ({workerName})<br />
+              Quality mode: {qMode}<br />
+              Zoom visual: {zoomVisual}<br />
               DPR: {dpr}<br />
-              Output scale: {outScale}<br />
-              Canvas: {cW} × {cH}<br />
-              CSS viewport: {cssW} × {cssH}<br />
-              Pixel budget: {pBudget}
+              Requested output scale: {reqScale}<br />
+              Final output scale: {finalScale}<br />
+              CSS size: {cssSize}<br />
+              Canvas physical size: {canvasPhys}<br />
+              Effective scale X/Y: {effScale}<br />
+              Pixel budget: {pBudget}<br />
+              Limitation reason: {limReason}<br />
+              Active canvases: {activeCanvases}
             </div>
           );
         })()}

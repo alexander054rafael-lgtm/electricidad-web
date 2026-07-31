@@ -48,7 +48,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
         const dpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
         const compatibility = detectPdfCompatibility();
 
-        // Calculate adaptive HiDPI output scale
+        // Calculate adaptive output scale
         const scaleResult = calculatePdfOutputScale({
           viewportWidth: viewport.width,
           viewportHeight: viewport.height,
@@ -57,22 +57,22 @@ export const PdfPageCanvas: React.FC<Props> = ({
           compatibilityMode: compatibility.mode,
         });
 
-        const outputScale = scaleResult.outputScale;
+        const finalOutputScale = scaleResult.outputScale;
 
-        // Physical backing store resolution (HiDPI)
-        const canvasWidth = Math.floor(viewport.width * outputScale);
-        const canvasHeight = Math.floor(viewport.height * outputScale);
-        canvas.width = canvasWidth;
-        canvas.height = canvasHeight;
-
-        // Logical CSS dimensions matching viewport exactly
+        // Logical CSS dimensions matching viewport scale exactly (Visual Zoom unchanged)
         const cssWidth = Math.floor(viewport.width);
         const cssHeight = Math.floor(viewport.height);
         canvas.style.width = `${cssWidth}px`;
         canvas.style.height = `${cssHeight}px`;
 
+        // Physical backing store resolution (High resolution internal canvas)
+        const canvasWidth = Math.ceil(viewport.width * finalOutputScale);
+        const canvasHeight = Math.ceil(viewport.height * finalOutputScale);
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+
         // Transform for scaling PDF.js rendering context to backing store
-        const transform = outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : undefined;
+        const transform = finalOutputScale !== 1 ? [finalOutputScale, 0, 0, finalOutputScale, 0, 0] : undefined;
 
         const renderContext = {
           canvasContext: context,
@@ -86,19 +86,30 @@ export const PdfPageCanvas: React.FC<Props> = ({
 
         await renderTask.promise;
 
+        // Calculate effective scale X/Y and detect CSS stretching
+        const rect = canvas.getBoundingClientRect();
+        const effectiveScaleX = rect.width > 0 ? Number((canvas.width / rect.width).toFixed(2)) : finalOutputScale;
+        const effectiveScaleY = rect.height > 0 ? Number((canvas.height / rect.height).toFixed(2)) : finalOutputScale;
+        const diffX = Math.abs(effectiveScaleX - finalOutputScale) / finalOutputScale;
+        const diffY = Math.abs(effectiveScaleY - finalOutputScale) / finalOutputScale;
+        const isStretched = diffX > 0.05 || diffY > 0.05;
+
         // Store debug info for ?pdfDebug=1 badge
         if (typeof window !== 'undefined') {
           const isDebug = new URLSearchParams(window.location.search).get('pdfDebug') === '1';
           if (isDebug) {
             (window as unknown as Record<string, unknown>).__pdf_debug_last_render = {
               qualityMode,
+              zoomVisual: `${Math.round(scale * 100)}%`,
               dpr,
-              outputScale,
-              canvasWidth,
-              canvasHeight,
-              cssWidth,
-              cssHeight,
-              pixelBudget: scaleResult.maxPixelsBudget,
+              requestedOutputScale: scaleResult.requestedOutputScale,
+              finalOutputScale,
+              cssSize: `${cssWidth} × ${cssHeight}`,
+              canvasPhysicalSize: `${canvasWidth} × ${canvasHeight}`,
+              effectiveScale: `${effectiveScaleX} / ${effectiveScaleY} ${isStretched ? '⚠️ CANVAS STRETCHED' : ''}`,
+              pixelBudget: `${scaleResult.maxPixelsBudget} px`,
+              limitationReason: scaleResult.limitationReason,
+              activeCanvases: '1 active (pág. actual)',
             };
           }
         }
@@ -119,7 +130,7 @@ export const PdfPageCanvas: React.FC<Props> = ({
         currentRenderTaskRef.current.cancel();
         currentRenderTaskRef.current = null;
       }
-      // Memory cleanup if component unmounts
+      // Memory cleanup: release physical backing store immediately
       if (canvasRef.current) {
         canvasRef.current.width = 0;
         canvasRef.current.height = 0;
