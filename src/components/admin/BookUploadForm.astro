@@ -3,6 +3,13 @@ import { Save, Upload } from '@lucide/astro';
 
 interface EditableBook {
   id: string; title: string; slug: string; author: string | null; category: string; level: string | null; resource_type: string; language: string; pages: number | null; is_published: boolean; description: string | null; tags: string[] | null; topics: string[] | null; badge: string | null; accent: string | null; allow_download: boolean; is_featured: boolean; cover_file_name: string | null; drive_file_name: string | null; cover_drive_file_id: string | null; drive_file_id: string | null;
+  manual_page_labels_enabled?: boolean;
+  manual_page_start_physical?: number | null;
+  manual_page_start_number?: number | null;
+  manual_page_prefix?: string | null;
+  manual_page_suffix?: string | null;
+  manual_page_roman_preliminaries?: boolean;
+  manual_page_preliminary_end_physical?: number | null;
 }
 interface Props { book?: EditableBook }
 const { book } = Astro.props;
@@ -58,8 +65,52 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
     <div class="preview" data-preview hidden={!book?.cover_drive_file_id}><img src={book?.cover_drive_file_id ? `/api/library/books/${book.id}/cover` : undefined} alt="Vista previa de portada" /></div>
     <p class="rights-notice">Sube únicamente material propio, de dominio público o que tengas autorización para distribuir.</p>
   </div>
+  <div class="form-section" data-manual-pages-section>
+    <div class="section-head"><span>03</span><div><h2>Numeración de páginas</h2><p>Configuración manual de etiquetas lógicas para libros sin metadatos de página internos.</p></div></div>
+    <div class="grid options">
+      <label class="check">
+        <input name="manualPageLabelsEnabled" type="checkbox" id="manualPageLabelsEnabled" checked={book?.manual_page_labels_enabled ?? false} />
+        <span>Activar numeración manual</span>
+      </label>
+    </div>
+    <div class="grid manual-fields" id="manualPageFields" style={book?.manual_page_labels_enabled ? 'display:grid;' : 'display:none;'}>
+      <label>Página física donde comienza la numeración principal*
+        <input name="manualPageStartPhysical" type="number" min="1" id="manualPageStartPhysical" value={book?.manual_page_start_physical ?? ''} placeholder="Ej: 18" />
+        <small>Página física del PDF donde la etiqueta lógica debe reiniciar o cambiar.</small>
+      </label>
+      <label>Número inicial*
+        <input name="manualPageStartNumber" type="number" min="0" id="manualPageStartNumber" value={book?.manual_page_start_number ?? ''} placeholder="Ej: 1" />
+        <small>Valor numérico asignado a la primera página de la sección principal.</small>
+      </label>
+      <label>Prefijo opcional
+        <input name="manualPagePrefix" type="text" id="manualPagePrefix" value={book?.manual_page_prefix ?? ''} placeholder="Ej: A-" />
+        <small>Se antepone a cada número lógico (ej: A-1, A-2).</small>
+      </label>
+      <label>Sufijo opcional
+        <input name="manualPageSuffix" type="text" id="manualPageSuffix" value={book?.manual_page_suffix ?? ''} placeholder="Ej:  bis" />
+        <small>Se añade al final de cada número lógico (ej: 1 bis).</small>
+      </label>
+      <div class="grid options" style="grid-column: span 2;">
+        <label class="check">
+          <input name="manualPageRomanPreliminaries" type="checkbox" id="manualPageRomanPreliminaries" checked={book?.manual_page_roman_preliminaries ?? false} />
+          <span>Usar números romanos en preliminares (i, ii, iii...)</span>
+        </label>
+      </div>
+      <label style="grid-column: span 2;">Última página física preliminar
+        <input name="manualPagePreliminaryEndPhysical" type="number" min="1" id="manualPagePreliminaryEndPhysical" value={book?.manual_page_preliminary_end_physical ?? ''} placeholder="Ej: 17 (Opcional)" />
+        <small>Si no se especifica, las páginas anteriores a la página física de inicio serán tratadas como preliminares.</small>
+      </label>
+    </div>
+    <div class="manual-preview-container" id="manualPagePreviewContainer" style={book?.manual_page_labels_enabled ? 'display:block;' : 'display:none;'}>
+      <h3 style="font-size:0.85rem;margin:0 0 0.5rem;color:var(--admin-text);">Vista previa dinámica</h3>
+      <div class="manual-preview-list" id="manualPagePreviewList" style="background:#fff;padding:0.75rem;border:1px solid var(--admin-border);border-radius:8px;font-family:monospace;font-size:0.78rem;line-height:1.6;color:var(--admin-text);">
+        En espera de parámetros válidos...
+      </div>
+    </div>
+  </div>
+
   <div class="form-section">
-    <div class="section-head"><span>03</span><div><h2>Publicación</h2><p>Controla cómo aparece este recurso dinámico.</p></div></div>
+    <div class="section-head"><span>04</span><div><h2>Publicación</h2><p>Controla cómo aparece este recurso dinámico.</p></div></div>
     <div class="grid options"><label class="check"><input name="allowDownload" type="checkbox" checked={book?.allow_download ?? false} /><span>Permitir descarga del PDF</span></label><label class="check"><input name="isFeatured" type="checkbox" checked={book?.is_featured ?? false} /><span>Marcar como destacado</span></label></div>
   </div>
   <div class="diagnostic-panel" data-diagnostic-panel hidden>
@@ -240,6 +291,45 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
         return { element: descriptionTextarea || form, message: 'Falta la descripción' };
       }
 
+      // Validaciones de numeración manual
+      const manualEnabled = form.querySelector<HTMLInputElement>('#manualPageLabelsEnabled')?.checked;
+      if (manualEnabled) {
+        const startPhysInput = form.querySelector<HTMLInputElement>('#manualPageStartPhysical');
+        const startPhysVal = startPhysInput?.value.trim();
+        if (!startPhysVal) {
+          return { element: startPhysInput || form, message: 'Ingresa la página física donde comienza la numeración' };
+        }
+        const startPhysNum = Number(startPhysVal);
+        if (isNaN(startPhysNum) || startPhysNum < 1) {
+          return { element: startPhysInput || form, message: 'La página física de inicio debe ser un número mayor o igual a 1' };
+        }
+        if (pagesNum && startPhysNum > pagesNum) {
+          return { element: startPhysInput || form, message: `La página física de inicio (${startPhysNum}) no puede superar el total de páginas (${pagesNum})` };
+        }
+
+        const startNumInput = form.querySelector<HTMLInputElement>('#manualPageStartNumber');
+        const startNumVal = startNumInput?.value.trim();
+        if (startNumVal === undefined || startNumVal === '') {
+          return { element: startNumInput || form, message: 'Ingresa el número de página inicial' };
+        }
+        const startNumValNum = Number(startNumVal);
+        if (isNaN(startNumValNum) || startNumValNum < 0) {
+          return { element: startNumInput || form, message: 'El número inicial debe ser mayor o igual a 0' };
+        }
+
+        const prelimEndInput = form.querySelector<HTMLInputElement>('#manualPagePreliminaryEndPhysical');
+        const prelimEndVal = prelimEndInput?.value.trim();
+        if (prelimEndVal) {
+          const prelimEndNum = Number(prelimEndVal);
+          if (isNaN(prelimEndNum) || prelimEndNum < 1) {
+            return { element: prelimEndInput || form, message: 'La última página preliminar debe ser mayor o igual a 1' };
+          }
+          if (prelimEndNum >= startPhysNum) {
+            return { element: prelimEndInput || form, message: 'La última página preliminar debe ser menor que la página física de inicio' };
+          }
+        }
+      }
+
       const pdfFile = pdf?.files?.[0];
       const editing = Boolean(form.dataset.resourceId);
       if (!editing && !pdfFile) {
@@ -288,24 +378,134 @@ const FILE_BACKEND = import.meta.env.PUBLIC_LIBRARY_FILE_BACKEND ?? 'drive-brows
       return result as UploadConfig;
     };
 
-    const metadataFrom = (data: FormData, intent: 'draft' | 'publish') => ({
-      title: String(data.get('title') ?? ''),
-      slug: String(data.get('slug') ?? ''),
-      author: String(data.get('author') ?? ''),
-      description: String(data.get('description') ?? ''),
-      category: String(data.get('category') ?? ''),
-      bookType: String(data.get('bookType') ?? ''),
-      level: String(data.get('level') ?? ''),
-      language: String(data.get('language') ?? ''),
-      pages: Number(data.get('pages')),
-      tags: String(data.get('tags') ?? ''),
-      topics: String(data.get('topics') ?? ''),
-      badge: String(data.get('badge') ?? '') || null,
-      accent: String(data.get('accent') ?? ''),
-      allowDownload: data.get('allowDownload') === 'on',
-      isFeatured: data.get('isFeatured') === 'on',
-      status: intent === 'publish' ? 'published' : 'draft',
-    });
+    const metadataFrom = (data: FormData, intent: 'draft' | 'publish') => {
+      const enabled = data.get('manualPageLabelsEnabled') === 'on' || data.get('manualPageLabelsEnabled') === 'true';
+      const startPhysRaw = data.get('manualPageStartPhysical');
+      const startNumRaw = data.get('manualPageStartNumber');
+      const prelimEndRaw = data.get('manualPagePreliminaryEndPhysical');
+
+      return {
+        title: String(data.get('title') ?? ''),
+        slug: String(data.get('slug') ?? ''),
+        author: String(data.get('author') ?? ''),
+        description: String(data.get('description') ?? ''),
+        category: String(data.get('category') ?? ''),
+        bookType: String(data.get('bookType') ?? ''),
+        level: String(data.get('level') ?? ''),
+        language: String(data.get('language') ?? ''),
+        pages: Number(data.get('pages')),
+        tags: String(data.get('tags') ?? ''),
+        topics: String(data.get('topics') ?? ''),
+        badge: String(data.get('badge') ?? ''),
+        accent: String(data.get('accent') ?? '#16a34a'),
+        allowDownload: data.get('allowDownload') === 'on' || data.get('allowDownload') === 'true',
+        isFeatured: data.get('isFeatured') === 'on' || data.get('isFeatured') === 'true',
+        status: intent === 'publish' ? 'published' : 'draft',
+        manualPageLabelsEnabled: enabled,
+        manualPageStartPhysical: enabled && startPhysRaw ? Number(startPhysRaw) : null,
+        manualPageStartNumber: enabled && startNumRaw !== null && startNumRaw !== '' ? Number(startNumRaw) : null,
+        manualPagePrefix: enabled ? (String(data.get('manualPagePrefix') ?? '').trim() || null) : null,
+        manualPageSuffix: enabled ? (String(data.get('manualPageSuffix') ?? '').trim() || null) : null,
+        manualPageRomanPreliminaries: enabled ? (data.get('manualPageRomanPreliminaries') === 'on' || data.get('manualPageRomanPreliminaries') === 'true') : false,
+        manualPagePreliminaryEndPhysical: enabled && prelimEndRaw ? Number(prelimEndRaw) : null,
+      };
+    };
+
+    // Manual Page Labels interactive logic & dynamic preview
+    const enabledCheckbox = form.querySelector<HTMLInputElement>('#manualPageLabelsEnabled');
+    const manualFieldsDiv = form.querySelector<HTMLElement>('#manualPageFields');
+    const previewContainer = form.querySelector<HTMLElement>('#manualPagePreviewContainer');
+    const previewList = form.querySelector<HTMLElement>('#manualPagePreviewList');
+
+    const startPhysicalInput = form.querySelector<HTMLInputElement>('#manualPageStartPhysical');
+    const startNumberInput = form.querySelector<HTMLInputElement>('#manualPageStartNumber');
+    const prefixInput = form.querySelector<HTMLInputElement>('#manualPagePrefix');
+    const suffixInput = form.querySelector<HTMLInputElement>('#manualPageSuffix');
+    const romanCheckbox = form.querySelector<HTMLInputElement>('#manualPageRomanPreliminaries');
+    const prelimEndInput = form.querySelector<HTMLInputElement>('#manualPagePreliminaryEndPhysical');
+
+    const integerToRoman = (num: number): string => {
+      if (!Number.isInteger(num) || num < 1) return String(num);
+      const lookup: Array<[number, string]> = [
+        [1000, 'm'], [900, 'cm'], [500, 'd'], [400, 'cd'], [100, 'c'],
+        [90, 'xc'], [50, 'l'], [40, 'xl'], [10, 'x'], [9, 'ix'],
+        [5, 'v'], [4, 'iv'], [1, 'i']
+      ];
+      let res = '';
+      let n = num;
+      for (const [val, sym] of lookup) {
+        while (n >= val) { res += sym; n -= val; }
+      }
+      return res;
+    };
+
+    const updateManualPreview = () => {
+      if (!enabledCheckbox?.checked) {
+        if (manualFieldsDiv) manualFieldsDiv.style.display = 'none';
+        if (previewContainer) previewContainer.style.display = 'none';
+        return;
+      }
+
+      if (manualFieldsDiv) manualFieldsDiv.style.display = 'grid';
+      if (previewContainer) previewContainer.style.display = 'block';
+
+      const startPhys = Number(startPhysicalInput?.value);
+      const startNum = startNumberInput?.value !== '' ? Number(startNumberInput?.value) : NaN;
+      const prefix = prefixInput?.value ?? '';
+      const suffix = suffixInput?.value ?? '';
+      const useRoman = romanCheckbox?.checked ?? false;
+      const prelimEnd = prelimEndInput?.value ? Number(prelimEndInput?.value) : null;
+      const totalKnownPages = Number(form.querySelector<HTMLInputElement>('input[name="pages"]')?.value) || 20;
+
+      if (!startPhys || isNaN(startPhys) || startPhys < 1 || isNaN(startNum) || startNum < 0) {
+        if (previewList) previewList.innerHTML = '<span style="color:#b42318;">Proporcione al menos la página física de inicio (≥ 1) y el número inicial (≥ 0) para ver la vista previa.</span>';
+        return;
+      }
+
+      if (prelimEnd != null && prelimEnd >= startPhys) {
+        if (previewList) previewList.innerHTML = '<span style="color:#b42318;">Error: La última página preliminar debe ser menor que la página física de inicio.</span>';
+        return;
+      }
+
+      const samplePages = new Set<number>();
+      for (let p = 1; p <= Math.min(3, startPhys - 1); p++) samplePages.add(p);
+      if (startPhys > 1) samplePages.add(startPhys - 1);
+      samplePages.add(startPhys);
+      samplePages.add(startPhys + 1);
+      samplePages.add(startPhys + 2);
+      if (totalKnownPages >= startPhys + 5) samplePages.add(totalKnownPages);
+
+      const sortedPages = Array.from(samplePages).filter(p => p >= 1 && p <= Math.max(totalKnownPages, startPhys + 2)).sort((a, b) => a - b);
+
+      const items: string[] = [];
+      for (const p of sortedPages) {
+        let label = '';
+        if (p < startPhys) {
+          if (useRoman && (prelimEnd == null || p <= prelimEnd)) {
+            label = integerToRoman(p);
+          } else {
+            label = String(p);
+          }
+        } else {
+          const logicalNum = startNum + (p - startPhys);
+          label = `${prefix}${logicalNum}${suffix}`;
+        }
+        items.push(`Física ${p} → ${label}`);
+      }
+
+      if (previewList) previewList.innerHTML = items.join('<br />');
+    };
+
+    enabledCheckbox?.addEventListener('change', updateManualPreview);
+    startPhysicalInput?.addEventListener('input', updateManualPreview);
+    startNumberInput?.addEventListener('input', updateManualPreview);
+    prefixInput?.addEventListener('input', updateManualPreview);
+    suffixInput?.addEventListener('input', updateManualPreview);
+    romanCheckbox?.addEventListener('change', updateManualPreview);
+    prelimEndInput?.addEventListener('input', updateManualPreview);
+    form.querySelector<HTMLInputElement>('input[name="pages"]')?.addEventListener('input', updateManualPreview);
+
+    updateManualPreview();
 
     const toEditorialMetadata = (data: FormData): EditorialMetadata => ({
       title: String(data.get('title') ?? '').trim(),

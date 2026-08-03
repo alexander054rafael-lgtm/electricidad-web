@@ -36,6 +36,8 @@ let author = '';
 let pdfUrl = '';
 let allowDownload = false;
 
+let manualPageLabelConfig = staticCandidate?.manualPageLabelConfig ?? null;
+
 if (staticCandidate) {
   const resolved = resolvePdfSource({
     id: staticCandidate.id,
@@ -94,6 +96,7 @@ if (staticCandidate) {
   }
 
   const mapped = mapDatabaseBook(row);
+  manualPageLabelConfig = mapped.manualPageLabelConfig ?? null;
 
   // 5. Decoupled PDF source resolution
   const resolved = resolvePdfSource({
@@ -134,6 +137,7 @@ const initialPage = isNaN(pageParam) || pageParam < 1 ? 1 : pageParam;
       pdfUrl={pdfUrl}
       allowDownload={allowDownload}
       initialPage={initialPage}
+      manualPageLabelConfig={manualPageLabelConfig}
     />
   </main>
 </Layout>

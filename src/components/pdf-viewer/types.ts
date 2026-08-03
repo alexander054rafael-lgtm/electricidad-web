@@ -36,6 +36,18 @@ export interface ReadingProgressEvent {
   timestamp: number;
 }
 
+export interface ManualPageLabelConfig {
+  enabled: boolean;
+  startPhysicalPage: number | null;
+  startNumber: number | null;
+  prefix: string | null;
+  suffix: string | null;
+  romanPreliminaries: boolean;
+  preliminaryEndPhysicalPage: number | null;
+}
+
+export type PageLabelSource = 'manual' | 'embedded' | 'physical-fallback';
+
 export interface PdfViewerProps {
   resourceId: string;
   title: string;
@@ -44,6 +56,7 @@ export interface PdfViewerProps {
   allowDownload: boolean;
   capabilities?: Partial<PdfViewerFeatureCapabilities>;
   initialPage?: number;
+  manualPageLabelConfig?: ManualPageLabelConfig | null;
   onProgressChange?: (event: ReadingProgressEvent) => void;
   onError?: (error: Error) => void;
 }
@@ -58,6 +71,7 @@ export interface PdfViewerState {
   qualityMode: PdfQualityMode;
   pageLabels: string[] | null;
   pageLabelMaps: PdfPageLabelMaps | null;
+  pageLabelSource: PageLabelSource;
   pageInputValue: string;
   sidebarTab: SidebarTab;
   sidebarOpen: boolean;

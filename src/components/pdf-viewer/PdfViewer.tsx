@@ -35,6 +35,7 @@ export const PdfViewer: React.FC<PdfViewerProps> = (props) => {
         title={props.title}
         state={state}
         capabilities={capabilities}
+        manualPageLabelConfig={props.manualPageLabelConfig}
         onGoToPage={goToPage}
         onGoToPageInput={goToPageInput}
         onPageInputChange={setPageInputValue}

@@ -17,6 +17,7 @@ export function usePdfViewer({
   pdfUrl,
   allowDownload,
   initialPage = 1,
+  manualPageLabelConfig,
   onProgressChange,
   onError,
 }: PdfViewerProps) {
@@ -33,6 +34,7 @@ export function usePdfViewer({
     qualityMode: getSavedPdfQualityMode(),
     pageLabels: null,
     pageLabelMaps: null,
+    pageLabelSource: 'physical-fallback',
     pageInputValue: String(initialPage),
     sidebarTab: 'none',
     sidebarOpen: false,
@@ -122,7 +124,7 @@ export function usePdfViewer({
           console.warn('[usePdfViewer] No se pudieron cargar las etiquetas de página del PDF:', labelErr);
         }
 
-        const labelMaps = createPdfPageLabelMaps(rawLabels, total);
+        const labelMaps = createPdfPageLabelMaps(rawLabels, total, manualPageLabelConfig);
         const initialLabel = labelMaps.physicalToLabel[validInitial - 1] ?? String(validInitial);
 
         setState((prev) => ({
@@ -132,6 +134,7 @@ export function usePdfViewer({
           currentPage: validInitial,
           pageLabels: rawLabels,
           pageLabelMaps: labelMaps,
+          pageLabelSource: labelMaps.source,
           pageInputValue: initialLabel,
         }));
       })

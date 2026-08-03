@@ -1,3 +1,5 @@
+import type { ManualPageLabelConfig } from '../../components/pdf-viewer/types';
+
 export const LIBRARY_RESOURCE_TYPES = [
   'Libro',
   'Manual',
@@ -48,6 +50,7 @@ type LibraryResourcePresentation = {
   coverUrl?: string;
   isFeatured?: boolean;
   allowDownload: boolean;
+  manualPageLabelConfig?: ManualPageLabelConfig | null;
   progress?: ReadingProgress | null;
 };
 
@@ -90,6 +93,13 @@ export type DatabaseLibraryResourceRow = {
   badge: LibraryResourceBadge | null;
   accent: string | null;
   allow_download: boolean;
+  manual_page_labels_enabled?: boolean;
+  manual_page_start_physical?: number | null;
+  manual_page_start_number?: number | null;
+  manual_page_prefix?: string | null;
+  manual_page_suffix?: string | null;
+  manual_page_roman_preliminaries?: boolean;
+  manual_page_preliminary_end_physical?: number | null;
   storage_backend?: string | null;
   is_featured: boolean;
   is_published: boolean;

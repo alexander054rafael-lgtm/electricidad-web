@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { books as sampleBooks } from '../../data/books';
 import type { DatabaseLibraryResource, DatabaseLibraryResourceRow, LibraryResource, StaticLibraryResource } from './types';
 
-export const DATABASE_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,tags,topics,badge,accent,allow_download,storage_backend,is_featured,is_published,created_at,updated_at';
+export const DATABASE_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,tags,topics,badge,accent,allow_download,manual_page_labels_enabled,manual_page_start_physical,manual_page_start_number,manual_page_prefix,manual_page_suffix,manual_page_roman_preliminaries,manual_page_preliminary_end_physical,storage_backend,is_featured,is_published,created_at,updated_at';
 
-export const PUBLIC_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,tags,topics,badge,accent,allow_download,is_featured,is_published,created_at,updated_at';
+export const PUBLIC_BOOK_SELECT = 'id,title,slug,display_slug,author,description,category,resource_type,level,language,pages,drive_file_size,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,tags,topics,badge,accent,allow_download,manual_page_labels_enabled,manual_page_start_physical,manual_page_start_number,manual_page_prefix,manual_page_suffix,manual_page_roman_preliminaries,manual_page_preliminary_end_physical,is_featured,is_published,created_at,updated_at';
 
 export type DatabaseBookRow = DatabaseLibraryResourceRow;
 
@@ -59,6 +59,15 @@ export const mapDatabaseBook = (row: DatabaseBookRow): DatabaseLibraryResource =
     : safeDriveUrl(row.cover_url),
   isFeatured: Boolean(row.is_featured),
   allowDownload: row.allow_download,
+  manualPageLabelConfig: {
+    enabled: Boolean(row.manual_page_labels_enabled),
+    startPhysicalPage: row.manual_page_start_physical ?? null,
+    startNumber: row.manual_page_start_number ?? null,
+    prefix: row.manual_page_prefix ?? null,
+    suffix: row.manual_page_suffix ?? null,
+    romanPreliminaries: Boolean(row.manual_page_roman_preliminaries),
+    preliminaryEndPhysicalPage: row.manual_page_preliminary_end_physical ?? null,
+  },
 });
 
 export const mergeLibraryResources = (dynamicResources: LibraryResource[]): LibraryResource[] => {

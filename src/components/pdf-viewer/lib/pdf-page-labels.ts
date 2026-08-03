@@ -1,7 +1,10 @@
+import type { ManualPageLabelConfig, PageLabelSource } from '../types';
+
 export interface PdfPageLabelMaps {
   physicalToLabel: string[];
   labelToPhysical: Map<string, number[]>;
   isFallback: boolean;
+  source: PageLabelSource;
 }
 
 export interface ResolvePageInputResult {
@@ -14,6 +17,91 @@ export interface ResolvePageInputResult {
 }
 
 /**
+ * Converts a positive integer to lower-case Roman numerals.
+ */
+export function integerToRoman(num: number): string {
+  if (!Number.isInteger(num) || num < 1) return String(num);
+  const lookup: Array<[number, string]> = [
+    [1000, 'm'],
+    [900, 'cm'],
+    [500, 'd'],
+    [400, 'cd'],
+    [100, 'c'],
+    [90, 'xc'],
+    [50, 'l'],
+    [40, 'xl'],
+    [10, 'x'],
+    [9, 'ix'],
+    [5, 'v'],
+    [4, 'iv'],
+    [1, 'i'],
+  ];
+
+  let result = '';
+  let n = num;
+  for (const [value, symbol] of lookup) {
+    while (n >= value) {
+      result += symbol;
+      n -= value;
+    }
+  }
+  return result;
+}
+
+/**
+ * Creates manual page labels if configuration is enabled and valid.
+ */
+export function createManualPageLabels(params: {
+  totalPages: number;
+  config: ManualPageLabelConfig | null | undefined;
+}): string[] | null {
+  const { totalPages, config } = params;
+  if (!config || !config.enabled) return null;
+  if (
+    config.startPhysicalPage == null ||
+    config.startNumber == null ||
+    isNaN(config.startPhysicalPage) ||
+    isNaN(config.startNumber) ||
+    config.startPhysicalPage < 1 ||
+    config.startNumber < 0
+  ) {
+    return null;
+  }
+
+  const {
+    startPhysicalPage,
+    startNumber,
+    prefix,
+    suffix,
+    romanPreliminaries,
+    preliminaryEndPhysicalPage,
+  } = config;
+
+  const labels: string[] = [];
+  const pref = prefix ?? '';
+  const suff = suffix ?? '';
+
+  for (let physicalPage = 1; physicalPage <= totalPages; physicalPage++) {
+    if (physicalPage < startPhysicalPage) {
+      if (
+        romanPreliminaries &&
+        (preliminaryEndPhysicalPage == null || physicalPage <= preliminaryEndPhysicalPage)
+      ) {
+        labels.push(integerToRoman(physicalPage));
+      } else {
+        labels.push(String(physicalPage));
+      }
+    } else {
+      const logicalNumber = startNumber + (physicalPage - startPhysicalPage);
+      const labelStr = `${pref}${logicalNumber}${suff}`;
+      labels.push(labelStr.length > 0 ? labelStr : String(physicalPage));
+    }
+  }
+
+  return labels;
+}
+
+/**
  * Normalizes input for comparison without destroying original label.
  */
 export function normalizePageLabel(value: string): string {
@@ -21,20 +109,40 @@ export function normalizePageLabel(value: string): string {
 }
 
 /**
- * Creates bidirectional page label lookup maps.
+ * Creates bidirectional page label lookup maps with source priority:
+ * 1. Manual config
+ * 2. Embedded PDF labels
+ * 3. Physical page fallback
  */
 export function createPdfPageLabelMaps(
-  pageLabels: string[] | null,
+  embeddedLabels: string[] | null,
   totalPages: number,
+  manualConfig?: ManualPageLabelConfig | null
 ): PdfPageLabelMaps {
+  const manualLabels = createManualPageLabels({ totalPages, config: manualConfig });
+
+  let effectiveLabels: string[] | null = null;
+  let source: PageLabelSource = 'physical-fallback';
+
+  if (manualLabels && manualLabels.length === totalPages) {
+    effectiveLabels = manualLabels;
+    source = 'manual';
+  } else if (embeddedLabels && embeddedLabels.length > 0) {
+    effectiveLabels = embeddedLabels;
+    source = 'embedded';
+  } else {
+    effectiveLabels = null;
+    source = 'physical-fallback';
+  }
+
   const physicalToLabel: string[] = new Array(totalPages);
   const labelToPhysical = new Map<string, number[]>();
 
-  const isFallback = !pageLabels || pageLabels.length === 0;
+  const isFallback = source === 'physical-fallback';
 
   for (let i = 0; i < totalPages; i += 1) {
     const physicalNum = i + 1;
-    const rawLabel = pageLabels && pageLabels[i] ? pageLabels[i].trim() : String(physicalNum);
+    const rawLabel = effectiveLabels && effectiveLabels[i] ? effectiveLabels[i].trim() : String(physicalNum);
     const label = rawLabel.length > 0 ? rawLabel : String(physicalNum);
 
     physicalToLabel[i] = label;
@@ -49,6 +157,7 @@ export function createPdfPageLabelMaps(
     physicalToLabel,
     labelToPhysical,
     isFallback,
+    source,
   };
 }
 

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import type { PdfQualityMode } from './lib/pdf-render-scale';
-import type { PdfViewerCapabilities, PdfViewerState, SidebarTab, ZoomMode } from './types';
+import type { ManualPageLabelConfig, PdfViewerCapabilities, PdfViewerState, SidebarTab, ZoomMode } from './types';
 
 interface Props {
   title: string;
   state: PdfViewerState;
   capabilities: PdfViewerCapabilities;
+  manualPageLabelConfig?: ManualPageLabelConfig | null;
   onGoToPage: (page: number) => void;
   onGoToPageInput: (input: string) => boolean;
   onPageInputChange: (value: string) => void;
@@ -26,6 +27,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
   title,
   state,
   capabilities,
+  manualPageLabelConfig,
   onGoToPageInput,
   onPageInputChange,
   onNextPage,
@@ -267,10 +269,7 @@ export const PdfViewerToolbar: React.FC<Props> = ({
             ? 'LEGACY'
             : 'MODERN';
           const workerName = mode === 'LEGACY' ? 'legacy.compat.v1' : 'modern';
-          const labelSource = state.pageLabelMaps?.isFallback ? 'physical-fallback' : 'embedded';
-          const lastInput = String(debugData?.lastResolvedInput ?? state.pageInputValue);
-          const resPhysical = String(debugData?.resolvedPhysicalPage ?? state.currentPage);
-          const matchedBy = String(debugData?.matchedBy ?? (isLabelDifferent ? 'label' : 'physical'));
+          const labelSource = state.pageLabelSource ?? (state.pageLabelMaps?.isFallback ? 'physical-fallback' : 'embedded');
 
           return (
             <div
@@ -293,8 +292,15 @@ export const PdfViewerToolbar: React.FC<Props> = ({
               Current page label: {currentLabel}<br />
               Current physical page: {state.currentPage}<br />
               Total physical pages: {state.totalPages}<br />
-              Last resolved input: "{lastInput}" → {resPhysical}<br />
-              Page input resolved by: {matchedBy}
+              {labelSource === 'manual' && manualPageLabelConfig && (
+                <>
+                  Manual start physical: {manualPageLabelConfig.startPhysicalPage ?? 'N/A'}<br />
+                  Manual start number: {manualPageLabelConfig.startNumber ?? 'N/A'}<br />
+                  Prefix: {manualPageLabelConfig.prefix ?? ''}<br />
+                  Suffix: {manualPageLabelConfig.suffix ?? ''}<br />
+                  Roman preliminaries: {manualPageLabelConfig.romanPreliminaries ? 'true' : 'false'}<br />
+                </>
+              )}
             </div>
           );
         })()}

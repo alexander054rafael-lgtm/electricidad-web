@@ -11,7 +11,7 @@ import {
 } from '../google-drive/server';
 import type { AdminLibraryResource } from './types';
 
-export const LIBRARY_ADMIN_SELECT = 'id,title,slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,drive_public_permission_id,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,cover_public_permission_id,tags,topics,badge,accent,allow_download,is_featured,is_published,file_error,created_by,created_at,updated_at';
+export const LIBRARY_ADMIN_SELECT = 'id,title,slug,author,description,category,resource_type,level,language,pages,drive_file_id,drive_view_link,drive_download_link,drive_file_name,drive_mime_type,drive_file_size,drive_public_permission_id,cover_drive_file_id,cover_url,cover_file_name,cover_mime_type,cover_file_size,cover_public_permission_id,tags,topics,badge,accent,allow_download,manual_page_labels_enabled,manual_page_start_physical,manual_page_start_number,manual_page_prefix,manual_page_suffix,manual_page_roman_preliminaries,manual_page_preliminary_end_physical,is_featured,is_published,file_error,created_by,created_at,updated_at';
 
 export class LibraryOperationError extends Error {
   resource?: unknown;

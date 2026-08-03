@@ -4,7 +4,7 @@ import AdminLayout from '../../../../layouts/AdminLayout.astro';
 import BookUploadForm from '../../../../components/admin/BookUploadForm.astro';
 const id = Astro.params.id ?? '';
 if (!Astro.locals.supabase) return new Response(null, { status: 503 });
-const result = await Astro.locals.supabase.from('library_resources').select('id,title,slug,author,category,level,resource_type,language,pages,is_published,description,tags,topics,badge,accent,allow_download,is_featured,cover_file_name,drive_file_name,cover_drive_file_id,drive_file_id').eq('id', id).maybeSingle();
+const result = await Astro.locals.supabase.from('library_resources').select('id,title,slug,author,category,level,resource_type,language,pages,is_published,description,tags,topics,badge,accent,allow_download,is_featured,cover_file_name,drive_file_name,cover_drive_file_id,drive_file_id,manual_page_labels_enabled,manual_page_start_physical,manual_page_start_number,manual_page_prefix,manual_page_suffix,manual_page_roman_preliminaries,manual_page_preliminary_end_physical').eq('id', id).maybeSingle();
 if (result.error || !result.data) return new Response(null, { status: 404 });
 ---
 <AdminLayout title="Editar recurso" description="Actualiza metadatos o reemplaza archivos sin eliminar primero los anteriores." active="books">

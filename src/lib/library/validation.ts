@@ -185,6 +185,78 @@ export const validateLibraryResourcePatch = (body: unknown) => {
     updates.accent = record.accent;
   }
   if ('badge' in record) updates.badge = record.badge === null || record.badge === '' ? null : requiredEnum(record.badge, LIBRARY_RESOURCE_BADGES, 'Distintivo');
+
+  // Manual Page Labeling Validations
+  if ('manualPageLabelsEnabled' in record || 'manual_page_labels_enabled' in record) {
+    const val = record.manualPageLabelsEnabled ?? record.manual_page_labels_enabled;
+    if (typeof val !== 'boolean') throw new LibraryValidationError('Activar numeración manual debe ser booleano.', 'manualPageLabelsEnabled', 400);
+    updates.manual_page_labels_enabled = val;
+  }
+
+  if ('manualPageStartPhysical' in record || 'manual_page_start_physical' in record) {
+    const val = record.manualPageStartPhysical ?? record.manual_page_start_physical;
+    if (val === null || val === '') {
+      updates.manual_page_start_physical = null;
+    } else {
+      const num = Number(val);
+      if (!Number.isInteger(num) || num < 1) throw new LibraryValidationError('Página física de inicio debe ser un entero mayor o igual a 1.', 'manualPageStartPhysical', 400);
+      updates.manual_page_start_physical = num;
+    }
+  }
+
+  if ('manualPageStartNumber' in record || 'manual_page_start_number' in record) {
+    const val = record.manualPageStartNumber ?? record.manual_page_start_number;
+    if (val === null || val === '') {
+      updates.manual_page_start_number = null;
+    } else {
+      const num = Number(val);
+      if (!Number.isInteger(num) || num < 0) throw new LibraryValidationError('Número inicial debe ser un entero mayor o igual a 0.', 'manualPageStartNumber', 400);
+      updates.manual_page_start_number = num;
+    }
+  }
+
+  if ('manualPagePrefix' in record || 'manual_page_prefix' in record) {
+    const val = record.manualPagePrefix ?? record.manual_page_prefix;
+    updates.manual_page_prefix = val ? sanitizePlainText(val, 50) : null;
+  }
+
+  if ('manualPageSuffix' in record || 'manual_page_suffix' in record) {
+    const val = record.manualPageSuffix ?? record.manual_page_suffix;
+    updates.manual_page_suffix = val ? sanitizePlainText(val, 50) : null;
+  }
+
+  if ('manualPageRomanPreliminaries' in record || 'manual_page_roman_preliminaries' in record) {
+    const val = record.manualPageRomanPreliminaries ?? record.manual_page_roman_preliminaries;
+    if (typeof val !== 'boolean') throw new LibraryValidationError('Números romanos en preliminares debe ser booleano.', 'manualPageRomanPreliminaries', 400);
+    updates.manual_page_roman_preliminaries = val;
+  }
+
+  if ('manualPagePreliminaryEndPhysical' in record || 'manual_page_preliminary_end_physical' in record) {
+    const val = record.manualPagePreliminaryEndPhysical ?? record.manual_page_preliminary_end_physical;
+    if (val === null || val === '') {
+      updates.manual_page_preliminary_end_physical = null;
+    } else {
+      const num = Number(val);
+      if (!Number.isInteger(num) || num < 1) throw new LibraryValidationError('Última página física preliminar debe ser un entero mayor o igual a 1.', 'manualPagePreliminaryEndPhysical', 400);
+      updates.manual_page_preliminary_end_physical = num;
+    }
+  }
+
+  // Inter-field validation if enabled
+  const finalEnabled = updates.manual_page_labels_enabled !== undefined ? updates.manual_page_labels_enabled : record.manual_page_labels_enabled;
+  if (finalEnabled === true) {
+    const startPhys = (updates.manual_page_start_physical !== undefined ? updates.manual_page_start_physical : record.manual_page_start_physical) as number | null;
+    const startNum = (updates.manual_page_start_number !== undefined ? updates.manual_page_start_number : record.manual_page_start_number) as number | null;
+    const prelimEnd = (updates.manual_page_preliminary_end_physical !== undefined ? updates.manual_page_preliminary_end_physical : record.manual_page_preliminary_end_physical) as number | null;
+
+    if (!startPhys) throw new LibraryValidationError('Debe especificar la página física de inicio.', 'manualPageStartPhysical', 400);
+    if (startNum === null || startNum === undefined) throw new LibraryValidationError('Debe especificar el número inicial.', 'manualPageStartNumber', 400);
+
+    if (prelimEnd != null && startPhys != null && prelimEnd >= startPhys) {
+      throw new LibraryValidationError('La última página preliminar debe ser estrictamente menor que la página física de inicio.', 'manualPagePreliminaryEndPhysical', 400);
+    }
+  }
+
   if (!Object.keys(updates).length) throw new LibraryValidationError('No hay cambios válidos.');
   return updates;
 };
