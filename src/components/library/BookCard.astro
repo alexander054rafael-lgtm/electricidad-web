@@ -8,7 +8,7 @@ const { book } = Astro.props;
 const readerUrl = `/biblioteca/leer/${book.id}`;
 const downloadUrl = book.downloadUrl ?? (book.source === 'database' ? `/api/library/books/${book.id}/pdf` : book.pdfUrl);
 ---
-<article class="book-card" data-book data-resource-id={book.id} data-source={book.source} data-search={`${book.title} ${book.author} ${book.category} ${book.tags.join(' ')}`.toLowerCase()} data-category={book.category} data-level={book.level} data-type={book.type} data-language={book.language} data-featured={String(Boolean(book.isFeatured))} data-year={book.publicationYear} data-downloads={book.downloads}>
+<article class="book-card library-card--compact" data-book data-resource-id={book.id} data-source={book.source} data-search={`${book.title} ${book.author} ${book.category} ${book.tags.join(' ')}`.toLowerCase()} data-category={book.category} data-level={book.level} data-type={book.type} data-language={book.language} data-featured={String(Boolean(book.isFeatured))} data-year={book.publicationYear} data-downloads={book.downloads}>
   <a href={`/biblioteca/${book.slug}`} class:list={['book-card__cover', { 'has-image': book.coverUrl }]} style={`--accent:${book.accent}`} aria-label={`Ver detalles de ${book.title}`}>
     {book.coverUrl ? (
       <>
@@ -35,7 +35,9 @@ const downloadUrl = book.downloadUrl ?? (book.source === 'database' ? `/api/libr
   </a>
   <div class="book-card__body">
     <div class="book-card__meta"><span>{book.category}</span>{book.badge && <b>{book.badge}</b>}</div>
-    <h2><a href={`/biblioteca/${book.slug}`}>{book.title}</a></h2><p class="book-card__author">{book.author}</p><p class="book-card__description">{book.description}</p>
+    <h2><a href={`/biblioteca/${book.slug}`}>{book.title}</a></h2>
+    <p class="book-card__author">{book.author}</p>
+    {book.description && <p class="book-card__description" title={book.description}>{book.description}</p>}
     {book.progress && book.progress.percent > 0 && (
       <div class="book-card__progress">
         <div class="book-card__progress-info">
@@ -71,7 +73,13 @@ const downloadUrl = book.downloadUrl ?? (book.source === 'database' ? `/api/libr
   .book-card[data-featured="true"] { border-color: rgba(22, 163, 74, 0.45); box-shadow: 0 4px 20px rgba(22, 163, 74, 0.12); }
   .book-card:hover { transform:translateY(-6px); box-shadow:var(--shadow-xl); }
   .book-card[data-featured="true"]:hover { box-shadow: 0 8px 28px rgba(22, 163, 74, 0.22); }
-  .book-card__cover { position:relative; display:flex; flex-direction:column; justify-content:flex-end; min-height:230px; overflow:hidden; padding:1.35rem; color:white; background:linear-gradient(150deg,color-mix(in srgb,var(--accent),#0f172a 15%),#0f172a); isolation:isolate; }
+  .book-card__cover { position:relative; display:flex; flex-direction:column; justify-content:flex-end; height:210px; overflow:hidden; padding:1.15rem; color:white; background:linear-gradient(150deg,color-mix(in srgb,var(--accent),#0f172a 15%),#0f172a); isolation:isolate; }
+  @media (max-width: 1024px) {
+    .book-card__cover { height: 195px; }
+  }
+  @media (max-width: 640px) {
+    .book-card__cover { height: 175px; padding: 1rem; }
+  }
   .book-card__cover:before { content:''; position:absolute; width:180px; aspect-ratio:1; top:-52px; right:-48px; z-index:-1; border:1px solid rgba(255,255,255,.2); border-radius:50%; box-shadow:0 0 0 24px rgba(255,255,255,.04),0 0 0 48px rgba(255,255,255,.03); transition:transform var(--transition-slow); }
   .book-card:hover .book-card__cover:before { transform:scale(1.15); }
   .book-card__cover > svg { position:absolute; right:1.15rem; bottom:1.1rem; opacity:.22; }
@@ -80,23 +88,29 @@ const downloadUrl = book.downloadUrl ?? (book.source === 'database' ? `/api/libr
   .book-card__featured-badge { display:inline-flex; align-items:center; gap:.25rem; padding:.25rem .55rem; border-radius:999px; background:linear-gradient(135deg,#f59e0b,#d97706); color:#fff; font-size:.68rem; font-weight:800; text-transform:uppercase; letter-spacing:.04em; box-shadow:0 4px 12px rgba(217,119,6,.35); }
   .book-card__cover strong { max-width:80%; font-family:var(--font-display); font-size:1.2rem; line-height:1.16; }
   .book-card__cover small { margin-top:.55rem; opacity:.72; font-size:.68rem; }
-  .book-card__body { display:flex; flex:1; flex-direction:column; padding:1.25rem; }
+  .book-card__body { display:flex; flex-direction:column; gap:10px; padding:1.1rem; }
   .book-card__meta { display:flex; justify-content:space-between; gap:.5rem; color:var(--color-primary); font-size:.73rem; font-weight:700; }
   .book-card__meta b { padding:.15rem .45rem; border-radius:999px; background:rgba(22,163,74,.1); }
-  .book-card h2 { margin:.65rem 0 .2rem; font-size:1.08rem; line-height:1.3; }
-  .book-card__author { color:var(--color-text-secondary); font-size:.82rem; }
-  .book-card__description { margin:.85rem 0; color:var(--color-text-secondary); font-size:.84rem; line-height:1.55; }
-  .book-card__progress { margin:.6rem 0 .4rem; display:flex; flex-direction:column; gap:.3rem; }
+  .book-card h2 { margin:0; font-size:1.05rem; line-height:1.3; }
+  .book-card h2 a { color:var(--color-text); text-decoration:none; transition:color var(--transition-fast); }
+  .book-card h2 a:hover { color:var(--color-primary); }
+  .book-card__author { margin:0; color:var(--color-text-secondary); font-size:.8rem; }
+  .book-card__description { display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical; overflow:hidden; line-height:1.45; margin:0; color:var(--color-text-secondary); font-size:.83rem; }
+  .book-card__description:empty { display:none; }
+  @media (max-width: 640px) {
+    .book-card__description { display:none; }
+  }
+  .book-card__progress { margin:.2rem 0; display:flex; flex-direction:column; gap:.3rem; }
   .book-card__progress-info { display:flex; justify-content:space-between; font-size:.73rem; font-weight:600; color:var(--color-text-secondary); }
   .book-card__progress-bar { width:100%; height:5px; border-radius:999px; background:#e2e8f0; overflow:hidden; }
   .book-card__progress-fill { height:100%; border-radius:999px; background:var(--color-primary); transition:width 0.3s ease; }
-  .book-card__details { display:flex; flex-wrap:wrap; gap:.55rem .8rem; margin-top:auto; color:var(--color-text-secondary); font-size:.74rem; }
+  .book-card__details { display:flex; flex-wrap:wrap; gap:.55rem .8rem; margin-top:0; color:var(--color-text-secondary); font-size:.74rem; }
   .book-card__details span { display:inline-flex; align-items:center; gap:.25rem; }
-  .book-card__actions { display:flex; gap:.5rem; margin-top:1.1rem; }
-  .book-card__read,.book-card__download,.book-card__favorite,.book-card__unavailable { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:36px; border-radius:10px; font:inherit; font-size:.8rem; font-weight:700; text-decoration:none; }
+  .book-card__actions { display:flex; gap:.5rem; margin-top:2px; }
+  .book-card__read,.book-card__download,.book-card__favorite,.book-card__unavailable { display:inline-flex; align-items:center; justify-content:center; gap:.35rem; min-height:38px; border-radius:10px; font:inherit; font-size:.8rem; font-weight:700; text-decoration:none; }
   .book-card__read { flex:1; color:white; background:var(--color-primary); }
   .book-card__unavailable{flex:1;padding:.4rem;color:#64748b;background:#f1f5f9}
-  .book-card__download,.book-card__favorite { width:36px; color:var(--color-primary); border:1px solid var(--color-border); background:transparent; cursor:pointer; transition:color var(--transition-fast),background var(--transition-fast),border-color var(--transition-fast); }
+  .book-card__download,.book-card__favorite { width:38px; color:var(--color-primary); border:1px solid var(--color-border); background:transparent; cursor:pointer; transition:color var(--transition-fast),background var(--transition-fast),border-color var(--transition-fast); }
   .book-card__favorite.is-favorite { color: #dc2626; border-color: rgba(220, 38, 38, 0.4); background: rgba(220, 38, 38, 0.08); }
   .book-card__favorite.is-favorite svg { fill: currentColor; }
 </style>
